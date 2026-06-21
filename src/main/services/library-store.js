@@ -71,9 +71,7 @@ export const libraryStore = {
   getBooksDir,
 
   listBooks() {
-    const rows = getDb()
-      .prepare("SELECT * FROM books ORDER BY added_at DESC")
-      .all();
+    const rows = getDb().prepare("SELECT * FROM books ORDER BY added_at DESC").all();
     return rows.map(rowToBook);
   },
 
@@ -88,7 +86,7 @@ export const libraryStore = {
         `INSERT INTO books
            (id, title, author, language, file_path, cover_path, file_size, added_at)
          VALUES
-           (@id, @title, @author, @language, @filePath, @coverPath, @fileSize, @addedAt)`
+           (@id, @title, @author, @language, @filePath, @coverPath, @fileSize, @addedAt)`,
       )
       .run({
         id: book.id,

@@ -16,11 +16,7 @@ import { getPageProgressionDirection } from "./opf";
  */
 export async function parseBook(blob) {
   const { contents, contentsDirectory, result } = await extractEpub(blob);
-  const { element, characters, sections } = generateHtml(
-    result,
-    contents,
-    contentsDirectory
-  );
+  const { element, characters, sections } = generateHtml(result, contents, contentsDirectory);
   const styleSheet = generateStyleSheet(result, contents);
 
   const blobs = {};
@@ -29,8 +25,7 @@ export async function parseBook(blob) {
   }
 
   const elementHtml = element.innerHTML;
-  const vertical =
-    getPageProgressionDirection(contents) === "rtl" || /\bvrtl\b/.test(elementHtml);
+  const vertical = getPageProgressionDirection(contents) === "rtl" || /\bvrtl\b/.test(elementHtml);
 
   return { elementHtml, styleSheet, blobs, sections, characters, vertical };
 }

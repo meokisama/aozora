@@ -14,7 +14,7 @@ import { persist } from "zustand/middleware";
 /** Font stacks favouring common system Japanese faces, with generic fallback. */
 export const FONT_STACKS = {
   serif:
-    "'Hiragino Mincho ProN', 'Yu Mincho', YuMincho, 'Noto Serif JP', 'Noto Serif CJK JP', 'MS Mincho', serif",
+    "'Shippori Mincho', 'Hiragino Mincho ProN', 'Yu Mincho', YuMincho, 'Noto Serif JP', 'Noto Serif CJK JP', 'MS Mincho', serif",
   sans:
     "'Hiragino Kaku Gothic ProN', 'Yu Gothic', YuGothic, 'Noto Sans JP', 'Noto Sans CJK JP', 'Meiryo', sans-serif",
 };
@@ -54,14 +54,6 @@ export const useSettingsStore = create(
     }),
     {
       name: "aozora-reader-settings",
-      version: 3,
-      // v2: themes reduced to sepia + dark; fold the removed "light" into sepia.
-      // v3: writing mode dropped — direction now always follows the EPUB.
-      migrate: (state) => {
-        if (state && !THEMES[state.theme]) state.theme = "sepia";
-        if (state) delete state.writingMode;
-        return state;
-      },
     }
   )
 );

@@ -1,29 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, List, Loader2, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useReaderStore } from "@/stores/reader-store";
 import { useLibraryStore } from "@/stores/library-store";
-import {
-  useSettingsStore,
-  FONT_STACKS,
-  THEMES,
-} from "@/stores/settings-store";
+import { useSettingsStore, FONT_STACKS, THEMES } from "@/stores/settings-store";
 import { ReaderSettingsPanel } from "./settings-panel";
 import { parseBook } from "@/lib/epub/parse-book";
 import { buildReaderHtml } from "@/lib/epub/format-html";
 import { getCachedBook, putCachedBook } from "@/lib/reader-cache";
-import {
-  collectAnchors,
-  currentCharAtCenter,
-  scrollToChar,
-  scrollToElementId,
-} from "@/lib/reader/position";
+import { collectAnchors, currentCharAtCenter, scrollToChar, scrollToElementId } from "@/lib/reader/position";
 
 const api = () => window.electronAPI.library;
 
@@ -44,7 +30,6 @@ function baseStyles(vertical) {
       ${vertical ? "" : "max-width: 42rem; margin: 0 auto;"}
       font-size: var(--reader-font-size, 1.25rem);
       line-height: var(--reader-line-height, 1.8);
-      font-family: var(--reader-font-family, serif);
       color: var(--reader-color, #1f1d1a);
       background: var(--reader-bg, #faf8f4);
     }
@@ -72,6 +57,15 @@ function baseStyles(vertical) {
       margin: auto;
     }
     .aozora-content a { color: inherit; }
+    /* The reader's font choice must win over fonts the book hardcodes on its
+       own elements — many 電書協-template novels set font-family directly on
+       body/p/spans, which would otherwise override the inherited container
+       font (that's why "Serif" appeared to do nothing on some volumes). Apply
+       it across the subtree; gaiji/illustrations are images and unaffected. */
+    .aozora-content,
+    .aozora-content * {
+      font-family: var(--reader-font-family, serif) !important;
+    }
   `;
 }
 
@@ -81,10 +75,7 @@ function applyReaderVars(host, { fontSize, lineHeight, fontFamily, theme }) {
   const t = THEMES[theme] || THEMES.sepia;
   host.style.setProperty("--reader-font-size", `${fontSize}px`);
   host.style.setProperty("--reader-line-height", String(lineHeight));
-  host.style.setProperty(
-    "--reader-font-family",
-    FONT_STACKS[fontFamily] || FONT_STACKS.serif
-  );
+  host.style.setProperty("--reader-font-family", FONT_STACKS[fontFamily] || FONT_STACKS.serif);
   host.style.setProperty("--reader-color", t.color);
   host.style.setProperty("--reader-bg", t.bg);
 }
@@ -154,7 +145,9 @@ export function ReaderView() {
       lastOpenedAt: Date.now(),
     };
     applyProgress(book.id, fields);
-    api().saveProgress(book.id, fields).catch(() => {});
+    api()
+      .saveProgress(book.id, fields)
+      .catch(() => {});
   }, [book, applyProgress]);
 
   /** Scrolls back to the tracked character (or the book start for char 0). */
@@ -211,10 +204,7 @@ export function ReaderView() {
         }
         if (cancelled) return;
 
-        const { html, objectUrls: urls } = buildReaderHtml(
-          parsed.elementHtml,
-          parsed.blobs
-        );
+        const { html, objectUrls: urls } = buildReaderHtml(parsed.elementHtml, parsed.blobs);
         objectUrls = urls;
 
         const host = hostRef.current;
@@ -239,11 +229,7 @@ export function ReaderView() {
         requestAnimationFrame(() => {
           if (cancelled) return;
           restorePosition(effVertical);
-          charRef.current = currentCharAtCenter(
-            host,
-            anchorsRef.current.anchors,
-            effVertical
-          );
+          charRef.current = currentCharAtCenter(host, anchorsRef.current.anchors, effVertical);
           setCurrentChar(charRef.current);
           readyRef.current = true;
         });
@@ -287,11 +273,7 @@ export function ReaderView() {
       rafRef.current = 0;
       const host = hostRef.current;
       if (!host || !anchorsRef.current.anchors.length) return;
-      charRef.current = currentCharAtCenter(
-        host,
-        anchorsRef.current.anchors,
-        verticalRef.current
-      );
+      charRef.current = currentCharAtCenter(host, anchorsRef.current.anchors, verticalRef.current);
       setCurrentChar(charRef.current);
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(persist, 800);
@@ -314,11 +296,7 @@ export function ReaderView() {
       return false;
     }
     requestAnimationFrame(() => {
-      charRef.current = currentCharAtCenter(
-        host,
-        anchorsRef.current.anchors,
-        verticalRef.current
-      );
+      charRef.current = currentCharAtCenter(host, anchorsRef.current.anchors, verticalRef.current);
       setCurrentChar(charRef.current);
       persist();
     });
@@ -348,37 +326,15 @@ export function ReaderView() {
   return (
     <div className="flex h-full flex-col">
       <header className="flex items-center gap-2 border-b px-3 py-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={close}
-          aria-label="Back to library"
-        >
+        <Button variant="ghost" size="icon" onClick={close} aria-label="Back to library">
           <ArrowLeft className="size-4" />
         </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setTocOpen(true)}
-          disabled={!chapters.length}
-          aria-label="Table of contents"
-        >
+        <Button variant="ghost" size="icon" onClick={() => setTocOpen(true)} disabled={!chapters.length} aria-label="Table of contents">
           <List className="size-4" />
         </Button>
-        <p className="min-w-0 flex-1 truncate text-xs font-medium">
-          {book.title}
-        </p>
-        {total > 0 && (
-          <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-            {progressPct}%
-          </span>
-        )}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setSettingsOpen(true)}
-          aria-label="Reader settings"
-        >
+        <p className="min-w-0 flex-1 truncate text-xs font-medium">{book.title}</p>
+        {total > 0 && <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{progressPct}%</span>}
+        <Button variant="ghost" size="icon" onClick={() => setSettingsOpen(true)} aria-label="Reader settings">
           <Settings2 className="size-4" />
         </Button>
       </header>
@@ -387,9 +343,7 @@ export function ReaderView() {
         {status !== "ready" && (
           <div className="absolute inset-0 flex items-center justify-center bg-background">
             {status === "error" ? (
-              <p className="text-sm text-muted-foreground">
-                Could not open this book.
-              </p>
+              <p className="text-sm text-muted-foreground">Could not open this book.</p>
             ) : (
               <Loader2 className="size-5 animate-spin text-muted-foreground" />
             )}
@@ -400,11 +354,7 @@ export function ReaderView() {
           onWheel={handleWheel}
           onScroll={handleScroll}
           onClick={handleContentClick}
-          className={
-            vertical
-              ? "h-full w-full overflow-x-auto overflow-y-hidden"
-              : "h-full w-full overflow-y-auto overflow-x-hidden"
-          }
+          className={vertical ? "h-full w-full overflow-x-auto overflow-y-hidden" : "h-full w-full overflow-y-auto overflow-x-hidden"}
         />
       </div>
 
@@ -420,9 +370,7 @@ export function ReaderView() {
                 type="button"
                 onClick={() => handleJump(ch.reference)}
                 className={`block w-full truncate rounded-none px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent ${
-                  ch.reference === activeChapterId
-                    ? "bg-accent font-medium text-accent-foreground"
-                    : "text-muted-foreground"
+                  ch.reference === activeChapterId ? "bg-accent font-medium text-accent-foreground" : "text-muted-foreground"
                 }`}
                 title={ch.label}
               >

@@ -12,9 +12,7 @@ export function isOpfPrefixed(contents) {
 }
 
 function root(contents) {
-  return isOpfPrefixed(contents)
-    ? contents["opf:package"]
-    : contents.package;
+  return isOpfPrefixed(contents) ? contents["opf:package"] : contents.package;
 }
 
 const key = (contents, base) => (isOpfPrefixed(contents) ? `opf:${base}` : base);

@@ -1,18 +1,9 @@
 import { RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Slider } from "@/components/ui/slider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import {
-  useSettingsStore,
-  FONT_SIZE_RANGE,
-  LINE_HEIGHT_RANGE,
-} from "@/stores/settings-store";
+import { useSettingsStore, FONT_SIZE_RANGE, LINE_HEIGHT_RANGE } from "@/stores/settings-store";
 
 /** A labelled row wrapping one control. */
 function Field({ label, value, children }) {
@@ -20,11 +11,7 @@ function Field({ label, value, children }) {
     <div className="space-y-2">
       <div className="flex items-baseline justify-between">
         <span className="text-xs font-medium">{label}</span>
-        {value != null && (
-          <span className="text-xs tabular-nums text-muted-foreground">
-            {value}
-          </span>
-        )}
+        {value != null && <span className="text-xs tabular-nums text-muted-foreground">{value}</span>}
       </div>
       {children}
     </div>
@@ -68,11 +55,7 @@ export function ReaderSettingsPanel({ open, onOpenChange }) {
 
         <div className="flex-1 space-y-6 overflow-y-auto p-4">
           <Field label="Theme">
-            <ToggleGroup
-              {...segmented}
-              value={theme}
-              onValueChange={guard(setTheme)}
-            >
+            <ToggleGroup {...segmented} value={theme} onValueChange={guard(setTheme)}>
               <ToggleGroupItem value="sepia" className="flex-1">
                 Sepia
               </ToggleGroupItem>
@@ -83,11 +66,7 @@ export function ReaderSettingsPanel({ open, onOpenChange }) {
           </Field>
 
           <Field label="Font">
-            <ToggleGroup
-              {...segmented}
-              value={fontFamily}
-              onValueChange={guard(setFontFamily)}
-            >
+            <ToggleGroup {...segmented} value={fontFamily} onValueChange={guard(setFontFamily)}>
               <ToggleGroupItem value="serif" className="flex-1">
                 Serif
               </ToggleGroupItem>
@@ -113,9 +92,7 @@ export function ReaderSettingsPanel({ open, onOpenChange }) {
               min={LINE_HEIGHT_RANGE.min}
               max={LINE_HEIGHT_RANGE.max}
               step={LINE_HEIGHT_RANGE.step}
-              onValueChange={([v]) =>
-                setLineHeight(Math.round(v * 10) / 10)
-              }
+              onValueChange={([v]) => setLineHeight(Math.round(v * 10) / 10)}
             />
           </Field>
         </div>

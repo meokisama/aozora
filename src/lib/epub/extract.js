@@ -1,10 +1,4 @@
-import {
-  BlobReader,
-  BlobWriter,
-  TextWriter,
-  ZipReader,
-  configure,
-} from "@zip.js/zip.js";
+import { BlobReader, BlobWriter, TextWriter, ZipReader, configure } from "@zip.js/zip.js";
 import path from "path-browserify";
 import { xmlParser, getManifestItems } from "./opf";
 
@@ -28,9 +22,7 @@ export async function extractEpub(blob) {
 
     const containerEntry = fileMap.get("META-INF/container.xml");
     if (!containerEntry) throw new Error("Invalid EPUB: missing container.xml");
-    const container = xmlParser.parse(
-      await containerEntry.getData(new TextWriter())
-    );
+    const container = xmlParser.parse(await containerEntry.getData(new TextWriter()));
     const rootFiles = container.container.rootfiles.rootfile;
     const rootFile = Array.isArray(rootFiles) ? rootFiles[0] : rootFiles;
     const opfPath = rootFile["@_full-path"];
@@ -46,15 +38,12 @@ export async function extractEpub(blob) {
     await Promise.all(
       getManifestItems(contents).map(async (item) => {
         const href = item["@_href"];
-        const entry =
-          fileMap.get(path.join(contentsDirectory, href)) || fileMap.get(href);
+        const entry = fileMap.get(path.join(contentsDirectory, href)) || fileMap.get(href);
         if (!entry || entry.directory || !entry.getData) return;
 
         const mediaType = item["@_media-type"] || "";
-        result[href] = mediaType.startsWith("image/")
-          ? await entry.getData(new BlobWriter(mediaType))
-          : await entry.getData(new TextWriter());
-      })
+        result[href] = mediaType.startsWith("image/") ? await entry.getData(new BlobWriter(mediaType)) : await entry.getData(new TextWriter());
+      }),
     );
 
     return { contents, contentsDirectory, result };

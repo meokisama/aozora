@@ -1,8 +1,40 @@
-import { ipcMain, dialog, BrowserWindow } from "electron";
+import { ipcMain, dialog, BrowserWindow, nativeImage } from "electron";
 import path from "node:path";
 import fs from "node:fs";
 import { randomUUID } from "node:crypto";
 import { libraryStore } from "./services/library-store.js";
+
+// EPUB covers are full-page scans but the library grid only ever shows small
+// thumbnails (cards render ~140–230 CSS px). The aliasing ("vỡ") came not from
+// the covers being huge in absolute terms but from the *ratio*: handing the
+// <img> a 600px bitmap to paint at ~150px is a ~4x single-pass downscale, which
+// Chromium does badly. So resample once with Skia ("best") down to near the
+// rendered size, leaving the browser an almost 1:1 image. Quality is high since
+// a 300px JPEG is tiny anyway.
+const COVER_MAX_WIDTH = 300;
+const COVER_JPEG_QUALITY = 90;
+
+/**
+ * Downscales a cover image buffer to COVER_MAX_WIDTH, preserving aspect ratio.
+ * Returns a JPEG Buffer, or null when the image is already small enough or can't
+ * be decoded (SVG, corrupt data) — the caller then keeps the original bytes.
+ */
+function downscaleCover(buf) {
+  try {
+    const img = nativeImage.createFromBuffer(buf);
+    if (img.isEmpty()) return null;
+    const { width, height } = img.getSize();
+    if (!width || !height || width <= COVER_MAX_WIDTH) return null;
+    const resized = img.resize({
+      width: COVER_MAX_WIDTH,
+      height: Math.round((height / width) * COVER_MAX_WIDTH),
+      quality: "best",
+    });
+    return resized.toJPEG(COVER_JPEG_QUALITY);
+  } catch {
+    return null;
+  }
+}
 
 const MIME_TO_EXT = {
   "image/jpeg": "jpg",
@@ -24,8 +56,8 @@ const EXT_TO_MIME = {
 
 /**
  * Reads a cover file and returns it as a data URL so the renderer can show it
- * without a custom protocol or file:// access. Covers are small; a richer
- * thumbnail strategy can replace this later.
+ * without a custom protocol or file:// access. Covers are stored pre-downscaled
+ * (see downscaleCover), so the data URL stays small.
  */
 function readCoverDataUrl(coverPath) {
   if (!coverPath) return null;
@@ -80,9 +112,11 @@ export const registerLibraryIpc = () => {
 
     let coverPath = null;
     if (coverBytes) {
-      const ext = MIME_TO_EXT[coverMime] || "jpg";
+      const original = Buffer.from(coverBytes);
+      const thumb = downscaleCover(original);
+      const ext = thumb ? "jpg" : MIME_TO_EXT[coverMime] || "jpg";
       coverPath = path.join(dir, `cover.${ext}`);
-      fs.writeFileSync(coverPath, Buffer.from(coverBytes));
+      fs.writeFileSync(coverPath, thumb || original);
     }
 
     const book = libraryStore.insertBook({
@@ -117,7 +151,5 @@ export const registerLibraryIpc = () => {
     return fs.readFileSync(book.filePath);
   });
 
-  ipcMain.handle("library:save-progress", (_event, id, progress) =>
-    withCover(libraryStore.updateProgress(id, progress))
-  );
+  ipcMain.handle("library:save-progress", (_event, id, progress) => withCover(libraryStore.updateProgress(id, progress)));
 };

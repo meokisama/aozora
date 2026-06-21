@@ -28,9 +28,7 @@ export function buildReaderHtml(elementHtml, blobs) {
   let html = elementHtml;
 
   for (const [key, blob] of Object.entries(blobs)) {
-    const typed = blob.type
-      ? blob
-      : new Blob([blob], { type: mimeFromKey(key) });
+    const typed = blob.type ? blob : new Blob([blob], { type: mimeFromKey(key) });
     const url = URL.createObjectURL(typed);
     objectUrls.push(url);
     html = html.replaceAll(buildDummyImage(key), url).replaceAll(`aoz:${key}`, url);

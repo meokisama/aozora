@@ -25,42 +25,26 @@ export function BookCard({ book, onOpen, onRemove }) {
         type="button"
         onClick={() => onOpen?.(book)}
         title={book.title}
-        className="relative block aspect-[2/3] w-full overflow-hidden rounded-none border bg-muted text-left transition-colors hover:border-foreground/30"
+        className="relative block aspect-2/3 w-full overflow-hidden rounded-none border bg-muted text-left transition-colors hover:border-foreground/30"
       >
         {book.coverDataUrl ? (
-          <img
-            src={book.coverDataUrl}
-            alt={book.title}
-            className="h-full w-full object-cover"
-            draggable={false}
-          />
+          <img src={book.coverDataUrl} alt={book.title} className="h-full w-full object-cover" draggable={false} />
         ) : (
           <div className="flex h-full w-full items-center justify-center p-3">
-            <span className="line-clamp-5 text-center text-xs text-muted-foreground">
-              {book.title}
-            </span>
+            <span className="line-clamp-5 text-center text-xs text-muted-foreground">{book.title}</span>
           </div>
         )}
 
         {progressPct > 0 && (
           <div className="absolute inset-x-0 bottom-0 h-1 bg-black/25">
-            <div
-              className="h-full bg-primary"
-              style={{ width: `${progressPct}%` }}
-            />
+            <div className="h-full bg-primary" style={{ width: `${progressPct}%` }} />
           </div>
         )}
       </button>
 
       <div className="mt-2 space-y-0.5">
-        <p className="line-clamp-2 text-xs font-medium leading-snug">
-          {book.title}
-        </p>
-        {book.author && (
-          <p className="truncate text-xs text-muted-foreground">
-            {book.author}
-          </p>
-        )}
+        <p className="line-clamp-2 text-xs font-medium leading-snug">{book.title}</p>
+        {book.author && <p className="truncate text-xs text-muted-foreground">{book.author}</p>}
       </div>
 
       <AlertDialog>
@@ -78,15 +62,12 @@ export function BookCard({ book, onOpen, onRemove }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Remove book?</AlertDialogTitle>
             <AlertDialogDescription>
-              “{book.title}” will be removed from your library and its files
-              deleted. This cannot be undone.
+              “{book.title}” will be removed from your library and its files deleted. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => onRemove?.(book)}>
-              Remove
-            </AlertDialogAction>
+            <AlertDialogAction onClick={() => onRemove?.(book)}>Remove</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

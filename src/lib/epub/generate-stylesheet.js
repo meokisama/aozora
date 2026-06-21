@@ -12,5 +12,13 @@ export function generateStyleSheet(data, contents) {
     .map((item) => item["@_href"]);
 
   const unique = [...new Set(cssHrefs)];
-  return unique.reduce((acc, href) => acc + (data[href] || ""), "");
+  const combined = unique.reduce((acc, href) => acc + (data[href] || ""), "");
+
+  // Once several sheets are concatenated and injected into the shadow root, any
+  // @charset / @import that isn't at the very top is dropped by the engine with
+  // a console warning ("@import rule was ignored because it wasn't defined at
+  // the top of the stylesheet"). The imported targets are packaged fonts/sibling
+  // CSS referenced by bare relative URLs that don't resolve here anyway, so strip
+  // both rather than leave broken rules behind.
+  return combined.replace(/@charset\s+["'][^"']*["']\s*;/gi, "").replace(/@import\s+(?:url\([^)]*\)|["'][^"']*["'])[^;]*;/gi, "");
 }

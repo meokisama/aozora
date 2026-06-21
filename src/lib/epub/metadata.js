@@ -1,19 +1,6 @@
-import {
-  BlobReader,
-  BlobWriter,
-  TextWriter,
-  ZipReader,
-  configure,
-} from "@zip.js/zip.js";
+import { BlobReader, BlobWriter, TextWriter, ZipReader, configure } from "@zip.js/zip.js";
 import path from "path-browserify";
-import {
-  xmlParser,
-  getManifestItems,
-  getMetadata,
-  getMetaKey,
-  asArray,
-  firstText,
-} from "./opf";
+import { xmlParser, getManifestItems, getMetadata, getMetaKey, asArray, firstText } from "./opf";
 
 // Disable web workers: simpler/more robust under the Electron renderer + Vite
 // bundler. Metadata reads only touch a few small entries, so it's plenty fast.
@@ -21,15 +8,11 @@ configure({ useWebWorkers: false });
 
 function resolveCoverHref(manifestItems, metadata, metaKey) {
   // EPUB3: a manifest item flagged properties="cover-image".
-  const byProperty = manifestItems.find(
-    (item) => item["@_properties"] === "cover-image"
-  );
+  const byProperty = manifestItems.find((item) => item["@_properties"] === "cover-image");
   if (byProperty) return byProperty["@_href"];
 
   // EPUB2: <meta name="cover" content="<itemId>"> → manifest item href.
-  const coverMeta = asArray(metadata?.[metaKey]).find(
-    (m) => m && m["@_name"] === "cover"
-  );
+  const coverMeta = asArray(metadata?.[metaKey]).find((m) => m && m["@_name"] === "cover");
   const coverId = coverMeta?.["@_content"];
   if (!coverId) return null;
 

@@ -1,11 +1,7 @@
 import path from "path-browserify";
 import { getManifestItems, getSpineItemRefs } from "./opf";
 import { buildDummyImage } from "./dummy-image";
-import {
-  clearAllBadImageRef,
-  countCharacters,
-  fixXHtmlHref,
-} from "./dom-utils";
+import { clearAllBadImageRef, countCharacters, fixXHtmlHref } from "./dom-utils";
 
 export const PREPEND = "aoz-";
 
@@ -15,8 +11,27 @@ const htmlHexEntitiesRegex = /&#x([0-9A-Fa-f]+);/gim;
 const htmlDecEntitiesRegex = /&#(\d+);/gim;
 const selfClosingTagsRegex = /><\/(meta|link)>/gim;
 const selfClosingContentTags = [
-  "a", "body", "code", "div", "h1", "h2", "h3", "h4", "h5", "h6", "header",
-  "ol", "ops:default", "p", "rb", "rt", "ruby", "script", "span", "td", "th",
+  "a",
+  "body",
+  "code",
+  "div",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "header",
+  "ol",
+  "ops:default",
+  "p",
+  "rb",
+  "rt",
+  "ruby",
+  "script",
+  "span",
+  "td",
+  "th",
   "title",
 ];
 
@@ -91,17 +106,12 @@ export function generateHtml(data, contents, contentsDirectory) {
   }
 
   if (mainChapters.length) {
-    firstChapterMatchIndex = itemRefs.findIndex((ref) =>
-      mainChapters[0].reference.includes(
-        itemIdToHtmlRef[ref["@_idref"].split("/").pop() || ""]
-      )
-    );
+    firstChapterMatchIndex = itemRefs.findIndex((ref) => mainChapters[0].reference.includes(itemIdToHtmlRef[ref["@_idref"].split("/").pop() || ""]));
     if (firstChapterMatchIndex !== 0) {
       const firstRef = itemRefs[0]["@_idref"];
       const firstHTMLRef = itemIdToHtmlRef[firstRef];
       const fallbackRef = fallbackData.get(firstRef);
-      const reference =
-        firstHTMLRef || (fallbackRef ? itemIdToHtmlRef[fallbackRef] : firstHTMLRef);
+      const reference = firstHTMLRef || (fallbackRef ? itemIdToHtmlRef[fallbackRef] : firstHTMLRef);
       mainChapters.unshift({
         reference,
         charactersWeight: 1,
@@ -112,9 +122,7 @@ export function generateHtml(data, contents, contentsDirectory) {
   }
 
   let currentMainChapter = mainChapters[0];
-  let currentMainChapterId = currentMainChapter
-    ? `${PREPEND}${itemRefs[0]["@_idref"]}`
-    : "";
+  let currentMainChapterId = currentMainChapter ? `${PREPEND}${itemRefs[0]["@_idref"]}` : "";
   let currentMainChapterIndex = 0;
   let previousCharacterCount = 0;
   let currentCharCount = 0;
@@ -136,14 +144,10 @@ export function generateHtml(data, contents, contentsDirectory) {
     let contentToParse = data[htmlHref] || "";
 
     for (const tagMatch of selfClosingContentTagsToFix) {
-      const matches =
-        contentToParse.match(new RegExp(`<${tagMatch}[^>]+?>`, "gim")) || [];
+      const matches = contentToParse.match(new RegExp(`<${tagMatch}[^>]+?>`, "gim")) || [];
       for (const match of matches) {
         if (match.endsWith("/>")) {
-          contentToParse = contentToParse.replace(
-            match,
-            `${match.slice(0, -2)}></${tagMatch}>`
-          );
+          contentToParse = contentToParse.replace(match, `${match.slice(0, -2)}></${tagMatch}>`);
         }
       }
     }
@@ -151,12 +155,8 @@ export function generateHtml(data, contents, contentsDirectory) {
     contentToParse = contentToParse
       .replace(controlCharactersRegex, "")
       .replace(selfClosingTagsRegex, ">")
-      .replace(htmlHexEntitiesRegex, (_, hex) =>
-        String.fromCharCode(parseInt(hex, 16))
-      )
-      .replace(htmlDecEntitiesRegex, (_, dec) =>
-        String.fromCharCode(parseInt(dec, 10))
-      )
+      .replace(htmlHexEntitiesRegex, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+      .replace(htmlDecEntitiesRegex, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
       .replace("<!DOCTYPE html []>", "<!DOCTYPE html>")
       .trim();
 
@@ -175,10 +175,7 @@ export function generateHtml(data, contents, contentsDirectory) {
     const bodyClass = body.className || "";
 
     for (const elm of [...body.querySelectorAll("image,img")]) {
-      const attributes =
-        elm.tagName.toLowerCase() === "image"
-          ? elm.getAttributeNames().filter((attr) => attr.endsWith("href"))
-          : ["src"];
+      const attributes = elm.tagName.toLowerCase() === "image" ? elm.getAttributeNames().filter((attr) => attr.endsWith("href")) : ["src"];
       for (const attr of attributes) {
         const value = elm.getAttribute(attr);
         if (value) {
@@ -189,10 +186,7 @@ export function generateHtml(data, contents, contentsDirectory) {
 
     let innerHtml = body.innerHTML || "";
     blobLocations.forEach((blobLocation) => {
-      innerHtml = innerHtml.replaceAll(
-        relative(contentsDirectory, blobLocation),
-        buildDummyImage(blobLocation)
-      );
+      innerHtml = innerHtml.replaceAll(relative(contentsDirectory, blobLocation), buildDummyImage(blobLocation));
     });
 
     const childBodyDiv = document.createElement("div");
@@ -222,11 +216,8 @@ export function generateHtml(data, contents, contentsDirectory) {
       childBodyDiv.classList.add("aoz-no-text");
     }
 
-    const mainChapterIndex = mainChapters.findIndex((chapter) =>
-      chapter.reference.includes(htmlHref.split("/").pop() || "")
-    );
-    const mainChapter =
-      mainChapterIndex > -1 ? mainChapters[mainChapterIndex] : undefined;
+    const mainChapterIndex = mainChapters.findIndex((chapter) => chapter.reference.includes(htmlHref.split("/").pop() || ""));
+    const mainChapter = mainChapterIndex > -1 ? mainChapters[mainChapterIndex] : undefined;
     const characters = currentCharCount - previousCharacterCount;
 
     if (mainChapter) {
@@ -238,10 +229,7 @@ export function generateHtml(data, contents, contentsDirectory) {
         reference: currentMainChapterId,
         charactersWeight: characters || 1,
         label: currentMainChapter.label,
-        startCharacter: currentMainChapterIndex
-          ? sectionData[oldMainChapterIndex].startCharacter +
-            sectionData[oldMainChapterIndex].characters
-          : 0,
+        startCharacter: currentMainChapterIndex ? sectionData[oldMainChapterIndex].startCharacter + sectionData[oldMainChapterIndex].characters : 0,
         characters,
       });
     } else if (currentMainChapter) {
@@ -291,10 +279,7 @@ function flattenAnchorHref(el, hrefToWrapperId) {
     const file = oldHref.trim();
     if (!file) return;
     const base = file.split("/").pop() || file;
-    const wrapperId =
-      hrefToWrapperId.get(file) ||
-      hrefToWrapperId.get(base) ||
-      hrefToWrapperId.get(decodeURIComponent(base));
+    const wrapperId = hrefToWrapperId.get(file) || hrefToWrapperId.get(base) || hrefToWrapperId.get(decodeURIComponent(base));
     tag.setAttribute("href", `#${wrapperId || base}`);
   });
 }
@@ -313,23 +298,14 @@ function relative(fromPath, toPath) {
   if (fromParts.length >= toParts.length) {
     for (let i = 0; i < fromParts.length; i += 1) {
       if (fromParts[i] !== toParts[i]) {
-        return path.join(
-          "../".repeat(fromParts.length - i) + toParts.slice(i).join("/"),
-          toFilename
-        );
+        return path.join("../".repeat(fromParts.length - i) + toParts.slice(i).join("/"), toFilename);
       }
     }
   }
   for (let i = 0; i < fromParts.length; i += 1) {
     if (fromParts[i] !== toParts[i]) {
-      return path.join(
-        "../".repeat(fromParts.length - i) + toParts.slice(i).join("/"),
-        toFilename
-      );
+      return path.join("../".repeat(fromParts.length - i) + toParts.slice(i).join("/"), toFilename);
     }
   }
-  return path.join(
-    toParts.slice(fromParts.length - toParts.length).join("/"),
-    toFilename
-  );
+  return path.join(toParts.slice(fromParts.length - toParts.length).join("/"), toFilename);
 }

@@ -30,6 +30,5 @@ export const libraryApi = {
   readBook: (id) => ipcRenderer.invoke("library:read-book", id),
 
   /** Persists reading progress fields for a book. */
-  saveProgress: (id, progress) =>
-    ipcRenderer.invoke("library:save-progress", id, progress),
+  saveProgress: (id, progress) => ipcRenderer.invoke("library:save-progress", id, progress),
 };

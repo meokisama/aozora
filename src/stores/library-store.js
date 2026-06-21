@@ -7,6 +7,8 @@ const api = () => window.electronAPI.library;
 /**
  * Mirrors the main-process library (source of truth). Parsing of EPUB metadata
  * happens here in the renderer; the resulting record is persisted via IPC.
+ * Cover thumbnailing (and the one-off shrink of older oversized covers) is done
+ * in the main process; see src/main/library.js.
  */
 export const useLibraryStore = create((set, get) => ({
   books: [],

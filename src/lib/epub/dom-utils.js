@@ -13,8 +13,7 @@ export function isNodeGaiji(node) {
 
 // A gaiji image counts as one character; everything else counts only the
 // Japanese codepoints (kana, kanji, fullwidth alnum, iteration marks).
-const isNotJapaneseRegex =
-  /[^0-9A-Z○◯々-〇〻ぁ-ゖゝ-ゞァ-ヺー０-９Ａ-Ｚｦ-ﾝ\p{Radical}\p{Unified_Ideograph}]+/gimu;
+const isNotJapaneseRegex = /[^0-9A-Z○◯々-〇〻ぁ-ゖゝ-ゞァ-ヺー０-９Ａ-Ｚｦ-ﾝ\p{Radical}\p{Unified_Ideograph}]+/gimu;
 
 export function getCharacterCount(node) {
   if (isNodeGaiji(node)) return 1;
@@ -26,11 +25,7 @@ export function getCharacterCount(node) {
 export function getParagraphNodes(node) {
   const keep = (n) => {
     if (n.nodeName === "RT") return false;
-    if (
-      n instanceof HTMLElement &&
-      (n.attributes.getNamedItem("aria-hidden") ||
-        n.attributes.getNamedItem("hidden"))
-    ) {
+    if (n instanceof HTMLElement && (n.attributes.getNamedItem("aria-hidden") || n.attributes.getNamedItem("hidden"))) {
       return false;
     }
     return true;
@@ -47,16 +42,11 @@ export function getParagraphNodes(node) {
       .filter(keep);
   };
 
-  return collect(node).filter(
-    (n) => isNodeGaiji(n) || n.textContent?.replace(/\s/g, "").length
-  );
+  return collect(node).filter((n) => isNodeGaiji(n) || n.textContent?.replace(/\s/g, "").length);
 }
 
 export function countCharacters(containerEl) {
-  return getParagraphNodes(containerEl).reduce(
-    (sum, node) => sum + getCharacterCount(node),
-    0
-  );
+  return getParagraphNodes(containerEl).reduce((sum, node) => sum + getCharacterCount(node), 0);
 }
 
 /**
@@ -66,10 +56,7 @@ export function countCharacters(containerEl) {
 export function clearAllBadImageRef(el) {
   const clear = (tag, attr) => {
     const value = tag.getAttribute(attr);
-    if (
-      value &&
-      !(value.startsWith("aoz:") || value.startsWith("data:image/gif;aoz:"))
-    ) {
+    if (value && !(value.startsWith("aoz:") || value.startsWith("data:image/gif;aoz:"))) {
       tag.setAttribute(`data-aoz-${attr}`, value);
       tag.removeAttribute(attr);
     }

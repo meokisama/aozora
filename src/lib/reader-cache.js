@@ -9,11 +9,6 @@ const DB_NAME = "aozora-reader";
 const STORE = "books";
 const DB_VERSION = 1;
 
-// Bump when the parser output shape changes so stale entries are ignored.
-// v2: internal class/marker prefix changed to aoz-.
-// v3: internal <a> hrefs flattened to resolvable in-document fragments.
-const CACHE_VERSION = 3;
-
 function openDb() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
@@ -40,21 +35,18 @@ function runTx(mode, run) {
           db.close();
           reject(tx.error);
         };
-      })
+      }),
   );
 }
 
-/** Returns the cached parsed book, or null on miss / stale cache version. */
+/** Returns the cached parsed book, or null on miss. */
 export async function getCachedBook(id) {
   const value = await runTx("readonly", (store) => store.get(id));
-  if (value && value.cacheVersion === CACHE_VERSION) return value;
-  return null;
+  return value ?? null;
 }
 
 export async function putCachedBook(id, data) {
-  await runTx("readwrite", (store) =>
-    store.put({ ...data, cacheVersion: CACHE_VERSION }, id)
-  );
+  await runTx("readwrite", (store) => store.put(data, id));
 }
 
 export async function deleteCachedBook(id) {

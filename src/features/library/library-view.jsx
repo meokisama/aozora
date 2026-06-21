@@ -52,11 +52,7 @@ export function LibraryView() {
 
   const importButton = (
     <Button onClick={handleImport} disabled={importing}>
-      {importing ? (
-        <Loader2 className="size-4 animate-spin" />
-      ) : (
-        <BookPlus className="size-4" />
-      )}
+      {importing ? <Loader2 className="size-4 animate-spin" /> : <BookPlus className="size-4" />}
       {importing ? "Importing…" : "Import EPUB"}
     </Button>
   );
@@ -82,9 +78,7 @@ export function LibraryView() {
           <Library className="size-10 text-muted-foreground" strokeWidth={1.5} />
           <div className="space-y-1">
             <p className="text-sm font-medium">Your library is empty</p>
-            <p className="text-xs text-muted-foreground">
-              Import EPUB files to start building your collection.
-            </p>
+            <p className="text-xs text-muted-foreground">Import EPUB files to start building your collection.</p>
           </div>
           {importButton}
         </div>
@@ -92,12 +86,7 @@ export function LibraryView() {
         <div className="flex-1 overflow-auto p-6">
           <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-x-5 gap-y-6">
             {books.map((book) => (
-              <BookCard
-                key={book.id}
-                book={book}
-                onOpen={handleOpen}
-                onRemove={handleRemove}
-              />
+              <BookCard key={book.id} book={book} onOpen={handleOpen} onRemove={handleRemove} />
             ))}
           </div>
         </div>
