@@ -71,4 +71,17 @@ export const useLibraryStore = create((set, get) => ({
     await deleteCachedBook(id).catch(() => {});
     set({ books: get().books.filter((b) => b.id !== id) });
   },
+
+  /**
+   * Merges reading-progress fields into the in-memory record so the library
+   * grid (progress bar) reflects the latest position without a full reload.
+   * The reader persists the same fields to the main process via IPC.
+   */
+  applyProgress: (id, fields) => {
+    set({
+      books: get().books.map((b) =>
+        b.id === id ? { ...b, ...fields } : b
+      ),
+    });
+  },
 }));
