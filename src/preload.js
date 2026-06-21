@@ -2,9 +2,11 @@
 // https://www.electronjs.org/docs/latest/tutorial/process-model#preload-scripts
 import { contextBridge } from 'electron';
 import { windowApi } from './preload/window.js';
+import { libraryApi } from './preload/library.js';
 
 // Expose a curated API to the renderer as `window.electronAPI`.
 // Add new feature namespaces here, importing each from `./preload/<module>.js`.
 contextBridge.exposeInMainWorld('electronAPI', {
   window: windowApi,
+  library: libraryApi,
 });

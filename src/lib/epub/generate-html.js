@@ -1,0 +1,300 @@
+import path from "path-browserify";
+import { getManifestItems, getSpineItemRefs } from "./opf";
+import { buildDummyImage } from "./dummy-image";
+import {
+  clearAllBadImageRef,
+  countCharacters,
+  fixXHtmlHref,
+} from "./dom-utils";
+
+export const PREPEND = "aoz-";
+
+// eslint-disable-next-line no-control-regex
+const controlCharactersRegex = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/gim;
+const htmlHexEntitiesRegex = /&#x([0-9A-Fa-f]+);/gim;
+const htmlDecEntitiesRegex = /&#(\d+);/gim;
+const selfClosingTagsRegex = /><\/(meta|link)>/gim;
+const selfClosingContentTags = [
+  "a", "body", "code", "div", "h1", "h2", "h3", "h4", "h5", "h6", "header",
+  "ol", "ops:default", "p", "rb", "rt", "ruby", "script", "span", "td", "th",
+  "title",
+];
+
+/**
+ * Flattens the whole EPUB spine into a single detached <div> tree (one wrapper
+ * per spine item, id `aoz-<idref>`), replaces image references with dummy
+ * data-URIs that carry the original path, and derives the chapter sections +
+ * total character count. Import-fix handling is always applied at its most
+ * thorough ("extended") behavior.
+ *
+ * @returns {{ element: HTMLDivElement, characters: number, sections: object[] }}
+ */
+export function generateHtml(data, contents, contentsDirectory) {
+  const manifestItems = getManifestItems(contents);
+  const fallbackData = new Map();
+  let navKey = "";
+
+  const itemIdToHtmlRef = manifestItems.reduce((acc, item) => {
+    if (item["@_fallback"]) fallbackData.set(item["@_id"], item["@_fallback"]);
+    const mt = item["@_media-type"];
+    if (mt === "application/xhtml+xml" || mt === "text/html") {
+      acc[item["@_id"]] = item["@_href"];
+      if (item["@_properties"] === "nav") navKey = item["@_href"];
+    }
+    return acc;
+  }, {});
+
+  let tocData = { type: 3, content: "" };
+  const blobLocations = Object.entries(data).reduce((acc, [key, value]) => {
+    const isV2Toc = key.endsWith(".ncx") && !tocData.content;
+    if (isV2Toc || navKey === key) {
+      tocData = { type: isV2Toc ? 2 : 3, content: value };
+    }
+    if (value instanceof Blob) acc.push(key);
+    return acc;
+  }, []);
+
+  const parser = new DOMParser();
+  const itemRefs = getSpineItemRefs(contents);
+  const sectionData = [];
+  const result = document.createElement("div");
+
+  let mainChapters = [];
+  let firstChapterMatchIndex = -1;
+  const selfClosingContentTagsToFix = [...selfClosingContentTags, "a"];
+
+  // --- Table of contents → main chapters ---------------------------------
+  if (tocData.type && tocData.content) {
+    let parsedToc = parser.parseFromString(tocData.content, "text/html");
+    if (tocData.type === 3) {
+      let nav = parsedToc.querySelector('nav[epub\\:type="toc"],nav#toc');
+      if (!nav) parsedToc = parser.parseFromString(tocData.content, "text/xml");
+      nav = parsedToc.querySelector('nav[epub\\:type="toc"],nav#toc');
+      if (nav) {
+        mainChapters = [...nav.querySelectorAll("a")].map((a) => ({
+          reference: a.href,
+          charactersWeight: 1,
+          label: a.innerText,
+        }));
+      }
+    } else {
+      mainChapters = [...parsedToc.querySelectorAll("navPoint")].map((elm) => {
+        const navLabel = elm.querySelector("navLabel text");
+        const contentElm = elm.querySelector("content");
+        return {
+          reference: contentElm.getAttribute("src"),
+          charactersWeight: 1,
+          label: navLabel.innerText,
+        };
+      });
+    }
+  }
+
+  if (mainChapters.length) {
+    firstChapterMatchIndex = itemRefs.findIndex((ref) =>
+      mainChapters[0].reference.includes(
+        itemIdToHtmlRef[ref["@_idref"].split("/").pop() || ""]
+      )
+    );
+    if (firstChapterMatchIndex !== 0) {
+      const firstRef = itemRefs[0]["@_idref"];
+      const firstHTMLRef = itemIdToHtmlRef[firstRef];
+      const fallbackRef = fallbackData.get(firstRef);
+      const reference =
+        firstHTMLRef || (fallbackRef ? itemIdToHtmlRef[fallbackRef] : firstHTMLRef);
+      mainChapters.unshift({
+        reference,
+        charactersWeight: 1,
+        label: "Preface",
+        startCharacter: 0,
+      });
+    }
+  }
+
+  let currentMainChapter = mainChapters[0];
+  let currentMainChapterId = currentMainChapter
+    ? `${PREPEND}${itemRefs[0]["@_idref"]}`
+    : "";
+  let currentMainChapterIndex = 0;
+  let previousCharacterCount = 0;
+  let currentCharCount = 0;
+
+  // --- Flatten each spine item -------------------------------------------
+  itemRefs.forEach((item) => {
+    let itemIdRef = item["@_idref"];
+    let htmlHref = itemIdToHtmlRef[itemIdRef];
+    if (!htmlHref && fallbackData.has(itemIdRef)) {
+      itemIdRef = fallbackData.get(itemIdRef);
+      htmlHref = itemIdToHtmlRef[itemIdRef];
+    }
+
+    let contentToParse = data[htmlHref] || "";
+
+    for (const tagMatch of selfClosingContentTagsToFix) {
+      const matches =
+        contentToParse.match(new RegExp(`<${tagMatch}[^>]+?>`, "gim")) || [];
+      for (const match of matches) {
+        if (match.endsWith("/>")) {
+          contentToParse = contentToParse.replace(
+            match,
+            `${match.slice(0, -2)}></${tagMatch}>`
+          );
+        }
+      }
+    }
+
+    contentToParse = contentToParse
+      .replace(controlCharactersRegex, "")
+      .replace(selfClosingTagsRegex, ">")
+      .replace(htmlHexEntitiesRegex, (_, hex) =>
+        String.fromCharCode(parseInt(hex, 16))
+      )
+      .replace(htmlDecEntitiesRegex, (_, dec) =>
+        String.fromCharCode(parseInt(dec, 10))
+      )
+      .replace("<!DOCTYPE html []>", "<!DOCTYPE html>")
+      .trim();
+
+    let parsedContent = parser.parseFromString(contentToParse, "text/html");
+    let body = parsedContent.body;
+    if (!body?.childNodes?.length) {
+      parsedContent = parser.parseFromString(contentToParse, "text/xml");
+      body = parsedContent.querySelector("body");
+      if (!body?.childNodes?.length) {
+        throw new Error("Unable to find valid body content while parsing EPUB");
+      }
+    }
+
+    const htmlClass = parsedContent.querySelector("html")?.className || "";
+    const bodyId = body.id || "";
+    const bodyClass = body.className || "";
+
+    for (const elm of [...body.querySelectorAll("image,img")]) {
+      const attributes =
+        elm.tagName.toLowerCase() === "image"
+          ? elm.getAttributeNames().filter((attr) => attr.endsWith("href"))
+          : ["src"];
+      for (const attr of attributes) {
+        const value = elm.getAttribute(attr);
+        if (value) {
+          elm.setAttribute(attr, path.join(path.dirname(htmlHref), value));
+        }
+      }
+    }
+
+    let innerHtml = body.innerHTML || "";
+    blobLocations.forEach((blobLocation) => {
+      innerHtml = innerHtml.replaceAll(
+        relative(contentsDirectory, blobLocation),
+        buildDummyImage(blobLocation)
+      );
+    });
+
+    const childBodyDiv = document.createElement("div");
+    childBodyDiv.className = `aoz-book-body-wrapper ${bodyClass}`;
+    if (bodyId) childBodyDiv.id = bodyId;
+    childBodyDiv.innerHTML = innerHtml;
+
+    const childHtmlDiv = document.createElement("div");
+    childHtmlDiv.className = `aoz-book-html-wrapper ${htmlClass}`;
+    childHtmlDiv.appendChild(childBodyDiv);
+
+    const childWrapperDiv = document.createElement("div");
+    childWrapperDiv.id = `${PREPEND}${itemIdRef}`;
+    childWrapperDiv.appendChild(childHtmlDiv);
+    result.appendChild(childWrapperDiv);
+
+    const elementCharCount = countCharacters(childWrapperDiv);
+    currentCharCount += elementCharCount;
+    if (!elementCharCount) {
+      childHtmlDiv.classList.add("aoz-no-text");
+      childBodyDiv.classList.add("aoz-no-text");
+    }
+
+    const mainChapterIndex = mainChapters.findIndex((chapter) =>
+      chapter.reference.includes(htmlHref.split("/").pop() || "")
+    );
+    const mainChapter =
+      mainChapterIndex > -1 ? mainChapters[mainChapterIndex] : undefined;
+    const characters = currentCharCount - previousCharacterCount;
+
+    if (mainChapter) {
+      const oldMainChapterIndex = currentMainChapterIndex;
+      currentMainChapter = mainChapter;
+      currentMainChapterIndex = sectionData.length;
+      currentMainChapterId = `${PREPEND}${itemIdRef}`;
+      sectionData.push({
+        reference: currentMainChapterId,
+        charactersWeight: characters || 1,
+        label: currentMainChapter.label,
+        startCharacter: currentMainChapterIndex
+          ? sectionData[oldMainChapterIndex].startCharacter +
+            sectionData[oldMainChapterIndex].characters
+          : 0,
+        characters,
+      });
+    } else if (currentMainChapter) {
+      sectionData[currentMainChapterIndex].characters += characters;
+      sectionData.push({
+        reference: `${PREPEND}${itemIdRef}`,
+        charactersWeight: characters || 1,
+        parentChapter: currentMainChapterId,
+      });
+    }
+
+    previousCharacterCount = currentCharCount;
+  });
+
+  clearAllBadImageRef(result);
+  fixXHtmlHref(result);
+  flattenAnchorHref(result);
+
+  return {
+    element: result,
+    characters: currentCharCount,
+    sections: sectionData.filter((s) => s.reference.startsWith(PREPEND)),
+  };
+}
+
+function flattenAnchorHref(el) {
+  Array.from(el.getElementsByTagName("a")).forEach((tag) => {
+    const oldHref = tag.getAttribute("href");
+    if (!oldHref) return;
+    tag.setAttribute("href", `#${oldHref.replace(/.+#/, "")}`);
+  });
+}
+
+/** Replicates Node's path.relative(from, to) closely enough for blob keys. */
+function relative(fromPath, toPath) {
+  const fromDirName = path.dirname(fromPath);
+  const toDirName = path.dirname(toPath);
+  const toFilename = path.basename(toPath);
+
+  if (fromDirName === toDirName) return toFilename;
+
+  const fromParts = fromDirName === "." ? [] : fromDirName.split("/");
+  const toParts = toDirName === "." ? [] : toDirName.split("/");
+
+  if (fromParts.length >= toParts.length) {
+    for (let i = 0; i < fromParts.length; i += 1) {
+      if (fromParts[i] !== toParts[i]) {
+        return path.join(
+          "../".repeat(fromParts.length - i) + toParts.slice(i).join("/"),
+          toFilename
+        );
+      }
+    }
+  }
+  for (let i = 0; i < fromParts.length; i += 1) {
+    if (fromParts[i] !== toParts[i]) {
+      return path.join(
+        "../".repeat(fromParts.length - i) + toParts.slice(i).join("/"),
+        toFilename
+      );
+    }
+  }
+  return path.join(
+    toParts.slice(fromParts.length - toParts.length).join("/"),
+    toFilename
+  );
+}
