@@ -109,7 +109,6 @@ export function ReaderView() {
   const lineHeight = useSettingsStore((s) => s.lineHeight);
   const fontFamily = useSettingsStore((s) => s.fontFamily);
   const theme = useSettingsStore((s) => s.theme);
-  const writingMode = useSettingsStore((s) => s.writingMode);
 
   const hostRef = useRef(null);
   const anchorsRef = useRef({ anchors: [], total: 0 });
@@ -120,15 +119,13 @@ export function ReaderView() {
   const readyRef = useRef(false);
 
   const [status, setStatus] = useState("loading"); // loading | ready | error
-  const [bookVertical, setBookVertical] = useState(true);
+  // Writing direction comes from the EPUB itself (page-progression-direction /
+  // the book's CSS); there is no manual override.
+  const [vertical, setVertical] = useState(true);
   const [sections, setSections] = useState([]);
   const [currentChar, setCurrentChar] = useState(0);
   const [tocOpen, setTocOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-
-  // Effective writing direction: follow the book unless the user forces one.
-  const vertical =
-    writingMode === "auto" ? bookVertical : writingMode === "vertical";
 
   const total = anchorsRef.current.total;
   const progressPct = total ? Math.round((currentChar / total) * 100) : 0;
@@ -224,10 +221,7 @@ export function ReaderView() {
         if (!host) return;
 
         const settings = useSettingsStore.getState();
-        const effVertical =
-          settings.writingMode === "auto"
-            ? parsed.vertical
-            : settings.writingMode === "vertical";
+        const effVertical = parsed.vertical;
 
         const shadow = host.shadowRoot || host.attachShadow({ mode: "open" });
         shadow.innerHTML = `<style data-aoz-base>${baseStyles(effVertical)}</style><style>${parsed.styleSheet}</style><div class="aozora-content">${html}</div>`;
@@ -236,7 +230,7 @@ export function ReaderView() {
         const contentEl = shadow.querySelector(".aozora-content");
         anchorsRef.current = collectAnchors(contentEl);
         verticalRef.current = effVertical;
-        setBookVertical(parsed.vertical);
+        setVertical(effVertical);
         setSections(parsed.sections || []);
 
         // Restore the saved position (or start at the beginning). Deferred to
@@ -285,19 +279,6 @@ export function ReaderView() {
     return () => cancelAnimationFrame(id);
   }, [fontSize, lineHeight, fontFamily, theme, restorePosition]);
 
-  // Re-inject the writing-mode-dependent styles when the toggle changes, then
-  // restore the position for the new axis.
-  useEffect(() => {
-    const host = hostRef.current;
-    const shadow = host?.shadowRoot;
-    if (!host || !shadow || !readyRef.current) return;
-    const base = shadow.querySelector("style[data-aoz-base]");
-    if (base) base.textContent = baseStyles(vertical);
-    verticalRef.current = vertical;
-    const id = requestAnimationFrame(() => restorePosition(vertical));
-    return () => cancelAnimationFrame(id);
-  }, [vertical, restorePosition]);
-
   // Recompute the character offset at the viewport centre (rAF-throttled) and
   // debounce a save. Fires for wheel-driven, scrollbar, and programmatic scroll.
   const handleScroll = () => {
@@ -325,12 +306,13 @@ export function ReaderView() {
     if (e.deltaY !== 0) host.scrollLeft -= e.deltaY;
   };
 
-  const handleJump = (reference) => {
-    setTocOpen(false);
+  const jumpToReference = (reference) => {
     const host = hostRef.current;
     const shadow = host?.shadowRoot;
-    if (!host || !shadow) return;
-    scrollToElementId(host, shadow, reference, verticalRef.current);
+    if (!host || !shadow) return false;
+    if (!scrollToElementId(host, shadow, reference, verticalRef.current)) {
+      return false;
+    }
     requestAnimationFrame(() => {
       charRef.current = currentCharAtCenter(
         host,
@@ -340,6 +322,25 @@ export function ReaderView() {
       setCurrentChar(charRef.current);
       persist();
     });
+    return true;
+  };
+
+  const handleJump = (reference) => {
+    setTocOpen(false);
+    jumpToReference(reference);
+  };
+
+  // Intercept clicks on internal links (e.g. an in-content TOC page). The click
+  // bubbles out of the shadow root retargeted to the host, so the anchor is
+  // found via the composed path. Targets are in-document fragments written by
+  // the parser (chapter element ids or `aoz-<idref>` wrappers).
+  const handleContentClick = (e) => {
+    const path = e.nativeEvent.composedPath?.() || [];
+    const anchor = path.find((n) => n?.tagName === "A");
+    const href = anchor?.getAttribute("href");
+    if (!href || href[0] !== "#") return;
+    const id = decodeURIComponent(href.slice(1));
+    if (id && jumpToReference(id)) e.preventDefault();
   };
 
   if (!book) return null;
@@ -398,6 +399,7 @@ export function ReaderView() {
           ref={hostRef}
           onWheel={handleWheel}
           onScroll={handleScroll}
+          onClick={handleContentClick}
           className={
             vertical
               ? "h-full w-full overflow-x-auto overflow-y-hidden"

@@ -11,7 +11,8 @@ const DB_VERSION = 1;
 
 // Bump when the parser output shape changes so stale entries are ignored.
 // v2: internal class/marker prefix changed to aoz-.
-const CACHE_VERSION = 2;
+// v3: internal <a> hrefs flattened to resolvable in-document fragments.
+const CACHE_VERSION = 3;
 
 function openDb() {
   return new Promise((resolve, reject) => {

@@ -49,12 +49,10 @@ export function ReaderSettingsPanel({ open, onOpenChange }) {
   const lineHeight = useSettingsStore((s) => s.lineHeight);
   const fontFamily = useSettingsStore((s) => s.fontFamily);
   const theme = useSettingsStore((s) => s.theme);
-  const writingMode = useSettingsStore((s) => s.writingMode);
   const setFontSize = useSettingsStore((s) => s.setFontSize);
   const setLineHeight = useSettingsStore((s) => s.setLineHeight);
   const setFontFamily = useSettingsStore((s) => s.setFontFamily);
   const setTheme = useSettingsStore((s) => s.setTheme);
-  const setWritingMode = useSettingsStore((s) => s.setWritingMode);
   const reset = useSettingsStore((s) => s.reset);
 
   // ToggleGroup (single) allows clicking the active item to clear it; keep a
@@ -75,9 +73,6 @@ export function ReaderSettingsPanel({ open, onOpenChange }) {
               value={theme}
               onValueChange={guard(setTheme)}
             >
-              <ToggleGroupItem value="light" className="flex-1">
-                Light
-              </ToggleGroupItem>
               <ToggleGroupItem value="sepia" className="flex-1">
                 Sepia
               </ToggleGroupItem>
@@ -98,24 +93,6 @@ export function ReaderSettingsPanel({ open, onOpenChange }) {
               </ToggleGroupItem>
               <ToggleGroupItem value="sans" className="flex-1">
                 Sans
-              </ToggleGroupItem>
-            </ToggleGroup>
-          </Field>
-
-          <Field label="Writing Mode">
-            <ToggleGroup
-              {...segmented}
-              value={writingMode}
-              onValueChange={guard(setWritingMode)}
-            >
-              <ToggleGroupItem value="auto" className="flex-1">
-                Auto
-              </ToggleGroupItem>
-              <ToggleGroupItem value="vertical" className="flex-1">
-                Vertical
-              </ToggleGroupItem>
-              <ToggleGroupItem value="horizontal" className="flex-1">
-                Horizontal
               </ToggleGroupItem>
             </ToggleGroup>
           </Field>

@@ -119,6 +119,11 @@ export function generateHtml(data, contents, contentsDirectory) {
   let previousCharacterCount = 0;
   let currentCharCount = 0;
 
+  // Maps a spine item's href (full path and basename) to its wrapper id, so
+  // in-content links that point at a whole file — e.g. an embedded TOC page —
+  // can be resolved to a scroll target.
+  const hrefToWrapperId = new Map();
+
   // --- Flatten each spine item -------------------------------------------
   itemRefs.forEach((item) => {
     let itemIdRef = item["@_idref"];
@@ -204,6 +209,12 @@ export function generateHtml(data, contents, contentsDirectory) {
     childWrapperDiv.appendChild(childHtmlDiv);
     result.appendChild(childWrapperDiv);
 
+    if (htmlHref) {
+      hrefToWrapperId.set(htmlHref, childWrapperDiv.id);
+      const base = htmlHref.split("/").pop();
+      if (base) hrefToWrapperId.set(base, childWrapperDiv.id);
+    }
+
     const elementCharCount = countCharacters(childWrapperDiv);
     currentCharCount += elementCharCount;
     if (!elementCharCount) {
@@ -247,7 +258,7 @@ export function generateHtml(data, contents, contentsDirectory) {
 
   clearAllBadImageRef(result);
   fixXHtmlHref(result);
-  flattenAnchorHref(result);
+  flattenAnchorHref(result, hrefToWrapperId);
 
   return {
     element: result,
@@ -256,11 +267,35 @@ export function generateHtml(data, contents, contentsDirectory) {
   };
 }
 
-function flattenAnchorHref(el) {
+/**
+ * Rewrites every internal <a> href to a single in-document fragment so the
+ * reader can resolve it against the flattened tree. Links with a fragment keep
+ * the fragment (the original element id is preserved in the flattened HTML);
+ * whole-file links resolve to the target spine item's wrapper id. External
+ * (protocol) links are left untouched.
+ */
+function flattenAnchorHref(el, hrefToWrapperId) {
   Array.from(el.getElementsByTagName("a")).forEach((tag) => {
     const oldHref = tag.getAttribute("href");
     if (!oldHref) return;
-    tag.setAttribute("href", `#${oldHref.replace(/.+#/, "")}`);
+    // Leave absolute/protocol links (http:, mailto:, …) alone.
+    if (/^[a-z][a-z0-9+.-]*:/i.test(oldHref)) return;
+
+    const hashIndex = oldHref.indexOf("#");
+    const fragment = hashIndex >= 0 ? oldHref.slice(hashIndex + 1) : "";
+    if (fragment) {
+      tag.setAttribute("href", `#${fragment}`);
+      return;
+    }
+
+    const file = oldHref.trim();
+    if (!file) return;
+    const base = file.split("/").pop() || file;
+    const wrapperId =
+      hrefToWrapperId.get(file) ||
+      hrefToWrapperId.get(base) ||
+      hrefToWrapperId.get(decodeURIComponent(base));
+    tag.setAttribute("href", `#${wrapperId || base}`);
   });
 }
 

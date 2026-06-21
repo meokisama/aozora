@@ -19,11 +19,17 @@ export const FONT_STACKS = {
     "'Hiragino Kaku Gothic ProN', 'Yu Gothic', YuGothic, 'Noto Sans JP', 'Noto Sans CJK JP', 'Meiryo', sans-serif",
 };
 
-/** Reader colour themes (page background + body text). */
+/**
+ * Colour themes (page background + body text). `dark` is the app's dark mode
+ * (toggles the `.dark` class on the document root); `sepia` is the default warm
+ * light mode. The reader reads bg/color from here; the rest of the app follows
+ * the `.dark` class via the Tailwind palette in index.css.
+ */
 export const THEMES = {
-  light: { bg: "#ffffff", color: "#1a1a1a" },
-  sepia: { bg: "#faf8f4", color: "#1f1d1a" },
-  dark: { bg: "#16161a", color: "#cfccc4" },
+  sepia: { bg: "#faf8f4", color: "#1f1d1a", dark: false },
+  // Warm charcoal page with dimmed off-white text — matches the app's dark
+  // surface (index.css `.dark`) and avoids the glare of pure black/white.
+  dark: { bg: "#201f1c", color: "#cac4b8", dark: true },
 };
 
 export const FONT_SIZE_RANGE = { min: 14, max: 40, step: 1 };
@@ -34,7 +40,6 @@ const DEFAULTS = {
   lineHeight: 1.8,
   fontFamily: "serif", // keyof FONT_STACKS
   theme: "sepia", // keyof THEMES
-  writingMode: "auto", // "auto" | "vertical" | "horizontal"
 };
 
 export const useSettingsStore = create(
@@ -45,9 +50,18 @@ export const useSettingsStore = create(
       setLineHeight: (lineHeight) => set({ lineHeight }),
       setFontFamily: (fontFamily) => set({ fontFamily }),
       setTheme: (theme) => set({ theme }),
-      setWritingMode: (writingMode) => set({ writingMode }),
       reset: () => set({ ...DEFAULTS }),
     }),
-    { name: "aozora-reader-settings", version: 1 }
+    {
+      name: "aozora-reader-settings",
+      version: 3,
+      // v2: themes reduced to sepia + dark; fold the removed "light" into sepia.
+      // v3: writing mode dropped — direction now always follows the EPUB.
+      migrate: (state) => {
+        if (state && !THEMES[state.theme]) state.theme = "sepia";
+        if (state) delete state.writingMode;
+        return state;
+      },
+    }
   )
 );

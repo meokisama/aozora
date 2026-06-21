@@ -109,10 +109,11 @@ export function scrollToChar(host, anchors, vertical, targetChar) {
 /**
  * Scrolls a TOC target into view, aligning the chapter's leading edge to the
  * viewport's leading edge (right edge for vertical-rl, top for horizontal-tb).
+ * Returns whether the target element was found.
  */
 export function scrollToElementId(host, root, id, vertical) {
   const el = root.getElementById ? root.getElementById(id) : null;
-  if (!el) return;
+  if (!el) return false;
   const hr = host.getBoundingClientRect();
   const r = el.getBoundingClientRect();
   if (vertical) {
@@ -120,4 +121,5 @@ export function scrollToElementId(host, root, id, vertical) {
   } else {
     host.scrollTop += r.top - hr.top;
   }
+  return true;
 }
