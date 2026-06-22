@@ -90,20 +90,50 @@ function paginatedStyles(vertical) {
 }
 
 /**
- * Illustration sizing, shared by both modes. width/height auto !important
- * overrides the book's width="100%"/height="100%", which otherwise collapse to
- * 0 in vertical writing mode. The image is often buried under auto-height/inline
- * wrappers, so percentage max-* can't resolve — cap against the measured reader
- * size instead (5rem/6rem account for the content padding).
+ * Illustration sizing, shared by both modes. Capped against the measured reader
+ * size (the reader exposes its pixel dimensions as --reader-w/--reader-h;
+ * 5rem/6rem account for the content padding) since the percentage max-* the book
+ * would otherwise use can't resolve through the auto-height/inline wrappers.
+ *
+ * Full-page illustrations are wrapped in an <svg> that carries percentage
+ * width/height + a viewBox. With both CSS dimensions auto such an SVG has no
+ * intrinsic pixel size — only an aspect ratio — so it collapses to 0 width
+ * (the "blank illustration page" bug). Anchoring the height to the reader
+ * viewport and leaving the width auto lets the viewBox ratio derive the width,
+ * and works in both writing modes because it doesn't depend on a
+ * definite-width ancestor. Raster <img> keep the standard responsive cap
+ * (they have intrinsic dimensions, so width/height auto + max-* is safe).
  */
 function imageRules(scope, padV = "5rem", padH = "6rem") {
+  const maxW = `calc(var(--reader-w, 100vw) - ${padH})`;
+  const maxH = `calc(var(--reader-h, 100vh) - ${padV})`;
   return `
-    ${scope} svg,
+    /* Centre image-only pages on both axes. margin:auto can't do it (the SVG is
+       inline, and in vertical-rl the block flow starts at the right edge, which
+       is why these pages sat flush right); a flex box centres regardless of the
+       writing mode. Applied to the text-free wrappers we emit, so each
+       illustration shrink-wraps and sits in the middle of the page. */
+    ${scope} .aoz-no-text {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    ${scope} .aoz-no-text svg {
+      width: auto;
+      height: ${maxH};
+      max-width: ${maxW};
+      break-inside: avoid;
+    }
+    ${scope} svg {
+      max-width: ${maxW};
+      max-height: ${maxH};
+      break-inside: avoid;
+    }
     ${scope} img:not([class*="gaiji"]) {
-      width: auto !important;
-      height: auto !important;
-      max-height: calc(var(--reader-h, 100vh) - ${padV});
-      max-width: calc(var(--reader-w, 100vw) - ${padH});
+      width: auto;
+      height: auto;
+      max-width: ${maxW};
+      max-height: ${maxH};
       break-inside: avoid;
       margin: auto;
     }

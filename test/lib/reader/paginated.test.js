@@ -57,6 +57,29 @@ describe("PaginatedController character accounting", () => {
   });
 });
 
+describe("PaginatedController._isImageSection", () => {
+  it("flags text-free sections (cover / full-page illustrations) only", () => {
+    // counts: 3, 2, 4 -> an extra image-only section has 0 characters.
+    const sections = [
+      section('<div class="aoz-no-text"><img src="x"/></div>'), // 0 chars
+      section("<p>あいう</p>"), // 3
+      section("<p>えお</p>"), // 2
+    ];
+    const c = new PaginatedController({
+      scrollEl: document.createElement("div"),
+      contentEl: document.createElement("div"),
+      sections,
+      vertical: true,
+      onChange: vi.fn(),
+    });
+    expect(c.sectionAccChar).toEqual([0, 3, 5]);
+    expect(c._isImageSection(0)).toBe(true); // image-only
+    expect(c._isImageSection(1)).toBe(false); // has text
+    expect(c._isImageSection(2)).toBe(false);
+    expect(c._isImageSection(-1)).toBe(false); // nothing rendered yet
+  });
+});
+
 describe("PaginatedController._pageForCharWithin", () => {
   it("maps a section-local offset to the last page starting at or before it", () => {
     const c = makeController();

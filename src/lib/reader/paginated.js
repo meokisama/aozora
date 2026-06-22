@@ -107,6 +107,13 @@ export class PaginatedController {
     return this.sectionStart + (this.pageStartChar[this.page] || 0);
   }
 
+  /** Whether a section carries no flowable text (cover / full-page illustration). */
+  _isImageSection(index) {
+    if (index < 0) return false;
+    const start = this.sectionAccChar[index - 1] || 0;
+    return this.sectionAccChar[index] - start === 0;
+  }
+
   /** Sizes the column container against the (padding-excluded) viewport box. */
   _applyColumnSizes() {
     const cs = getComputedStyle(this.scrollEl);
@@ -118,6 +125,28 @@ export class PaginatedController {
     const el = this.contentEl;
     el.style.columnGap = `${this.gap}px`;
     el.style.columnFill = "auto";
+
+    // Image-only sections (cover, full-page illustrations) have no text to flow,
+    // so they produce a single column that lands at the block-start edge — the
+    // right side in vertical-rl — leaving the illustration flush against it.
+    // Lay them out as a centred flex box filling the viewport instead, so the
+    // image sits in the middle of the page regardless of writing direction.
+    if (this._isImageSection(this.sectionIndex)) {
+      this._clearTransform();
+      el.style.columnWidth = "auto";
+      el.style.display = "flex";
+      el.style.alignItems = "center";
+      el.style.justifyContent = "center";
+      el.style.width = "100%";
+      el.style.height = `${this.contentH}px`;
+      return;
+    }
+
+    // Restore the multi-column layout (a previous image section may have left
+    // this element as a flex box).
+    el.style.display = "";
+    el.style.alignItems = "";
+    el.style.justifyContent = "";
     if (this.vertical) {
       // The trick that makes vertical-rl multicol page correctly.
       el.style.columnWidth = `${this.contentH}px`;

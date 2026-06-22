@@ -185,8 +185,14 @@ export function generateHtml(data, contents, contentsDirectory) {
     }
 
     let innerHtml = body.innerHTML || "";
+    // Both sides are normalized relative to the OPF directory: the image
+    // href above is `path.join(dirname(htmlHref), value)` and the blob key is
+    // the manifest href. So match the blob key directly — the old
+    // `relative(contentsDirectory, …)` indirection mis-resolved to a `../`
+    // prefix whenever the OPF sat two or more directories deep (e.g.
+    // `OPS/content/`), leaving full-page illustrations unswapped → blank pages.
     blobLocations.forEach((blobLocation) => {
-      innerHtml = innerHtml.replaceAll(relative(contentsDirectory, blobLocation), buildDummyImage(blobLocation));
+      innerHtml = innerHtml.replaceAll(blobLocation, buildDummyImage(blobLocation));
     });
 
     const childBodyDiv = document.createElement("div");
@@ -282,30 +288,4 @@ function flattenAnchorHref(el, hrefToWrapperId) {
     const wrapperId = hrefToWrapperId.get(file) || hrefToWrapperId.get(base) || hrefToWrapperId.get(decodeURIComponent(base));
     tag.setAttribute("href", `#${wrapperId || base}`);
   });
-}
-
-/** Replicates Node's path.relative(from, to) closely enough for blob keys. */
-function relative(fromPath, toPath) {
-  const fromDirName = path.dirname(fromPath);
-  const toDirName = path.dirname(toPath);
-  const toFilename = path.basename(toPath);
-
-  if (fromDirName === toDirName) return toFilename;
-
-  const fromParts = fromDirName === "." ? [] : fromDirName.split("/");
-  const toParts = toDirName === "." ? [] : toDirName.split("/");
-
-  if (fromParts.length >= toParts.length) {
-    for (let i = 0; i < fromParts.length; i += 1) {
-      if (fromParts[i] !== toParts[i]) {
-        return path.join("../".repeat(fromParts.length - i) + toParts.slice(i).join("/"), toFilename);
-      }
-    }
-  }
-  for (let i = 0; i < fromParts.length; i += 1) {
-    if (fromParts[i] !== toParts[i]) {
-      return path.join("../".repeat(fromParts.length - i) + toParts.slice(i).join("/"), toFilename);
-    }
-  }
-  return path.join(toParts.slice(fromParts.length - toParts.length).join("/"), toFilename);
 }
