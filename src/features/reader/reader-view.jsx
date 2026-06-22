@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Bookmark, List, Loader2, Search, Settings2 } from "lucide-react";
+import { ArrowLeft, Bookmark, List, Loader2, Search, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useReaderStore } from "@/stores/reader-store";
 import { useLibraryStore } from "@/stores/library-store";
@@ -617,11 +617,11 @@ export function ReaderView() {
           </>
         )}
         <div className="flex-1" />
-        <Button variant="ghost" size="icon" onClick={() => setSearchOpen(true)} disabled={!total} aria-label="Search in book">
-          <Search className="size-4" />
-        </Button>
         <Button variant="ghost" size="icon" onClick={() => setTocOpen(true)} disabled={!chapters.length} aria-label="Table of contents">
           <List className="size-4" />
+        </Button>
+        <Button variant="ghost" size="icon" onClick={() => setSearchOpen(true)} disabled={!total} aria-label="Search in book">
+          <Search className="size-4" />
         </Button>
         <Button
           variant="ghost"
@@ -635,7 +635,7 @@ export function ReaderView() {
           <Bookmark className="size-4" />
         </Button>
         <Button variant="ghost" size="icon" onClick={() => setSettingsOpen(true)} aria-label="Reader settings">
-          <Settings2 className="size-4" />
+          <Settings className="size-4" />
         </Button>
       </header>
 
@@ -668,13 +668,7 @@ export function ReaderView() {
         />
       </div>
 
-      <ReaderToc
-        open={tocOpen}
-        onOpenChange={setTocOpen}
-        chapters={chapters}
-        activeChapterId={activeChapterId}
-        onJump={handleJump}
-      />
+      <ReaderToc open={tocOpen} onOpenChange={setTocOpen} chapters={chapters} activeChapterId={activeChapterId} onJump={handleJump} />
 
       <ReaderBookmarks
         open={bookmarksOpen}

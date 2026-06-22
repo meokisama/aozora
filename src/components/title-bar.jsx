@@ -12,14 +12,14 @@ function ControlButton({ className, ...props }) {
       style={{ WebkitAppRegion: "no-drag" }}
       className={cn(
         "flex h-full w-11 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus:outline-none",
-        className
+        className,
       )}
       {...props}
     />
   );
 }
 
-export function TitleBar({ title = "Aozora" }) {
+export function TitleBar({ title = "Aozora 青空" }) {
   const [isMaximized, setIsMaximized] = useState(false);
 
   useEffect(() => {
@@ -35,29 +35,16 @@ export function TitleBar({ title = "Aozora" }) {
       style={{ WebkitAppRegion: "drag" }}
       className="flex h-8 shrink-0 select-none items-center justify-between border-b border-border bg-background"
     >
-      <div className="flex items-center gap-2 px-3 text-xs font-medium text-muted-foreground">
-        {title}
-      </div>
+      <div className="flex items-center gap-2 px-3 text-xs font-medium text-muted-foreground">{title}</div>
 
       <div className="flex h-full">
         <ControlButton aria-label="Minimize" onClick={() => win()?.minimize()}>
           <MinusIcon className="size-3.5" />
         </ControlButton>
-        <ControlButton
-          aria-label={isMaximized ? "Restore" : "Maximize"}
-          onClick={() => win()?.toggleMaximize()}
-        >
-          {isMaximized ? (
-            <CopyIcon className="size-3" />
-          ) : (
-            <SquareIcon className="size-3" />
-          )}
+        <ControlButton aria-label={isMaximized ? "Restore" : "Maximize"} onClick={() => win()?.toggleMaximize()}>
+          {isMaximized ? <CopyIcon className="size-3" /> : <SquareIcon className="size-3" />}
         </ControlButton>
-        <ControlButton
-          aria-label="Close"
-          onClick={() => win()?.close()}
-          className="hover:bg-destructive hover:text-white"
-        >
+        <ControlButton aria-label="Close" onClick={() => win()?.close()} className="hover:bg-destructive hover:text-white">
           <XIcon className="size-3.5" />
         </ControlButton>
       </div>
