@@ -39,6 +39,3 @@ typings/
 .vite/
 out/
 dist/
-
-# Reference app (not part of this project)
-ttsu/
