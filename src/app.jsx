@@ -17,6 +17,18 @@ export function App() {
     document.documentElement.classList.toggle("dark", isDark);
   }, [theme]);
 
+  // Dropping a file anywhere outside an explicit drop zone makes Chromium
+  // navigate the window to file://… and blow away the app. Swallow those.
+  useEffect(() => {
+    const prevent = (e) => e.preventDefault();
+    window.addEventListener("dragover", prevent);
+    window.addEventListener("drop", prevent);
+    return () => {
+      window.removeEventListener("dragover", prevent);
+      window.removeEventListener("drop", prevent);
+    };
+  }, []);
+
   return (
     <div className="flex h-screen flex-col">
       <TitleBar />

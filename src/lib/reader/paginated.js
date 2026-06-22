@@ -279,6 +279,14 @@ export class PaginatedController {
 
   /** Restores the reader to a global character offset. */
   async restoreToChar(char) {
+    // The start of the book is section 0, page 0. Don't run the search below:
+    // the cover (and any front illustrations) are image-only sections with 0
+    // characters, so their cumulative count is also 0 — `sectionAccChar <= 0`
+    // would skip every one of them and land on the first section with text.
+    if (char <= 0) {
+      await this.setSection(0, "start");
+      return;
+    }
     let index = 0;
     while (index < this.sectionAccChar.length - 1 && this.sectionAccChar[index] <= char) {
       index += 1;

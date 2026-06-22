@@ -1,4 +1,4 @@
-import { ipcRenderer } from "electron";
+import { ipcRenderer, webUtils } from "electron";
 
 /**
  * Library API exposed to the renderer as `window.electronAPI.library`.
@@ -8,6 +8,13 @@ import { ipcRenderer } from "electron";
 export const libraryApi = {
   /** Opens the native picker. Resolves to [{ path, name, size }]. */
   pickFiles: () => ipcRenderer.invoke("library:pick-files"),
+
+  /**
+   * Resolves the absolute path of a dropped File. Electron 32+ removed
+   * `File.path`; webUtils.getPathForFile is the supported replacement and must
+   * run in the preload where the real File object is available.
+   */
+  getPathForFile: (file) => webUtils.getPathForFile(file),
 
   /** Raw bytes (Uint8Array) of a file path — for metadata extraction. */
   readFile: (filePath) => ipcRenderer.invoke("library:read-file", filePath),

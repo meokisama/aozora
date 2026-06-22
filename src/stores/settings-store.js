@@ -40,7 +40,7 @@ const DEFAULTS = {
   lineHeight: 1.8,
   fontFamily: "serif", // keyof FONT_STACKS
   theme: "sepia", // keyof THEMES
-  readingMode: "continuous", // "continuous" | "paginated"
+  readingMode: "paginated", // "continuous" | "paginated"
 };
 
 export const useSettingsStore = create(

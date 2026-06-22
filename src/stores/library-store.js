@@ -5,6 +5,44 @@ import { deleteCachedBook } from "@/lib/reader-cache";
 const api = () => window.electronAPI.library;
 
 /**
+ * Imports a list of { path, name, size } files: extracts metadata per file and
+ * persists each via IPC. Shared by the native picker and drag-and-drop paths.
+ * Toggles the `importing` flag and refreshes the book list when done.
+ */
+async function importPaths(files, set) {
+  set({ importing: true });
+  const failed = [];
+  let added = 0;
+  try {
+    for (const file of files) {
+      try {
+        const bytes = await api().readFile(file.path);
+        const blob = new Blob([bytes]);
+        const meta = await extractEpubMetadata(blob);
+        await api().addBook({
+          sourcePath: file.path,
+          title: meta.title,
+          author: meta.author,
+          language: meta.language,
+          coverBytes: meta.coverBytes,
+          coverMime: meta.coverMime,
+          fileSize: file.size,
+        });
+        added += 1;
+      } catch (err) {
+        console.error(`Failed to import ${file.name}`, err);
+        failed.push(file.name);
+      }
+    }
+    const books = await api().list();
+    set({ books });
+  } finally {
+    set({ importing: false });
+  }
+  return { added, failed };
+}
+
+/**
  * Mirrors the main-process library (source of truth). Parsing of EPUB metadata
  * happens here in the renderer; the resulting record is persisted via IPC.
  * Cover thumbnailing (and the one-off shrink of older oversized covers) is done
@@ -34,37 +72,20 @@ export const useLibraryStore = create((set, get) => ({
   importBooks: async () => {
     const files = await api().pickFiles();
     if (!files.length) return { added: 0, failed: [] };
+    return importPaths(files, set);
+  },
 
-    set({ importing: true });
-    const failed = [];
-    let added = 0;
-    try {
-      for (const file of files) {
-        try {
-          const bytes = await api().readFile(file.path);
-          const blob = new Blob([bytes]);
-          const meta = await extractEpubMetadata(blob);
-          await api().addBook({
-            sourcePath: file.path,
-            title: meta.title,
-            author: meta.author,
-            language: meta.language,
-            coverBytes: meta.coverBytes,
-            coverMime: meta.coverMime,
-            fileSize: file.size,
-          });
-          added += 1;
-        } catch (err) {
-          console.error(`Failed to import ${file.name}`, err);
-          failed.push(file.name);
-        }
-      }
-      const books = await api().list();
-      set({ books });
-    } finally {
-      set({ importing: false });
-    }
-    return { added, failed };
+  /**
+   * Imports books dropped onto the library. Takes a drop event's FileList,
+   * keeps only .epub files, and resolves each to a { path, name, size } record
+   * before importing. Returns the same summary shape as importBooks.
+   */
+  importDroppedFiles: async (fileList) => {
+    const files = Array.from(fileList)
+      .filter((f) => f.name.toLowerCase().endsWith(".epub"))
+      .map((f) => ({ path: api().getPathForFile(f), name: f.name, size: f.size }));
+    if (!files.length) return { added: 0, failed: [] };
+    return importPaths(files, set);
   },
 
   /** Removes a book and its files, then refreshes the list. */
