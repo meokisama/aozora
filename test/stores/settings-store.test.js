@@ -6,6 +6,7 @@ import {
   THEMES,
   FONT_SIZE_RANGE,
   LINE_HEIGHT_RANGE,
+  FURIGANA_MODES,
 } from "@/stores/settings-store";
 
 const DEFAULTS = {
@@ -14,6 +15,7 @@ const DEFAULTS = {
   fontFamily: "serif",
   theme: "sepia",
   readingMode: "paginated",
+  furiganaMode: "show",
 };
 
 beforeEach(() => {
@@ -28,6 +30,7 @@ describe("settings-store defaults", () => {
     expect(s.fontFamily).toBe(DEFAULTS.fontFamily);
     expect(s.theme).toBe(DEFAULTS.theme);
     expect(s.readingMode).toBe(DEFAULTS.readingMode);
+    expect(s.furiganaMode).toBe(DEFAULTS.furiganaMode);
   });
 });
 
@@ -47,6 +50,11 @@ describe("settings-store setters", () => {
     expect(s.fontFamily).toBe("sans");
     expect(s.theme).toBe("dark");
     expect(s.readingMode).toBe("continuous");
+  });
+
+  it("setFuriganaMode updates the furigana mode", () => {
+    useSettingsStore.getState().setFuriganaMode("partial");
+    expect(useSettingsStore.getState().furiganaMode).toBe("partial");
   });
 
   it("reset() restores every default", () => {
@@ -81,6 +89,17 @@ describe("settings-store constants", () => {
       expect(t.bg).toMatch(/^#/);
       expect(t.color).toMatch(/^#/);
     }
+  });
+
+  it("furigana modes lead with 'show' and cover the ttsu styles", () => {
+    expect(FURIGANA_MODES[0].value).toBe("show");
+    const values = FURIGANA_MODES.map((m) => m.value);
+    expect(values).toEqual(["show", "hide", "partial", "toggle", "full"]);
+    for (const m of FURIGANA_MODES) expect(m.label).toBeTruthy();
+  });
+
+  it("default furigana mode is one of the listed modes", () => {
+    expect(FURIGANA_MODES.map((m) => m.value)).toContain(DEFAULTS.furiganaMode);
   });
 
   it("default font size and line height fall within their ranges", () => {

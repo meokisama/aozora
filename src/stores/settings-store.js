@@ -35,12 +35,31 @@ export const THEMES = {
 export const FONT_SIZE_RANGE = { min: 14, max: 40, step: 1 };
 export const LINE_HEIGHT_RANGE = { min: 1.2, max: 2.6, step: 0.1 };
 
+/**
+ * Furigana display modes (mirrors ttsu's furigana handling, collapsed into one
+ * setting). The reader maps every mode except "show" to a `.aoz-furigana-<value>`
+ * class on the content root; see `reader-styles.js`.
+ *   - show:    furigana rendered normally (the book's own styling)
+ *   - hide:    remove furigana entirely (rt display:none)
+ *   - partial: dim furigana; reveal on hover, or click to keep revealed
+ *   - toggle:  hidden; click to show, click again to hide
+ *   - full:    hidden; reveal on hover, or click to keep revealed
+ */
+export const FURIGANA_MODES = [
+  { value: "show", label: "Show" },
+  { value: "hide", label: "Hide" },
+  { value: "partial", label: "Dimmed" },
+  { value: "toggle", label: "Toggle (click)" },
+  { value: "full", label: "Reveal (hover/click)" },
+];
+
 const DEFAULTS = {
   fontSize: 20, // px
   lineHeight: 1.8,
   fontFamily: "serif", // keyof FONT_STACKS
   theme: "sepia", // keyof THEMES
   readingMode: "paginated", // "continuous" | "paginated"
+  furiganaMode: "show", // one of FURIGANA_MODES[].value
 };
 
 export const useSettingsStore = create(
@@ -52,6 +71,7 @@ export const useSettingsStore = create(
       setFontFamily: (fontFamily) => set({ fontFamily }),
       setTheme: (theme) => set({ theme }),
       setReadingMode: (readingMode) => set({ readingMode }),
+      setFuriganaMode: (furiganaMode) => set({ furiganaMode }),
       reset: () => set({ ...DEFAULTS }),
     }),
     {

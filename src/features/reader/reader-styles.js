@@ -35,6 +35,7 @@ export function continuousStyles(vertical) {
        margin is on the inter-page (block) axis, correct for both writing modes. */
     .aozora-content > div:has(.aoz-no-text) { margin-block: 2.5rem; }
     ${imageRules(".aozora-content")}
+    ${furiganaRules(".aozora-content")}
     .aozora-content a { color: inherit; }
     /* The reader's font choice must win over fonts the book hardcodes on its
        own elements — many 電書協-template novels set font-family directly on
@@ -66,6 +67,7 @@ export function paginatedStyles(vertical) {
       ${SHARED_DISPLAY}
     }
     ${imageRules(".aozora-content", "6rem", "8rem")}
+    ${furiganaRules(".aozora-content")}
     .aoz-page-content p { break-inside: avoid; }
     .aozora-content a { color: inherit; }
     .aozora-content,
@@ -126,6 +128,43 @@ export function imageRules(scope, padV = "5rem", padH = "6rem") {
   `;
 }
 
+/**
+ * Furigana display rules, shared by both modes. Inactive until the content root
+ * carries a `.aoz-furigana-<mode>` class (added only when the user picks a mode
+ * other than "show"; see `reader-view.jsx`). Mirrors ttsu's furigana styles:
+ * "hide" drops the readings, "partial" dims them (hover/click reveals), and
+ * "toggle"/"full" hide them until hover or a click (which adds `.reveal-rt`).
+ * Colours come from theme-driven vars set in `applyReaderVars`.
+ */
+export function furiganaRules(scope) {
+  return `
+    ${scope}.aoz-furigana-hide rt { display: none; }
+
+    ${scope}.aoz-furigana-partial rt { color: var(--reader-furigana-hint, #b8b2a6); }
+    ${scope}.aoz-furigana-partial ruby.reveal-rt rt { color: inherit; }
+    @media (hover: hover) {
+      ${scope}.aoz-furigana-partial ruby:hover rt { color: inherit; }
+    }
+
+    ${scope}.aoz-furigana-full ruby,
+    ${scope}.aoz-furigana-toggle ruby {
+      cursor: pointer;
+      text-shadow: var(--reader-furigana-glow, #faf8f4) 1px 0 10px;
+    }
+    ${scope}.aoz-furigana-full ruby rt,
+    ${scope}.aoz-furigana-toggle ruby rt { visibility: hidden; }
+    ${scope}.aoz-furigana-full ruby.reveal-rt,
+    ${scope}.aoz-furigana-toggle ruby.reveal-rt { text-shadow: none; }
+    ${scope}.aoz-furigana-full ruby.reveal-rt rt,
+    ${scope}.aoz-furigana-toggle ruby.reveal-rt rt { visibility: visible; }
+    @media (hover: hover) {
+      ${scope}.aoz-furigana-full ruby:hover rt,
+      ${scope}.aoz-furigana-toggle ruby:hover rt { visibility: visible; }
+      ${scope}.aoz-furigana-toggle ruby:not(.reveal-rt):hover rt { visibility: hidden; }
+    }
+  `;
+}
+
 /** Writes the reader display settings onto the host as inherited CSS vars. */
 export function applyReaderVars(host, { fontSize, lineHeight, fontFamily, theme }) {
   if (!host) return;
@@ -135,6 +174,10 @@ export function applyReaderVars(host, { fontSize, lineHeight, fontFamily, theme 
   host.style.setProperty("--reader-font-family", FONT_STACKS[fontFamily] || FONT_STACKS.serif);
   host.style.setProperty("--reader-color", t.color);
   host.style.setProperty("--reader-bg", t.bg);
+  // Furigana "dimmed" hint colour and the glow behind hidden readings, tuned per
+  // theme so dimmed kana stay legible-but-muted and the glow blends into the page.
+  host.style.setProperty("--reader-furigana-hint", t.dark ? "#6f6a60" : "#b3ada1");
+  host.style.setProperty("--reader-furigana-glow", t.bg);
   // Paint the host itself so the page-flip mode's outer padding (applied on the
   // host element, outside the shadow scroller) shares the page colour.
   host.style.backgroundColor = t.bg;

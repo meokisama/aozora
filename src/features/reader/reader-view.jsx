@@ -16,6 +16,32 @@ import { PaginatedController } from "@/lib/reader/paginated";
 
 const api = () => window.electronAPI.library;
 
+const FURIGANA_CLASSES = ["aoz-furigana-hide", "aoz-furigana-partial", "aoz-furigana-toggle", "aoz-furigana-full"];
+
+/** Reflects the current furigana mode as a class on the content root. "show"
+ *  clears the class so the book's own furigana styling applies untouched. */
+function applyFuriganaClass(root) {
+  if (!root) return;
+  root.classList.remove(...FURIGANA_CLASSES);
+  const mode = useSettingsStore.getState().furiganaMode;
+  if (mode && mode !== "show") root.classList.add(`aoz-furigana-${mode}`);
+}
+
+/** Click-to-reveal for the toggle/full/partial furigana modes. Delegated on the
+ *  persistent content root so it survives paginated section swaps (which replace
+ *  the inner HTML). Reads the live mode on each click. */
+function bindRubyReveal(root) {
+  if (!root) return;
+  root.addEventListener("click", (e) => {
+    const ruby = e.target instanceof Element ? e.target.closest("ruby") : null;
+    if (!ruby) return;
+    const mode = useSettingsStore.getState().furiganaMode;
+    if (mode === "show" || mode === "hide") return;
+    if (mode === "toggle") ruby.classList.toggle("reveal-rt");
+    else ruby.classList.add("reveal-rt"); // partial, full: reveal and keep
+  });
+}
+
 /**
  * Reader shell. The book is parsed once (or loaded from the IndexedDB cache),
  * its image references swapped for object URLs, and the flattened HTML rendered
@@ -39,6 +65,7 @@ export function ReaderView() {
   const fontFamily = useSettingsStore((s) => s.fontFamily);
   const theme = useSettingsStore((s) => s.theme);
   const readingMode = useSettingsStore((s) => s.readingMode);
+  const furiganaMode = useSettingsStore((s) => s.furiganaMode);
 
   const hostRef = useRef(null);
   const parsedRef = useRef(null);
@@ -301,6 +328,8 @@ export function ReaderView() {
       shadow.innerHTML = `<style data-aoz-base>${paginatedStyles(vert)}</style><style>${parsed.styleSheet}</style><div class="aozora-content"><div class="aoz-page-content"></div></div>`;
       const scrollEl = shadow.querySelector(".aozora-content");
       const contentEl = shadow.querySelector(".aoz-page-content");
+      applyFuriganaClass(scrollEl);
+      bindRubyReveal(scrollEl);
 
       const temp = document.createElement("div");
       temp.innerHTML = html;
@@ -325,6 +354,8 @@ export function ReaderView() {
     } else {
       shadow.innerHTML = `<style data-aoz-base>${continuousStyles(vert)}</style><style>${parsed.styleSheet}</style><div class="aozora-content">${html}</div>`;
       const contentEl = shadow.querySelector(".aozora-content");
+      applyFuriganaClass(contentEl);
+      bindRubyReveal(contentEl);
       anchorsRef.current = collectAnchors(contentEl);
       totalRef.current = anchorsRef.current.total;
 
@@ -358,6 +389,7 @@ export function ReaderView() {
     const host = hostRef.current;
     if (!host) return;
     applyReaderVars(host, { fontSize, lineHeight, fontFamily, theme });
+    applyFuriganaClass(host.shadowRoot?.querySelector(".aozora-content"));
     if (!readyRef.current) return;
     if (modeRef.current === "paginated") {
       controllerRef.current?.refresh();
@@ -365,7 +397,7 @@ export function ReaderView() {
     }
     const id = requestAnimationFrame(() => restoreContinuous(verticalRef.current));
     return () => cancelAnimationFrame(id);
-  }, [fontSize, lineHeight, fontFamily, theme, restoreContinuous]);
+  }, [fontSize, lineHeight, fontFamily, theme, furiganaMode, restoreContinuous]);
 
   // Page-flip helpers (forward = toward the end of the book, regardless of mode).
   const flipNext = useCallback(() => controllerRef.current?.flipPage(1), []);

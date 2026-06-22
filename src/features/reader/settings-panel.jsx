@@ -3,7 +3,14 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Slider } from "@/components/ui/slider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useSettingsStore, FONT_SIZE_RANGE, LINE_HEIGHT_RANGE } from "@/stores/settings-store";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useSettingsStore, FONT_SIZE_RANGE, LINE_HEIGHT_RANGE, FURIGANA_MODES } from "@/stores/settings-store";
 
 /** A labelled row wrapping one control. */
 function Field({ label, value, children }) {
@@ -37,11 +44,13 @@ export function ReaderSettingsPanel({ open, onOpenChange }) {
   const fontFamily = useSettingsStore((s) => s.fontFamily);
   const theme = useSettingsStore((s) => s.theme);
   const readingMode = useSettingsStore((s) => s.readingMode);
+  const furiganaMode = useSettingsStore((s) => s.furiganaMode);
   const setFontSize = useSettingsStore((s) => s.setFontSize);
   const setLineHeight = useSettingsStore((s) => s.setLineHeight);
   const setFontFamily = useSettingsStore((s) => s.setFontFamily);
   const setTheme = useSettingsStore((s) => s.setTheme);
   const setReadingMode = useSettingsStore((s) => s.setReadingMode);
+  const setFuriganaMode = useSettingsStore((s) => s.setFuriganaMode);
   const reset = useSettingsStore((s) => s.reset);
 
   // ToggleGroup (single) allows clicking the active item to clear it; keep a
@@ -87,6 +96,21 @@ export function ReaderSettingsPanel({ open, onOpenChange }) {
                 Sans
               </ToggleGroupItem>
             </ToggleGroup>
+          </Field>
+
+          <Field label="Furigana">
+            <Select value={furiganaMode} onValueChange={guard(setFuriganaMode)}>
+              <SelectTrigger size="sm" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {FURIGANA_MODES.map((m) => (
+                  <SelectItem key={m.value} value={m.value}>
+                    {m.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
 
           <Field label="Font Size" value={`${fontSize}px`}>
