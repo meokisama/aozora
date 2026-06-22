@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Bookmark, BookmarkPlus, List, Loader2, Settings2, Trash2 } from "lucide-react";
+import { ArrowLeft, Bookmark, List, Loader2, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useReaderStore } from "@/stores/reader-store";
 import { useLibraryStore } from "@/stores/library-store";
-import { useSettingsStore, FONT_STACKS, THEMES } from "@/stores/settings-store";
+import { useSettingsStore } from "@/stores/settings-store";
 import { ReaderSettingsPanel } from "./settings-panel";
+import { ReaderToc } from "./reader-toc";
+import { ReaderBookmarks } from "./reader-bookmarks";
+import { applyReaderVars, continuousStyles, paginatedStyles } from "./reader-styles";
 import { parseBook } from "@/lib/epub/parse-book";
 import { buildReaderHtml } from "@/lib/epub/format-html";
 import { getCachedBook, putCachedBook } from "@/lib/reader-cache";
@@ -14,146 +15,6 @@ import { collectAnchors, currentCharAtCenter, scrollToChar, scrollToElementId } 
 import { PaginatedController } from "@/lib/reader/paginated";
 
 const api = () => window.electronAPI.library;
-
-/** Display rules shared by both reading modes (driven by inherited CSS vars). */
-const SHARED_DISPLAY = `
-  font-size: var(--reader-font-size, 1.25rem);
-  line-height: var(--reader-line-height, 1.8);
-  color: var(--reader-color, #1f1d1a);
-  background: var(--reader-bg, #faf8f4);
-`;
-
-/**
- * Continuous (scroll) reader CSS. Display properties come from inherited CSS
- * custom properties set on the shadow host, so settings changes apply live
- * without re-parsing. Only the writing mode (which also flips the
- * horizontal-only centring) is baked in, so this is re-injected on toggle.
- */
-function continuousStyles(vertical) {
-  return `
-    :host { display: block; height: 100%; }
-    .aozora-content {
-      height: 100%;
-      box-sizing: border-box;
-      padding: 2.5rem 3rem;
-      writing-mode: ${vertical ? "vertical-rl" : "horizontal-tb"};
-      ${vertical ? "" : "max-width: 42rem; margin: 0 auto;"}
-      ${SHARED_DISPLAY}
-    }
-    /* Give the structural wrappers a definite height so full-page images can
-       size against the viewport instead of collapsing to zero. */
-    .aozora-content > div,
-    .aozora-content .aoz-book-html-wrapper,
-    .aozora-content .aoz-book-body-wrapper { height: 100%; }
-    /* Breathing room around full-page image spreads (image-only spine items)
-       so consecutive illustrations don't sit flush against each other. The
-       margin is on the inter-page (block) axis, correct for both writing modes. */
-    .aozora-content > div:has(.aoz-no-text) { margin-block: 2.5rem; }
-    ${imageRules(".aozora-content")}
-    .aozora-content a { color: inherit; }
-    /* The reader's font choice must win over fonts the book hardcodes on its
-       own elements — many 電書協-template novels set font-family directly on
-       body/p/spans, which would otherwise override the inherited container
-       font (that's why "Serif" appeared to do nothing on some volumes). Apply
-       it across the subtree; gaiji/illustrations are images and unaffected. */
-    .aozora-content,
-    .aozora-content * {
-      font-family: var(--reader-font-family, serif) !important;
-    }
-  `;
-}
-
-/**
- * Paginated (page-flip) reader CSS. The `.aozora-content` element is a fixed,
- * overflow-hidden viewport; `.aoz-page-content` is the multi-column container
- * the controller sizes and scrolls. One spine section is rendered at a time, so
- * each chapter begins on a fresh page.
- */
-function paginatedStyles(vertical) {
-  return `
-    :host { display: block; height: 100%; }
-    .aozora-content {
-      box-sizing: border-box;
-      height: 100%;
-      width: 100%;
-      overflow: hidden;
-      writing-mode: ${vertical ? "vertical-rl" : "horizontal-tb"};
-      ${SHARED_DISPLAY}
-    }
-    ${imageRules(".aozora-content", "6rem", "8rem")}
-    .aoz-page-content p { break-inside: avoid; }
-    .aozora-content a { color: inherit; }
-    .aozora-content,
-    .aozora-content * {
-      font-family: var(--reader-font-family, serif) !important;
-    }
-  `;
-}
-
-/**
- * Illustration sizing, shared by both modes. Capped against the measured reader
- * size (the reader exposes its pixel dimensions as --reader-w/--reader-h;
- * 5rem/6rem account for the content padding) since the percentage max-* the book
- * would otherwise use can't resolve through the auto-height/inline wrappers.
- *
- * Full-page illustrations are wrapped in an <svg> that carries percentage
- * width/height + a viewBox. With both CSS dimensions auto such an SVG has no
- * intrinsic pixel size — only an aspect ratio — so it collapses to 0 width
- * (the "blank illustration page" bug). Anchoring the height to the reader
- * viewport and leaving the width auto lets the viewBox ratio derive the width,
- * and works in both writing modes because it doesn't depend on a
- * definite-width ancestor. Raster <img> keep the standard responsive cap
- * (they have intrinsic dimensions, so width/height auto + max-* is safe).
- */
-function imageRules(scope, padV = "5rem", padH = "6rem") {
-  const maxW = `calc(var(--reader-w, 100vw) - ${padH})`;
-  const maxH = `calc(var(--reader-h, 100vh) - ${padV})`;
-  return `
-    /* Centre image-only pages on both axes. margin:auto can't do it (the SVG is
-       inline, and in vertical-rl the block flow starts at the right edge, which
-       is why these pages sat flush right); a flex box centres regardless of the
-       writing mode. Applied to the text-free wrappers we emit, so each
-       illustration shrink-wraps and sits in the middle of the page. */
-    ${scope} .aoz-no-text {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    ${scope} .aoz-no-text svg {
-      width: auto;
-      height: ${maxH};
-      max-width: ${maxW};
-      break-inside: avoid;
-    }
-    ${scope} svg {
-      max-width: ${maxW};
-      max-height: ${maxH};
-      break-inside: avoid;
-    }
-    ${scope} img:not([class*="gaiji"]) {
-      width: auto;
-      height: auto;
-      max-width: ${maxW};
-      max-height: ${maxH};
-      break-inside: avoid;
-      margin: auto;
-    }
-  `;
-}
-
-/** Writes the reader display settings onto the host as inherited CSS vars. */
-function applyReaderVars(host, { fontSize, lineHeight, fontFamily, theme }) {
-  if (!host) return;
-  const t = THEMES[theme] || THEMES.sepia;
-  host.style.setProperty("--reader-font-size", `${fontSize}px`);
-  host.style.setProperty("--reader-line-height", String(lineHeight));
-  host.style.setProperty("--reader-font-family", FONT_STACKS[fontFamily] || FONT_STACKS.serif);
-  host.style.setProperty("--reader-color", t.color);
-  host.style.setProperty("--reader-bg", t.bg);
-  // Paint the host itself so the page-flip mode's outer padding (applied on the
-  // host element, outside the shadow scroller) shares the page colour.
-  host.style.backgroundColor = t.bg;
-}
 
 /**
  * Reader shell. The book is parsed once (or loaded from the IndexedDB cache),
@@ -702,75 +563,24 @@ export function ReaderView() {
         />
       </div>
 
-      <Sheet open={tocOpen} onOpenChange={setTocOpen}>
-        <SheetContent side="left" className="w-72 gap-0 p-0 sm:max-w-72">
-          <SheetHeader className="border-b">
-            <SheetTitle>Table of Contents</SheetTitle>
-          </SheetHeader>
-          <nav className="flex-1 overflow-y-auto p-2">
-            {chapters.map((ch) => (
-              <button
-                key={ch.reference}
-                type="button"
-                onClick={() => handleJump(ch.reference)}
-                className={`block w-full truncate rounded-none px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent ${
-                  ch.reference === activeChapterId ? "bg-accent font-medium text-accent-foreground" : "text-muted-foreground"
-                }`}
-                title={ch.label}
-              >
-                {ch.label}
-              </button>
-            ))}
-          </nav>
-        </SheetContent>
-      </Sheet>
+      <ReaderToc
+        open={tocOpen}
+        onOpenChange={setTocOpen}
+        chapters={chapters}
+        activeChapterId={activeChapterId}
+        onJump={handleJump}
+      />
 
-      <Sheet open={bookmarksOpen} onOpenChange={setBookmarksOpen}>
-        <SheetContent side="left" className="w-72 gap-0 p-0 sm:max-w-72">
-          <SheetHeader className="border-b">
-            <SheetTitle>Bookmarks</SheetTitle>
-          </SheetHeader>
-          <div className="flex items-center gap-1 border-b p-2">
-            <Input
-              value={nameInput}
-              onChange={(e) => setNameInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  handleAddBookmark();
-                }
-              }}
-              placeholder="Bookmark name"
-              aria-label="Bookmark name"
-            />
-            <Button variant="outline" size="icon" className="size-8 shrink-0" onClick={handleAddBookmark} aria-label="Add bookmark">
-              <BookmarkPlus className="size-4" />
-            </Button>
-          </div>
-          <nav className="flex-1 overflow-y-auto p-2">
-            {bookmarks.length === 0 ? (
-              <p className="px-2 py-8 text-center text-xs text-muted-foreground">No bookmarks yet.</p>
-            ) : (
-              bookmarks.map((bm) => (
-                <div key={bm.id} className="group flex items-start gap-1 rounded-none px-2 py-1.5 transition-colors hover:bg-accent">
-                  <button type="button" onClick={() => jumpToChar(bm.charOffset)} className="min-w-0 flex-1 text-left" title={bm.snippet || ""}>
-                    <span className="block truncate text-xs">{bm.snippet || "(unnamed)"}</span>
-                    <span className="text-[10px] tabular-nums text-muted-foreground">{Math.round((bm.progress || 0) * 100)}%</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveBookmark(bm.id)}
-                    aria-label="Delete bookmark"
-                    className="shrink-0 rounded-none p-1 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
-                  >
-                    <Trash2 className="size-3.5" />
-                  </button>
-                </div>
-              ))
-            )}
-          </nav>
-        </SheetContent>
-      </Sheet>
+      <ReaderBookmarks
+        open={bookmarksOpen}
+        onOpenChange={setBookmarksOpen}
+        bookmarks={bookmarks}
+        nameInput={nameInput}
+        onNameInputChange={setNameInput}
+        onAdd={handleAddBookmark}
+        onJump={jumpToChar}
+        onRemove={handleRemoveBookmark}
+      />
 
       <ReaderSettingsPanel open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
