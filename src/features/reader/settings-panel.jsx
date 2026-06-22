@@ -36,10 +36,12 @@ export function ReaderSettingsPanel({ open, onOpenChange }) {
   const lineHeight = useSettingsStore((s) => s.lineHeight);
   const fontFamily = useSettingsStore((s) => s.fontFamily);
   const theme = useSettingsStore((s) => s.theme);
+  const readingMode = useSettingsStore((s) => s.readingMode);
   const setFontSize = useSettingsStore((s) => s.setFontSize);
   const setLineHeight = useSettingsStore((s) => s.setLineHeight);
   const setFontFamily = useSettingsStore((s) => s.setFontFamily);
   const setTheme = useSettingsStore((s) => s.setTheme);
+  const setReadingMode = useSettingsStore((s) => s.setReadingMode);
   const reset = useSettingsStore((s) => s.reset);
 
   // ToggleGroup (single) allows clicking the active item to clear it; keep a
@@ -54,6 +56,17 @@ export function ReaderSettingsPanel({ open, onOpenChange }) {
         </SheetHeader>
 
         <div className="flex-1 space-y-6 overflow-y-auto p-4">
+          <Field label="Reading Mode">
+            <ToggleGroup {...segmented} value={readingMode} onValueChange={guard(setReadingMode)}>
+              <ToggleGroupItem value="continuous" className="flex-1">
+                Continuous
+              </ToggleGroupItem>
+              <ToggleGroupItem value="paginated" className="flex-1">
+                Paginated
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </Field>
+
           <Field label="Theme">
             <ToggleGroup {...segmented} value={theme} onValueChange={guard(setTheme)}>
               <ToggleGroupItem value="sepia" className="flex-1">

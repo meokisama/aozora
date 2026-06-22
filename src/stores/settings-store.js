@@ -40,6 +40,7 @@ const DEFAULTS = {
   lineHeight: 1.8,
   fontFamily: "serif", // keyof FONT_STACKS
   theme: "sepia", // keyof THEMES
+  readingMode: "continuous", // "continuous" | "paginated"
 };
 
 export const useSettingsStore = create(
@@ -50,6 +51,7 @@ export const useSettingsStore = create(
       setLineHeight: (lineHeight) => set({ lineHeight }),
       setFontFamily: (fontFamily) => set({ fontFamily }),
       setTheme: (theme) => set({ theme }),
+      setReadingMode: (readingMode) => set({ readingMode }),
       reset: () => set({ ...DEFAULTS }),
     }),
     {

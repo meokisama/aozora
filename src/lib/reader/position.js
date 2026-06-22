@@ -1,7 +1,7 @@
 /**
  * Reading-position helpers for the continuous reader.
  *
- * The position model is character-based (ttsu-style `exploredCharCount`): we
+ * The position model is character-based (`exploredCharCount`): we
  * count the Japanese characters before the current reading point so progress
  * survives re-flow (font/size changes) and restores accurately regardless of
  * pixel layout. Anchors map cumulative character offsets to DOM elements; the
