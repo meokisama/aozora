@@ -20,7 +20,9 @@ TOC navigation, bookmarks, in-book search, and adjustable typography.
 > and reader are built around the structure and styling conventions of those books
 > (tategaki, ruby, image spreads). Other EPUBs may render incorrectly.
 
-![](./assets/preview.png)
+![](./assets/preview-1.png)
+![](./assets/preview-2.png)
+![](./assets/preview-3.png)
 
 ## Features
 

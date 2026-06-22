@@ -4,13 +4,24 @@ const { FuseV1Options, FuseVersion } = require("@electron/fuses");
 module.exports = {
   packagerConfig: {
     asar: true,
+    icon: "assets/app",
+    executableName: "aozora",
     ignore: [/node_modules\/(?!(better-sqlite3|bindings|file-uri-to-path)\/)/],
+    appCopyright: "Copyright © 2026 Meoki",
   },
   rebuildConfig: {},
   makers: [
     {
       name: "@electron-forge/maker-squirrel",
-      config: {},
+      config: {
+        productName: "Aozora",
+        executableName: "aozora",
+        loadingGif: "./src/assets/loading.gif",
+        setupIcon: "assets/app.ico",
+        iconUrl: "https://raw.githubusercontent.com/meokisama/aozora/refs/heads/master/assets/app.ico",
+        authors: "Meoki",
+        description: "Desktop application to manage and read Japanese light novel EPUBs with tategaki, furigana, and full TOC navigation.",
+      },
     },
     {
       name: "@electron-forge/maker-zip",
@@ -18,11 +29,26 @@ module.exports = {
     },
     {
       name: "@electron-forge/maker-deb",
-      config: {},
+      config: {
+        options: {
+          icon: "assets/app.png",
+          productName: "Aozora",
+          executableName: "aozora",
+          maintainer: "Meoki",
+          description: "Desktop application to manage and read Japanese light novel EPUBs with tategaki, furigana, and full TOC navigation.",
+        },
+      },
     },
     {
       name: "@electron-forge/maker-rpm",
-      config: {},
+      config: {
+        options: {
+          productName: "Aozora",
+          executableName: "aozora",
+          maintainer: "Meoki",
+          description: "Desktop application to manage and read Japanese light novel EPUBs with tategaki, furigana, and full TOC navigation.",
+        },
+      },
     },
   ],
   plugins: [

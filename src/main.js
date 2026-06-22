@@ -1,6 +1,7 @@
 import { app, BrowserWindow, Menu } from "electron";
 import path from "node:path";
 import started from "electron-squirrel-startup";
+import { updateElectronApp } from "update-electron-app";
 import { registerWindowIpc } from "./main/window.js";
 import { registerLibraryIpc } from "./main/library.js";
 
@@ -8,6 +9,8 @@ import { registerLibraryIpc } from "./main/library.js";
 if (started) {
   app.quit();
 }
+// Auto update
+updateElectronApp();
 
 Menu.setApplicationMenu(null);
 
