@@ -28,6 +28,7 @@ function getDb() {
 
   db = new Database(dbPath);
   db.pragma("journal_mode = WAL");
+  db.pragma("foreign_keys = ON"); // so bookmarks cascade-delete with their book
   db.exec(`
     CREATE TABLE IF NOT EXISTS books (
       id                  TEXT PRIMARY KEY,
@@ -43,6 +44,16 @@ function getDb() {
       explored_char_count INTEGER NOT NULL DEFAULT 0,
       char_count          INTEGER NOT NULL DEFAULT 0
     );
+
+    CREATE TABLE IF NOT EXISTS bookmarks (
+      id          TEXT PRIMARY KEY,
+      book_id     TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+      char_offset INTEGER NOT NULL,
+      progress    REAL    NOT NULL DEFAULT 0,
+      snippet     TEXT,
+      created_at  INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_bookmarks_book ON bookmarks(book_id);
   `);
 
   return db;
@@ -64,6 +75,19 @@ function rowToBook(row) {
     progress: row.progress,
     exploredCharCount: row.explored_char_count,
     charCount: row.char_count,
+  };
+}
+
+/** Maps a bookmark DB row to the camelCase shape the renderer consumes. */
+function rowToBookmark(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    bookId: row.book_id,
+    charOffset: row.char_offset,
+    progress: row.progress,
+    snippet: row.snippet ?? null,
+    createdAt: row.created_at,
   };
 }
 
@@ -130,5 +154,39 @@ export const libraryStore = {
       .prepare(`UPDATE books SET ${sets.join(", ")} WHERE id = @id`)
       .run(params);
     return this.getBook(id);
+  },
+
+  // --- Bookmarks (per book, ordered by reading position). ------------------
+
+  listBookmarks(bookId) {
+    const rows = getDb()
+      .prepare("SELECT * FROM bookmarks WHERE book_id = ? ORDER BY char_offset ASC, created_at ASC")
+      .all(bookId);
+    return rows.map(rowToBookmark);
+  },
+
+  getBookmark(id) {
+    return rowToBookmark(getDb().prepare("SELECT * FROM bookmarks WHERE id = ?").get(id));
+  },
+
+  addBookmark({ id, bookId, charOffset, progress, snippet, createdAt }) {
+    getDb()
+      .prepare(
+        `INSERT INTO bookmarks (id, book_id, char_offset, progress, snippet, created_at)
+         VALUES (@id, @bookId, @charOffset, @progress, @snippet, @createdAt)`,
+      )
+      .run({
+        id,
+        bookId,
+        charOffset: charOffset ?? 0,
+        progress: progress ?? 0,
+        snippet: snippet ?? null,
+        createdAt,
+      });
+    return this.getBookmark(id);
+  },
+
+  removeBookmark(id) {
+    getDb().prepare("DELETE FROM bookmarks WHERE id = ?").run(id);
   },
 };

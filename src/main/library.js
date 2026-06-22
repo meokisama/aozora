@@ -152,4 +152,24 @@ export const registerLibraryIpc = () => {
   });
 
   ipcMain.handle("library:save-progress", (_event, id, progress) => withCover(libraryStore.updateProgress(id, progress)));
+
+  // --- Bookmarks. -----------------------------------------------------------
+  ipcMain.handle("library:list-bookmarks", (_event, bookId) => libraryStore.listBookmarks(bookId));
+
+  ipcMain.handle("library:add-bookmark", (_event, payload) => {
+    const { bookId, charOffset, progress, snippet } = payload;
+    return libraryStore.addBookmark({
+      id: randomUUID(),
+      bookId,
+      charOffset,
+      progress,
+      snippet,
+      createdAt: Date.now(),
+    });
+  });
+
+  ipcMain.handle("library:remove-bookmark", (_event, id) => {
+    libraryStore.removeBookmark(id);
+    return true;
+  });
 };

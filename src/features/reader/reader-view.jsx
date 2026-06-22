@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, List, Loader2, Settings2 } from "lucide-react";
+import { ArrowLeft, Bookmark, BookmarkPlus, List, Loader2, Settings2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useReaderStore } from "@/stores/reader-store";
 import { useLibraryStore } from "@/stores/library-store";
@@ -203,6 +204,9 @@ export function ReaderView() {
   const [pageInfo, setPageInfo] = useState(null); // { page, totalPages } in paginated mode
   const [tocOpen, setTocOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [bookmarksOpen, setBookmarksOpen] = useState(false);
+  const [bookmarks, setBookmarks] = useState([]);
+  const [nameInput, setNameInput] = useState("");
 
   const total = totalRef.current;
   const progressPct = total ? Math.round((currentChar / total) * 100) : 0;
@@ -262,6 +266,70 @@ export function ReaderView() {
     },
     [persist],
   );
+
+  // The bookmark name suggested for the current position: the current TOC
+  // chapter's title + the reading-progress percentage (e.g. "第四章 · 45%").
+  // The user can edit it before saving. Falls back to just the percentage when
+  // the book has no TOC chapter covering this position.
+  const computeDefaultName = useCallback(() => {
+    const totalChars = totalRef.current || 0;
+    const char = charRef.current;
+    const pct = totalChars ? Math.round((char / totalChars) * 100) : 0;
+    let label = "";
+    for (const ch of chapters) {
+      if ((ch.startCharacter ?? 0) <= char) label = ch.label || label;
+      else break;
+    }
+    return label ? `${label}  (${pct}%)` : `${pct}%`;
+  }, [chapters]);
+
+  // Jumps the reader to a saved character offset, in whichever mode is active.
+  const jumpToChar = useCallback(
+    (char) => {
+      setBookmarksOpen(false);
+      charRef.current = char;
+      if (modeRef.current === "paginated") {
+        controllerRef.current?.restoreToChar(char); // emits onChange → updates state + saves
+        return;
+      }
+      const host = hostRef.current;
+      if (!host) return;
+      scrollToChar(host, anchorsRef.current.anchors, verticalRef.current, char);
+      requestAnimationFrame(() => {
+        charRef.current = currentCharAtCenter(host, anchorsRef.current.anchors, verticalRef.current);
+        setCurrentChar(charRef.current);
+        persist();
+      });
+    },
+    [persist],
+  );
+
+  // Adds a bookmark at the current position with the (user-editable) name.
+  const handleAddBookmark = useCallback(async () => {
+    if (!book) return;
+    const charOffset = charRef.current;
+    const totalChars = totalRef.current || 0;
+    const progress = totalChars ? Math.min(1, Math.max(0, charOffset / totalChars)) : 0;
+    const name = nameInput.trim() || computeDefaultName();
+    try {
+      const bm = await api().addBookmark({ bookId: book.id, charOffset, progress, snippet: name });
+      if (bm) {
+        setBookmarks((prev) => [...prev, bm].sort((a, b) => a.charOffset - b.charOffset));
+        setNameInput(computeDefaultName()); // reset the field to a fresh default
+      }
+    } catch (err) {
+      console.error("Failed to add bookmark", err);
+    }
+  }, [book, nameInput, computeDefaultName]);
+
+  const handleRemoveBookmark = useCallback(async (id) => {
+    try {
+      await api().removeBookmark(id);
+      setBookmarks((prev) => prev.filter((b) => b.id !== id));
+    } catch (err) {
+      console.error("Failed to remove bookmark", err);
+    }
+  }, []);
 
   // Expose the reader area's pixel size as inherited CSS vars so illustrations
   // can be capped against it, and re-paginate the page-flip reader on resize.
@@ -328,6 +396,24 @@ export function ReaderView() {
       cancelled = true;
       objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
       objectUrlsRef.current = [];
+    };
+  }, [book]);
+
+  // Load this book's bookmarks (independent of the parse/render pipeline).
+  useEffect(() => {
+    if (!book) {
+      setBookmarks([]);
+      return;
+    }
+    let cancelled = false;
+    api()
+      .listBookmarks(book.id)
+      .then((list) => {
+        if (!cancelled) setBookmarks(list || []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
     };
   }, [book]);
 
@@ -547,16 +633,41 @@ export function ReaderView() {
         <Button variant="ghost" size="icon" onClick={close} aria-label="Back to library">
           <ArrowLeft className="size-4" />
         </Button>
+        <p className="min-w-0 truncate text-xs font-medium tracking-tight">【{book.title}】</p>
+        {total > 0 && (
+          <>
+            <div className="h-4 w-px shrink-0 bg-border" />
+            <div className="flex shrink-0 items-center gap-2 text-[11px] text-muted-foreground">
+              {paged && pageInfo && (
+                <span className="tabular-nums">
+                  {pageInfo.page + 1}
+                  <span className="opacity-50">/{pageInfo.totalPages}</span>
+                </span>
+              )}
+              <div className="flex items-center gap-1.5">
+                <div className="h-1 w-14 overflow-hidden bg-muted">
+                  <div className="h-full bg-muted-foreground/70 transition-[width] duration-300 ease-out" style={{ width: `${progressPct}%` }} />
+                </div>
+                <span className="w-8 text-right tabular-nums">{progressPct}%</span>
+              </div>
+            </div>
+          </>
+        )}
+        <div className="flex-1" />
         <Button variant="ghost" size="icon" onClick={() => setTocOpen(true)} disabled={!chapters.length} aria-label="Table of contents">
           <List className="size-4" />
         </Button>
-        <p className="min-w-0 flex-1 truncate text-xs font-medium">{book.title}</p>
-        {paged && pageInfo && (
-          <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-            {pageInfo.page + 1} / {pageInfo.totalPages}
-          </span>
-        )}
-        {total > 0 && <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{progressPct}%</span>}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => {
+            setNameInput(computeDefaultName());
+            setBookmarksOpen(true);
+          }}
+          aria-label="Bookmarks"
+        >
+          <Bookmark className="size-4" />
+        </Button>
         <Button variant="ghost" size="icon" onClick={() => setSettingsOpen(true)} aria-label="Reader settings">
           <Settings2 className="size-4" />
         </Button>
@@ -610,6 +721,53 @@ export function ReaderView() {
                 {ch.label}
               </button>
             ))}
+          </nav>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={bookmarksOpen} onOpenChange={setBookmarksOpen}>
+        <SheetContent side="left" className="w-72 gap-0 p-0 sm:max-w-72">
+          <SheetHeader className="border-b">
+            <SheetTitle>Bookmarks</SheetTitle>
+          </SheetHeader>
+          <div className="flex items-center gap-1 border-b p-2">
+            <Input
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleAddBookmark();
+                }
+              }}
+              placeholder="Bookmark name"
+              aria-label="Bookmark name"
+            />
+            <Button variant="outline" size="icon" className="size-8 shrink-0" onClick={handleAddBookmark} aria-label="Add bookmark">
+              <BookmarkPlus className="size-4" />
+            </Button>
+          </div>
+          <nav className="flex-1 overflow-y-auto p-2">
+            {bookmarks.length === 0 ? (
+              <p className="px-2 py-8 text-center text-xs text-muted-foreground">No bookmarks yet.</p>
+            ) : (
+              bookmarks.map((bm) => (
+                <div key={bm.id} className="group flex items-start gap-1 rounded-none px-2 py-1.5 transition-colors hover:bg-accent">
+                  <button type="button" onClick={() => jumpToChar(bm.charOffset)} className="min-w-0 flex-1 text-left" title={bm.snippet || ""}>
+                    <span className="block truncate text-xs">{bm.snippet || "(unnamed)"}</span>
+                    <span className="text-[10px] tabular-nums text-muted-foreground">{Math.round((bm.progress || 0) * 100)}%</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveBookmark(bm.id)}
+                    aria-label="Delete bookmark"
+                    className="shrink-0 rounded-none p-1 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </div>
+              ))
+            )}
           </nav>
         </SheetContent>
       </Sheet>

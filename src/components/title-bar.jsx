@@ -19,7 +19,7 @@ function ControlButton({ className, ...props }) {
   );
 }
 
-export function TitleBar({ title = "GNT Engine" }) {
+export function TitleBar({ title = "Aozora" }) {
   const [isMaximized, setIsMaximized] = useState(false);
 
   useEffect(() => {

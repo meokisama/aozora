@@ -38,4 +38,16 @@ export const libraryApi = {
 
   /** Persists reading progress fields for a book. */
   saveProgress: (id, progress) => ipcRenderer.invoke("library:save-progress", id, progress),
+
+  /** All bookmarks for a book, ordered by reading position. */
+  listBookmarks: (bookId) => ipcRenderer.invoke("library:list-bookmarks", bookId),
+
+  /**
+   * Adds a bookmark at a reading position.
+   * @param {{ bookId: string, charOffset: number, progress: number, snippet?: string }} payload
+   */
+  addBookmark: (payload) => ipcRenderer.invoke("library:add-bookmark", payload),
+
+  /** Removes a bookmark by id. */
+  removeBookmark: (id) => ipcRenderer.invoke("library:remove-bookmark", id),
 };
