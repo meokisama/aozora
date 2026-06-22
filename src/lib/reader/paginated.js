@@ -203,7 +203,11 @@ export class PaginatedController {
             : r.left - contentRect.left;
       this.paragraphPos[i] = pos;
 
-      const pg = clamp(Math.round(pos / screen), 0, this.totalPages - 1);
+      // floor, not round: a paragraph whose leading edge falls in the latter
+      // half of a column still *begins* on that column's page. Rounding would
+      // assign it to the next page, so its char offset becomes that next page's
+      // start — and a search hit inside it would jump one page too far.
+      const pg = clamp(Math.floor(pos / screen), 0, this.totalPages - 1);
       if (pageFirstChar[pg] === undefined) pageFirstChar[pg] = acc;
 
       acc += getCharacterCount(node);

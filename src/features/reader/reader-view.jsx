@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Bookmark, List, Loader2, Settings2 } from "lucide-react";
+import { ArrowLeft, Bookmark, List, Loader2, Search, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useReaderStore } from "@/stores/reader-store";
 import { useLibraryStore } from "@/stores/library-store";
@@ -7,12 +7,15 @@ import { useSettingsStore } from "@/stores/settings-store";
 import { ReaderSettingsPanel } from "./settings-panel";
 import { ReaderToc } from "./reader-toc";
 import { ReaderBookmarks } from "./reader-bookmarks";
+import { ReaderSearch } from "./reader-search";
 import { applyReaderVars, continuousStyles, paginatedStyles } from "./reader-styles";
 import { parseBook } from "@/lib/epub/parse-book";
 import { buildReaderHtml } from "@/lib/epub/format-html";
 import { getCachedBook, putCachedBook } from "@/lib/reader-cache";
 import { collectAnchors, currentCharAtCenter, scrollToChar, scrollToElementId } from "@/lib/reader/position";
 import { PaginatedController } from "@/lib/reader/paginated";
+import { buildSearchIndex, searchIndex } from "@/lib/reader/search";
+import { clearSearchHighlight, highlightSearchResult } from "@/lib/reader/highlight";
 
 const api = () => window.electronAPI.library;
 
@@ -81,6 +84,7 @@ export function ReaderView() {
   const saveTimerRef = useRef(0);
   const wheelTsRef = useRef(0);
   const readyRef = useRef(false);
+  const searchIndexRef = useRef(null); // lazily built on first search
 
   const [status, setStatus] = useState("loading"); // loading | ready | error
   const [parseToken, setParseToken] = useState(0); // bumped when parsed content is ready
@@ -95,6 +99,9 @@ export function ReaderView() {
   const [bookmarksOpen, setBookmarksOpen] = useState(false);
   const [bookmarks, setBookmarks] = useState([]);
   const [nameInput, setNameInput] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState({ results: [], total: 0, capped: false });
 
   const total = totalRef.current;
   const progressPct = total ? Math.round((currentChar / total) * 100) : 0;
@@ -219,6 +226,63 @@ export function ReaderView() {
     }
   }, []);
 
+  // Runs a query against the (lazily built) in-book index. The index is derived
+  // from the already-parsed HTML once and reused for every keystroke.
+  const runSearch = useCallback((query) => {
+    setSearchQuery(query);
+    if (!query.trim()) {
+      setSearchResults({ results: [], total: 0, capped: false });
+      return;
+    }
+    if (!searchIndexRef.current && parsedRef.current) {
+      searchIndexRef.current = buildSearchIndex(parsedRef.current.elementHtml);
+    }
+    setSearchResults(searchIndex(searchIndexRef.current || [], query));
+  }, []);
+
+  // Jumps to a search hit and highlights it in whichever mode is active. The
+  // highlight is placed after the target paragraph is on screen (the paginated
+  // controller renders its section asynchronously).
+  const jumpToSearchResult = useCallback(
+    async (result) => {
+      setSearchOpen(false);
+      clearSearchHighlight();
+      const query = searchQuery;
+      const root = () => hostRef.current?.shadowRoot;
+      if (modeRef.current === "paginated") {
+        const ctrl = controllerRef.current;
+        if (!ctrl) return;
+        charRef.current = result.charOffset;
+        await ctrl.restoreToChar(result.charOffset); // emits onChange → state + save
+        requestAnimationFrame(() => {
+          highlightSearchResult(root()?.querySelector(".aoz-page-content"), result.charOffset, query, ctrl.sectionStart);
+        });
+        return;
+      }
+      jumpToChar(result.charOffset);
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          highlightSearchResult(root()?.querySelector(".aozora-content"), result.charOffset, query, 0);
+        }),
+      );
+    },
+    [jumpToChar, searchQuery],
+  );
+
+  // Attach chapter label + progress to each hit for display (mirrors the
+  // active-chapter / bookmark-name logic).
+  const searchDisplay = useMemo(() => {
+    return searchResults.results.map((r) => {
+      let label = "";
+      for (const ch of chapters) {
+        if ((ch.startCharacter ?? 0) <= r.charOffset) label = ch.label || label;
+        else break;
+      }
+      const progress = total ? Math.round((r.charOffset / total) * 100) : 0;
+      return { ...r, label, progress };
+    });
+  }, [searchResults, chapters, total]);
+
   // Expose the reader area's pixel size as inherited CSS vars so illustrations
   // can be capped against it, and re-paginate the page-flip reader on resize.
   useEffect(() => {
@@ -253,6 +317,11 @@ export function ReaderView() {
     setCurrentChar(0);
     setPageInfo(null);
     setSections([]);
+    searchIndexRef.current = null;
+    clearSearchHighlight();
+    setSearchOpen(false);
+    setSearchQuery("");
+    setSearchResults({ results: [], total: 0, capped: false });
 
     (async () => {
       setStatus("loading");
@@ -375,6 +444,7 @@ export function ReaderView() {
       cancelAnimationFrame(rafRef.current);
       persist();
       readyRef.current = false;
+      clearSearchHighlight();
       controllerRef.current?.destroy();
       controllerRef.current = null;
       if (shadow) shadow.innerHTML = "";
@@ -547,6 +617,9 @@ export function ReaderView() {
           </>
         )}
         <div className="flex-1" />
+        <Button variant="ghost" size="icon" onClick={() => setSearchOpen(true)} disabled={!total} aria-label="Search in book">
+          <Search className="size-4" />
+        </Button>
         <Button variant="ghost" size="icon" onClick={() => setTocOpen(true)} disabled={!chapters.length} aria-label="Table of contents">
           <List className="size-4" />
         </Button>
@@ -612,6 +685,17 @@ export function ReaderView() {
         onAdd={handleAddBookmark}
         onJump={jumpToChar}
         onRemove={handleRemoveBookmark}
+      />
+
+      <ReaderSearch
+        open={searchOpen}
+        onOpenChange={setSearchOpen}
+        query={searchQuery}
+        onQueryChange={runSearch}
+        results={searchDisplay}
+        total={searchResults.total}
+        capped={searchResults.capped}
+        onJump={jumpToSearchResult}
       />
 
       <ReaderSettingsPanel open={settingsOpen} onOpenChange={setSettingsOpen} />

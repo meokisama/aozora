@@ -36,6 +36,7 @@ export function continuousStyles(vertical) {
     .aozora-content > div:has(.aoz-no-text) { margin-block: 2.5rem; }
     ${imageRules(".aozora-content")}
     ${furiganaRules(".aozora-content")}
+    ${searchHitRule()}
     .aozora-content a { color: inherit; }
     /* The reader's font choice must win over fonts the book hardcodes on its
        own elements — many 電書協-template novels set font-family directly on
@@ -68,6 +69,7 @@ export function paginatedStyles(vertical) {
     }
     ${imageRules(".aozora-content", "6rem", "8rem")}
     ${furiganaRules(".aozora-content")}
+    ${searchHitRule()}
     .aoz-page-content p { break-inside: avoid; }
     .aozora-content a { color: inherit; }
     .aozora-content,
@@ -163,6 +165,16 @@ export function furiganaRules(scope) {
       ${scope}.aoz-furigana-toggle ruby:not(.reveal-rt):hover rt { visibility: hidden; }
     }
   `;
+}
+
+/**
+ * Paints the active search hit. The match is registered as a Range with the CSS
+ * Custom Highlight API (see `lib/reader/highlight.js`), so this `::highlight()`
+ * pseudo styles it without touching the book DOM. A translucent wash keeps the
+ * text legible on any theme background.
+ */
+export function searchHitRule() {
+  return `::highlight(aoz-search-hit) { background-color: rgba(250, 204, 21, 0.45); color: inherit; }`;
 }
 
 /** Writes the reader display settings onto the host as inherited CSS vars. */

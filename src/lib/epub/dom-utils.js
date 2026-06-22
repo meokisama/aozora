@@ -15,10 +15,17 @@ export function isNodeGaiji(node) {
 // Japanese codepoints (kana, kanji, fullwidth alnum, iteration marks).
 const isNotJapaneseRegex = /[^0-9A-Z○◯々-〇〻ぁ-ゖゝ-ゞァ-ヺー０-９Ａ-Ｚｦ-ﾝ\p{Radical}\p{Unified_Ideograph}]+/gimu;
 
+/** Counts the Japanese codepoints in a string, matching the reading-position
+ *  model (so a character offset derived from a substring lines up with the
+ *  offsets the reader navigates by). */
+export function countJapanese(str) {
+  if (!str) return 0;
+  return Array.from(str.replace(isNotJapaneseRegex, "")).length;
+}
+
 export function getCharacterCount(node) {
   if (isNodeGaiji(node)) return 1;
-  if (!node.textContent) return 0;
-  return Array.from(node.textContent.replace(isNotJapaneseRegex, "")).length;
+  return countJapanese(node.textContent);
 }
 
 /** Collects text nodes (and gaiji images), skipping ruby readings + hidden nodes. */

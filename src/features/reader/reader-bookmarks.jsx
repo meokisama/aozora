@@ -7,16 +7,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
  * Bookmarks sheet: an add field (pre-filled with a suggested name) plus the
  * list of saved bookmarks, each jumping to its character offset or deletable.
  */
-export function ReaderBookmarks({
-  open,
-  onOpenChange,
-  bookmarks,
-  nameInput,
-  onNameInputChange,
-  onAdd,
-  onJump,
-  onRemove,
-}) {
+export function ReaderBookmarks({ open, onOpenChange, bookmarks, nameInput, onNameInputChange, onAdd, onJump, onRemove }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="left" className="w-72 gap-0 p-0 sm:max-w-72">
