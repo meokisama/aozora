@@ -1,76 +1,59 @@
-import { Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { Check } from "lucide-react";
+import { BookContextMenu } from "./book-actions";
+import { readingStatus, relativeTime } from "@/lib/format";
 
 /**
- * A single book in the library grid: cover, title, author, optional progress.
- * Hovering reveals a remove action (guarded by a confirm dialog).
+ * A single book in the library grid: cover, title, author, reading state.
+ * Clicking the cover opens the book; right-clicking opens the action menu.
  */
-export function BookCard({ book, onOpen, onRemove }) {
-  const progressPct = Math.round((book.progress ?? 0) * 100);
+export function BookCard({ book, onOpen }) {
+  const status = readingStatus(book);
+  const pct = Math.round((book.progress ?? 0) * 100);
+  const lastRead = relativeTime(book.lastOpenedAt);
+
+  // A single compact metric pinned to the right of the author line: percent
+  // while reading, "Finished" when done, else the last-read time if we have one.
+  const meta = status === "reading" ? `${pct}%` : status === "finished" ? "Finished" : lastRead;
 
   return (
-    <div className="group relative flex flex-col">
-      <button
-        type="button"
-        onClick={() => onOpen?.(book)}
-        title={book.title}
-        className="relative block aspect-2/3 w-full overflow-hidden rounded-none border bg-muted text-left transition-colors hover:border-foreground/30"
-      >
-        {book.coverDataUrl ? (
-          <img src={book.coverDataUrl} alt={book.title} className="h-full w-full object-cover" draggable={false} />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center p-3">
-            <span className="line-clamp-5 text-center text-xs text-muted-foreground">{book.title}</span>
-          </div>
-        )}
+    <BookContextMenu book={book}>
+      <div className="group/card relative flex flex-col">
+        <div className="relative aspect-2/3 w-full overflow-hidden border bg-muted transition-colors group-hover/card:border-foreground/40">
+          <button type="button" onClick={() => onOpen?.(book)} title={book.title} className="block h-full w-full text-left">
+            {book.coverDataUrl ? (
+              <img src={book.coverDataUrl} alt={book.title} className="h-full w-full object-cover" draggable={false} />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center p-3">
+                <span className="line-clamp-5 text-center text-xs text-muted-foreground">{book.title}</span>
+              </div>
+            )}
+          </button>
 
-        {progressPct > 0 && (
-          <div className="absolute inset-x-0 bottom-0 h-1 bg-black/25">
-            <div className="h-full bg-primary" style={{ width: `${progressPct}%` }} />
-          </div>
-        )}
-      </button>
+          {status === "finished" && (
+            <div className="pointer-events-none absolute left-1.5 top-1.5 flex size-5 items-center justify-center bg-primary text-primary-foreground shadow-sm">
+              <Check className="size-3.5" />
+            </div>
+          )}
 
-      <div className="mt-2 space-y-0.5">
-        <p className="line-clamp-2 text-xs font-medium leading-snug">{book.title}</p>
-        {book.author && <p className="truncate text-xs text-muted-foreground">{book.author}</p>}
+          {status === "reading" && pct > 0 && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1 bg-black/25">
+              <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
+            </div>
+          )}
+        </div>
+
+        <div className="mt-2 space-y-0.5">
+          <p className="line-clamp-2 text-xs font-medium leading-snug">{book.title}</p>
+          <div className="flex items-baseline justify-between gap-2">
+            {book.author ? (
+              <p className="truncate text-[11px] text-muted-foreground">{book.author}</p>
+            ) : (
+              <span className="text-[11px] text-transparent">·</span>
+            )}
+            {meta && <span className="shrink-0 text-[11px] text-muted-foreground/80 tabular-nums">{meta}</span>}
+          </div>
+        </div>
       </div>
-
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button
-            variant="secondary"
-            size="icon"
-            aria-label="Remove book"
-            className="absolute right-1.5 top-1.5 size-7 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-          >
-            <Trash2 className="size-3.5" />
-          </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove book?</AlertDialogTitle>
-            <AlertDialogDescription>
-              “{book.title}” will be removed from your library and its files deleted. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => onRemove?.(book)}>Remove</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
+    </BookContextMenu>
   );
 }

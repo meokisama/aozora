@@ -96,6 +96,37 @@ export const useLibraryStore = create((set, get) => ({
   },
 
   /**
+   * Updates a book's editable metadata (title/author/cover) via IPC and merges
+   * the returned record (with a fresh coverDataUrl) into the in-memory list.
+   * @param {string} id
+   * @param {{ title?: string, author?: string, coverBytes?: ArrayBuffer, coverMime?: string }} patch
+   */
+  updateBook: async (id, patch) => {
+    const updated = await api().updateBook({ id, ...patch });
+    if (updated) {
+      set({ books: get().books.map((b) => (b.id === id ? { ...b, ...updated } : b)) });
+    }
+    return updated;
+  },
+
+  /**
+   * Manually marks a book finished or unread. Reading status is derived from
+   * `progress`, so this just writes progress (and the matching char offset)
+   * through the existing save-progress path — no extra schema or IPC. Marking
+   * finished sets progress to 1; unread resets it to 0.
+   */
+  setFinished: async (id, finished) => {
+    const book = get().books.find((b) => b.id === id);
+    if (!book) return;
+    const charCount = book.charCount || 0;
+    const fields = finished
+      ? { progress: 1, exploredCharCount: charCount, charCount }
+      : { progress: 0, exploredCharCount: 0 };
+    get().applyProgress(id, fields);
+    await api().saveProgress(id, fields).catch(() => {});
+  },
+
+  /**
    * Merges reading-progress fields into the in-memory record so the library
    * grid (progress bar) reflects the latest position without a full reload.
    * The reader persists the same fields to the main process via IPC.

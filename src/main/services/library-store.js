@@ -129,6 +129,29 @@ export const libraryStore = {
     getDb().prepare("DELETE FROM books WHERE id = ?").run(id);
   },
 
+  /** Updates editable book metadata; only the provided fields are written. */
+  updateBook(id, { title, author, coverPath }) {
+    const sets = [];
+    const params = { id };
+    if (title !== undefined) {
+      sets.push("title = @title");
+      params.title = title;
+    }
+    if (author !== undefined) {
+      sets.push("author = @author");
+      params.author = author;
+    }
+    if (coverPath !== undefined) {
+      sets.push("cover_path = @coverPath");
+      params.coverPath = coverPath;
+    }
+    if (!sets.length) return this.getBook(id);
+    getDb()
+      .prepare(`UPDATE books SET ${sets.join(", ")} WHERE id = @id`)
+      .run(params);
+    return this.getBook(id);
+  },
+
   /** Updates reading progress; only the provided fields are written. */
   updateProgress(id, { progress, exploredCharCount, charCount, lastOpenedAt }) {
     const sets = [];

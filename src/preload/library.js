@@ -30,6 +30,13 @@ export const libraryApi = {
   /** All books, newest first, each with a coverDataUrl. */
   list: () => ipcRenderer.invoke("library:list"),
 
+  /**
+   * Updates a book's editable metadata.
+   * @param {{ id: string, title?: string, author?: string,
+   *   coverBytes?: ArrayBuffer, coverMime?: string }} payload
+   */
+  updateBook: (payload) => ipcRenderer.invoke("library:update-book", payload),
+
   /** Removes a book and its files. */
   remove: (id) => ipcRenderer.invoke("library:remove", id),
 

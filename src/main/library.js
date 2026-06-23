@@ -134,6 +134,38 @@ export const registerLibraryIpc = () => {
 
   ipcMain.handle("library:list", () => libraryStore.listBooks().map(withCover));
 
+  // Edit a book's metadata. Title/author are optional; a new cover (raw bytes
+  // from a renderer-side file picker) is downscaled and written like at import.
+  ipcMain.handle("library:update-book", (_event, payload) => {
+    const { id, title, author, coverBytes, coverMime } = payload;
+    const existing = libraryStore.getBook(id);
+    if (!existing) throw new Error(`book ${id} not found`);
+
+    const fields = {};
+    if (title !== undefined) fields.title = title?.trim() || existing.title;
+    if (author !== undefined) fields.author = author?.trim() || null;
+
+    if (coverBytes) {
+      const dir = path.dirname(existing.filePath);
+      const original = Buffer.from(coverBytes);
+      const thumb = downscaleCover(original);
+      const ext = thumb ? "jpg" : MIME_TO_EXT[coverMime] || "jpg";
+      // Drop the previous cover file first in case the extension changes.
+      if (existing.coverPath && fs.existsSync(existing.coverPath)) {
+        try {
+          fs.rmSync(existing.coverPath);
+        } catch {
+          /* ignore */
+        }
+      }
+      const coverPath = path.join(dir, `cover.${ext}`);
+      fs.writeFileSync(coverPath, thumb || original);
+      fields.coverPath = coverPath;
+    }
+
+    return withCover(libraryStore.updateBook(id, fields));
+  });
+
   ipcMain.handle("library:remove", (_event, id) => {
     const book = libraryStore.getBook(id);
     if (book) {
