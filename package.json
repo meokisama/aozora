@@ -1,7 +1,7 @@
 {
   "name": "aozora",
   "productName": "Aozora",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Desktop application to manage and read Japanese light novel EPUBs with tategaki, furigana, and full TOC navigation.",
   "main": ".vite/build/main.js",
   "scripts": {
