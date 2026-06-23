@@ -20,6 +20,16 @@ const STATUS_TABS = [
   { value: "unread", label: "Unread" },
 ];
 
+/**
+ * Normalizes a string for search matching: NFKC-folds half/full-width forms
+ * (so 半角ｶﾅ ↔ 全角カナ and ＡＢＣ ↔ ABC match) and strips ALL whitespace,
+ * including the full-width ideographic space U+3000 — JS `\s` covers it. This
+ * makes "かずきふみ" and "かずき　ふみ" compare equal. Returns lowercase.
+ */
+function normalizeSearch(str) {
+  return (str ?? "").normalize("NFKC").replace(/\s+/g, "").toLowerCase();
+}
+
 /** Pure sort over a copy — never returned straight from a Zustand selector. */
 function sortBooks(list, sort) {
   const arr = [...list];
@@ -53,6 +63,7 @@ export function LibraryView() {
   const books = useLibraryStore((s) => s.books);
   const loading = useLibraryStore((s) => s.loading);
   const importing = useLibraryStore((s) => s.importing);
+  const importProgress = useLibraryStore((s) => s.importProgress);
   const loadBooks = useLibraryStore((s) => s.loadBooks);
   const importBooks = useLibraryStore((s) => s.importBooks);
   const importDroppedFiles = useLibraryStore((s) => s.importDroppedFiles);
@@ -78,18 +89,25 @@ export function LibraryView() {
 
   // Status counts for the tab labels (over the whole library, ignoring search).
   const counts = useMemo(() => {
-    const c = { all: books.length, reading: 0, finished: 0, unread: 0 };
-    for (const b of books) c[readingStatus(b)] += 1;
+    const c = { all: books.length, favorites: 0, reading: 0, finished: 0, unread: 0 };
+    for (const b of books) {
+      c[readingStatus(b)] += 1;
+      if (b.favorite) c.favorites += 1;
+    }
     return c;
   }, [books]);
 
   // Books matching the active status tab + author + search box, then sorted.
   const visibleBooks = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = normalizeSearch(search);
     const filtered = books.filter((b) => {
-      if (statusFilter !== "all" && readingStatus(b) !== statusFilter) return false;
+      if (statusFilter === "favorites") {
+        if (!b.favorite) return false;
+      } else if (statusFilter !== "all" && readingStatus(b) !== statusFilter) {
+        return false;
+      }
       if (authorFilter && b.author?.trim() !== authorFilter) return false;
-      if (q && !`${b.title} ${b.author ?? ""}`.toLowerCase().includes(q)) return false;
+      if (q && !(normalizeSearch(b.title) + normalizeSearch(b.author)).includes(q)) return false;
       return true;
     });
     return sortBooks(filtered, sort);
@@ -106,6 +124,23 @@ export function LibraryView() {
       .sort((a, b) => (b.lastOpenedAt || 0) - (a.lastOpenedAt || 0))
       .slice(0, 10);
   }, [books, statusFilter, authorFilter, search]);
+
+  // A single sticky toast that tracks import progress ("Importing 3/10…") and is
+  // dismissed when the run ends; the final success/error toast is shown by
+  // reportImport. Reusing one toast id keeps it updating in place.
+  const importToastId = useRef(null);
+  useEffect(() => {
+    if (importing) {
+      const msg =
+        importProgress && importProgress.total > 1
+          ? `Importing ${importProgress.current}/${importProgress.total}…`
+          : "Importing…";
+      importToastId.current = toast.loading(msg, { id: importToastId.current ?? undefined });
+    } else if (importToastId.current != null) {
+      toast.dismiss(importToastId.current);
+      importToastId.current = null;
+    }
+  }, [importing, importProgress]);
 
   const reportImport = ({ added, failed }) => {
     if (added) toast.success(`Imported ${added} book${added > 1 ? "s" : ""}`);
@@ -154,10 +189,17 @@ export function LibraryView() {
     }
   };
 
+  // "Importing 3/10…" when batch-importing, plain "Importing…" for a single file.
+  const importLabel = importing
+    ? importProgress && importProgress.total > 1
+      ? `Importing ${importProgress.current}/${importProgress.total}…`
+      : "Importing…"
+    : "Import EPUB";
+
   const importButton = (
     <Button onClick={handleImport} disabled={importing}>
       {importing ? <Loader2 className="size-4 animate-spin" /> : <BookPlus className="size-4" />}
-      {importing ? "Importing…" : "Import EPUB"}
+      {importLabel}
     </Button>
   );
 
@@ -176,7 +218,13 @@ export function LibraryView() {
       </div>
     );
 
-  const heading = authorFilter ?? (statusFilter === "all" ? "All books" : STATUS_TABS.find((t) => t.value === statusFilter)?.label);
+  const heading =
+    authorFilter ??
+    (statusFilter === "all"
+      ? "All books"
+      : statusFilter === "favorites"
+        ? "Favorites"
+        : STATUS_TABS.find((t) => t.value === statusFilter)?.label);
 
   return (
     <div className="relative flex h-full" onDragEnter={handleDragEnter} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>

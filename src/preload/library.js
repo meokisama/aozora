@@ -46,6 +46,9 @@ export const libraryApi = {
   /** Persists reading progress fields for a book. */
   saveProgress: (id, progress) => ipcRenderer.invoke("library:save-progress", id, progress),
 
+  /** Marks a book as favorite (true) or not (false). Returns the updated record. */
+  setFavorite: (id, favorite) => ipcRenderer.invoke("library:set-favorite", id, favorite),
+
   /** All bookmarks for a book, ordered by reading position. */
   listBookmarks: (bookId) => ipcRenderer.invoke("library:list-bookmarks", bookId),
 

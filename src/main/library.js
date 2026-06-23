@@ -185,6 +185,8 @@ export const registerLibraryIpc = () => {
 
   ipcMain.handle("library:save-progress", (_event, id, progress) => withCover(libraryStore.updateProgress(id, progress)));
 
+  ipcMain.handle("library:set-favorite", (_event, id, favorite) => withCover(libraryStore.setFavorite(id, favorite)));
+
   // --- Bookmarks. -----------------------------------------------------------
   ipcMain.handle("library:list-bookmarks", (_event, bookId) => libraryStore.listBookmarks(bookId));
 

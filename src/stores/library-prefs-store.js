@@ -20,11 +20,11 @@ export const SORT_OPTIONS = [
 export const useLibraryPrefs = create(
   persist(
     (set) => ({
-      sort: "lastOpened", // one of SORT_OPTIONS[].value
+      sort: "added", // one of SORT_OPTIONS[].value
       view: "grid", // "grid" | "list"
       setSort: (sort) => set({ sort }),
       setView: (view) => set({ view }),
     }),
-    { name: "aozora-library-prefs" }
-  )
+    { name: "aozora-library-prefs" },
+  ),
 );

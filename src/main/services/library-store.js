@@ -42,7 +42,8 @@ function getDb() {
       last_opened_at      INTEGER,
       progress            REAL    NOT NULL DEFAULT 0,
       explored_char_count INTEGER NOT NULL DEFAULT 0,
-      char_count          INTEGER NOT NULL DEFAULT 0
+      char_count          INTEGER NOT NULL DEFAULT 0,
+      favorite            INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS bookmarks (
@@ -75,6 +76,7 @@ function rowToBook(row) {
     progress: row.progress,
     exploredCharCount: row.explored_char_count,
     charCount: row.char_count,
+    favorite: row.favorite === 1,
   };
 }
 
@@ -176,6 +178,14 @@ export const libraryStore = {
     getDb()
       .prepare(`UPDATE books SET ${sets.join(", ")} WHERE id = @id`)
       .run(params);
+    return this.getBook(id);
+  },
+
+  /** Marks a book as favorite (true) or not (false). */
+  setFavorite(id, favorite) {
+    getDb()
+      .prepare("UPDATE books SET favorite = @favorite WHERE id = @id")
+      .run({ id, favorite: favorite ? 1 : 0 });
     return this.getBook(id);
   },
 

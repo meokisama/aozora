@@ -11,7 +11,10 @@
     "publish": "electron-forge publish",
     "lint": "echo \"No linting configured\"",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "release:patch": "yarn version --patch --message \"chore(release): bump version to %s\" && git push --follow-tags",
+    "release:minor": "yarn version --minor --message \"chore(release): bump version to %s\" && git push --follow-tags",
+    "release:major": "yarn version --major --message \"chore(release): bump version to %s\" && git push --follow-tags"
   },
   "keywords": [],
   "author": {

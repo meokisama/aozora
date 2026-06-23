@@ -27,7 +27,7 @@ export function BookCard({ book, onOpen }) {
     <BookContextMenu book={book}>
       <div className="flex flex-col">
         <div className="group/cover">
-          <div className="relative aspect-2/3 w-full overflow-hidden rounded-[6px] border bg-muted transition-all duration-300 ease-out group-hover/cover:-translate-y-2 group-hover/cover:shadow-xl">
+          <div className="relative aspect-2/3 w-full overflow-hidden rounded-[5px] border bg-muted transition-all transform-gpu will-change-transform duration-300 ease-out group-hover/cover:-translate-y-1 group-hover/cover:shadow-xl">
             <button type="button" onClick={() => onOpen?.(book)} title={book.title} className="block h-full w-full cursor-pointer text-left">
               <img
                 src={useFallback ? bookTemplate : book.coverDataUrl}

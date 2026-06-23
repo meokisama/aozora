@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { Check, Heart, HeartOff, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -26,6 +26,7 @@ import { BookEditDialog } from "./book-edit-dialog";
 function useBookActions(book) {
   const removeBook = useLibraryStore((s) => s.removeBook);
   const setFinished = useLibraryStore((s) => s.setFinished);
+  const toggleFavorite = useLibraryStore((s) => s.toggleFavorite);
   const [editOpen, setEditOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const status = readingStatus(book);
@@ -43,10 +44,19 @@ function useBookActions(book) {
     setFinished(book.id, finished).catch(() => toast.error("Failed to update status"));
   };
 
+  const handleToggleFavorite = () => {
+    toggleFavorite(book.id)
+      .then(() => toast.success(book.favorite ? "Removed from favorites" : "Added to favorites"))
+      .catch(() => toast.error("Failed to update favorite"));
+  };
+
   // Descriptors shared by both menus; the falsy entries are filtered out so the
   // mark items only show when they'd actually change state.
   const items = [
     { key: "edit", label: "Edit details", icon: Pencil, onSelect: () => setEditOpen(true) },
+    book.favorite
+      ? { key: "favorite", label: "Remove from favorites", icon: HeartOff, onSelect: handleToggleFavorite }
+      : { key: "favorite", label: "Add to favorites", icon: Heart, onSelect: handleToggleFavorite },
     status !== "finished" && { key: "finish", label: "Mark as finished", icon: Check, onSelect: () => handleMark(true) },
     status !== "unread" && { key: "unread", label: "Mark as unread", icon: RotateCcw, onSelect: () => handleMark(false) },
     { key: "sep", separator: true },

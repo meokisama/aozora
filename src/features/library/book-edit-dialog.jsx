@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useLibraryStore } from "@/stores/library-store";
 
 /**
@@ -71,7 +72,7 @@ export function BookEditDialog({ book, open, onOpenChange }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-145">
         <DialogHeader>
           <DialogTitle>Edit details</DialogTitle>
           <DialogDescription>Update the title, author, or cover image.</DialogDescription>
@@ -81,7 +82,7 @@ export function BookEditDialog({ book, open, onOpenChange }) {
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="group relative aspect-2/3 w-24 shrink-0 overflow-hidden border bg-muted transition-colors hover:border-foreground/30"
+            className="group relative aspect-2/3 w-30 shrink-0 overflow-hidden border bg-muted transition-colors hover:border-foreground/30"
             aria-label="Change cover"
           >
             {previewSrc ? (
@@ -98,9 +99,14 @@ export function BookEditDialog({ book, open, onOpenChange }) {
           <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={pickCover} />
 
           <div className="flex flex-1 flex-col gap-3">
-            <label className="space-y-1.5">
+            <label className="flex flex-1 flex-col gap-1.5">
               <span className="text-xs font-medium">Title</span>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Book title" />
+              <Textarea
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Book title"
+                className="min-h-0 flex-1 resize-none field-sizing-fixed"
+              />
             </label>
             <label className="space-y-1.5">
               <span className="text-xs font-medium">Author</span>

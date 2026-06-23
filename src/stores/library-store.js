@@ -10,11 +10,13 @@ const api = () => window.electronAPI.library;
  * Toggles the `importing` flag and refreshes the book list when done.
  */
 async function importPaths(files, set) {
-  set({ importing: true });
+  set({ importing: true, importProgress: { current: 0, total: files.length } });
   const failed = [];
   let added = 0;
   try {
+    let done = 0;
     for (const file of files) {
+      set({ importProgress: { current: done + 1, total: files.length } });
       try {
         const bytes = await api().readFile(file.path);
         const blob = new Blob([bytes]);
@@ -32,12 +34,14 @@ async function importPaths(files, set) {
       } catch (err) {
         console.error(`Failed to import ${file.name}`, err);
         failed.push(file.name);
+      } finally {
+        done += 1;
       }
     }
     const books = await api().list();
     set({ books });
   } finally {
-    set({ importing: false });
+    set({ importing: false, importProgress: null });
   }
   return { added, failed };
 }
@@ -52,6 +56,7 @@ export const useLibraryStore = create((set, get) => ({
   books: [],
   loading: true,
   importing: false,
+  importProgress: null, // { current, total } while importing, else null
 
   /** Loads the full library from the main process. */
   loadBooks: async () => {
@@ -86,6 +91,23 @@ export const useLibraryStore = create((set, get) => ({
       .map((f) => ({ path: api().getPathForFile(f), name: f.name, size: f.size }));
     if (!files.length) return { added: 0, failed: [] };
     return importPaths(files, set);
+  },
+
+  /**
+   * Toggles a book's favorite flag. Updates the in-memory list optimistically
+   * and persists through IPC; reverts on failure.
+   */
+  toggleFavorite: async (id) => {
+    const book = get().books.find((b) => b.id === id);
+    if (!book) return;
+    const next = !book.favorite;
+    set({ books: get().books.map((b) => (b.id === id ? { ...b, favorite: next } : b)) });
+    try {
+      await api().setFavorite(id, next);
+    } catch (err) {
+      set({ books: get().books.map((b) => (b.id === id ? { ...b, favorite: !next } : b)) });
+      throw err;
+    }
   },
 
   /** Removes a book and its files, then refreshes the list. */

@@ -1,10 +1,11 @@
 import { useMemo } from "react";
-import { BookOpen, CheckCircle2, Circle, Library } from "lucide-react";
+import { BookOpen, CheckCircle2, Circle, Heart, Library } from "lucide-react";
 import { cn } from "@/lib/utils";
 import aozoraLogo from "@/assets/aozora-logo.png";
 
 const STATUS_NAV = [
   { value: "all", label: "All books", icon: Library },
+  { value: "favorites", label: "Favorites", icon: Heart },
   { value: "reading", label: "Reading", icon: BookOpen },
   { value: "finished", label: "Finished", icon: CheckCircle2 },
   { value: "unread", label: "Unread", icon: Circle },
@@ -17,7 +18,7 @@ function NavItem({ icon: Icon, label, count, active, onClick }) {
       type="button"
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs transition-colors",
+        "flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs transition-colors cursor-pointer",
         active
           ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
           : "text-foreground/80 hover:bg-sidebar-accent/60 hover:text-foreground",
