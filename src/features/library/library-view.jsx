@@ -265,10 +265,14 @@ export function LibraryView() {
         ) : (
           <div className="flex-1 space-y-8 overflow-auto p-6">
             {continueReading.length > 0 && (
-              <section className="space-y-3">
-                <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Continue reading</h2>
-                {/* Horizontal strip (no wrap): fixed-width cards scroll sideways. */}
-                <div className="flex gap-5 overflow-x-auto pb-2">
+              <section>
+                <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Continue reading</h2>
+                {/* Horizontal strip (no wrap): fixed-width cards scroll sideways.
+                    overflow-x-auto forces overflow-y to auto too, which would clip
+                    a card's hover-lift/shadow. -my-3/py-3 carves out room for it
+                    while the negative margin cancels the gap, so the strip lines up
+                    with the grid below exactly as if it had no padding. */}
+                <div className="flex gap-5 overflow-x-auto -my-3 py-3">
                   {continueReading.map((book) => (
                     <div key={book.id} className="w-35 shrink-0">
                       <BookCard book={book} onOpen={openReader} />
