@@ -9,6 +9,9 @@ export const windowApi = {
   close: () => ipcRenderer.send("window:close"),
   isMaximized: () => ipcRenderer.invoke("window:is-maximized"),
 
+  /** Open an http(s) URL in the user's default browser. */
+  openExternal: (url) => ipcRenderer.invoke("window:open-external", url),
+
   /**
    * Subscribe to maximize-state changes.
    * @param {(maximized: boolean) => void} callback

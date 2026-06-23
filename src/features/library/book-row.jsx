@@ -32,8 +32,8 @@ export function BookRow({ book, onOpen }) {
         </button>
 
         <button type="button" onClick={() => onOpen?.(book)} className="min-w-0 flex-1 text-left">
-          <p className="truncate text-xs font-medium">{book.title}</p>
-          {book.author && <p className="truncate text-[11px] text-muted-foreground">{book.author}</p>}
+          <p className="truncate font-mincho text-xs font-medium">{book.title}</p>
+          {book.author && <p className="truncate font-mincho text-[11px] text-muted-foreground">{book.author}</p>}
         </button>
 
         <Badge variant={STATUS_VARIANT[status]} className="hidden shrink-0 sm:inline-flex">

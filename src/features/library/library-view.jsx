@@ -7,6 +7,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BookCard } from "./book-card";
 import { BookRow } from "./book-row";
+import { LibrarySidebar } from "./library-sidebar";
 import { useLibraryStore } from "@/stores/library-store";
 import { useReaderStore } from "@/stores/reader-store";
 import { useLibraryPrefs, SORT_OPTIONS } from "@/stores/library-prefs-store";
@@ -44,8 +45,9 @@ function sortBooks(list, sort) {
 }
 
 /**
- * The library home: a toolbar (search / status tabs / sort / view) over a
- * "Continue reading" shelf and the full grid (or list) of imported books.
+ * The library home: a left sidebar (status nav / authors / progress / import)
+ * beside a main column with a toolbar (search / sort / view), a "Continue
+ * reading" shelf and the full grid (or list) of imported books.
  */
 export function LibraryView() {
   const books = useLibraryStore((s) => s.books);
@@ -63,6 +65,7 @@ export function LibraryView() {
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [authorFilter, setAuthorFilter] = useState(null); // selected author name, or null for all
 
   // dragenter/dragleave fire for every child element, so track depth with a
   // counter to know when the cursor has truly left the drop zone.
@@ -80,28 +83,29 @@ export function LibraryView() {
     return c;
   }, [books]);
 
-  // Books matching the active status tab + search box, then sorted.
+  // Books matching the active status tab + author + search box, then sorted.
   const visibleBooks = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = books.filter((b) => {
       if (statusFilter !== "all" && readingStatus(b) !== statusFilter) return false;
+      if (authorFilter && b.author?.trim() !== authorFilter) return false;
       if (q && !`${b.title} ${b.author ?? ""}`.toLowerCase().includes(q)) return false;
       return true;
     });
     return sortBooks(filtered, sort);
-  }, [books, statusFilter, search, sort]);
+  }, [books, statusFilter, authorFilter, search, sort]);
 
   // The "Continue reading" shelf: the 10 most-recently-read in-progress books,
   // in a horizontal strip. Capped at 10 — beyond that the sort + Reading tab
   // cover it. Only shown on the unfiltered "All" view so it never duplicates
   // the grid below.
   const continueReading = useMemo(() => {
-    if (statusFilter !== "all" || search.trim()) return [];
+    if (statusFilter !== "all" || authorFilter || search.trim()) return [];
     return books
       .filter((b) => readingStatus(b) === "reading")
       .sort((a, b) => (b.lastOpenedAt || 0) - (a.lastOpenedAt || 0))
       .slice(0, 10);
-  }, [books, statusFilter, search]);
+  }, [books, statusFilter, authorFilter, search]);
 
   const reportImport = ({ added, failed }) => {
     if (added) toast.success(`Imported ${added} book${added > 1 ? "s" : ""}`);
@@ -172,14 +176,10 @@ export function LibraryView() {
       </div>
     );
 
+  const heading = authorFilter ?? (statusFilter === "all" ? "All books" : STATUS_TABS.find((t) => t.value === statusFilter)?.label);
+
   return (
-    <div
-      className="relative flex h-full flex-col"
-      onDragEnter={handleDragEnter}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
+    <div className="relative flex h-full" onDragEnter={handleDragEnter} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
       {dragging && (
         <div className="pointer-events-none absolute inset-3 z-50 flex flex-col items-center justify-center gap-3 rounded-none border-2 border-dashed border-primary bg-background/85 backdrop-blur-sm">
           <UploadCloud className="size-10 text-primary" strokeWidth={1.5} />
@@ -188,18 +188,20 @@ export function LibraryView() {
       )}
 
       {books.length > 0 && (
-        <header className="flex h-12 shrink-0 items-center gap-3 border-b px-6">
-          <ToggleGroup type="single" variant="outline" spacing={0} value={statusFilter} onValueChange={(v) => v && setStatusFilter(v)} size="default">
-            {STATUS_TABS.map((tab) => (
-              <ToggleGroupItem key={tab.value} value={tab.value}>
-                {tab.label}
-                <span className="ml-1.5 text-muted-foreground tabular-nums">{counts[tab.value]}</span>
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
+        <LibrarySidebar
+          books={books}
+          counts={counts}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          authorFilter={authorFilter}
+          setAuthorFilter={setAuthorFilter}
+        />
+      )}
 
-          <div className="ml-auto flex items-center gap-1">
-            <div className="relative w-56">
+      <div className="flex min-w-0 flex-1 flex-col">
+        {books.length > 0 && (
+          <header className="flex h-12 shrink-0 items-center gap-3 border-b px-6">
+            <div className="relative w-64">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search title or author" className="pr-7 pl-8" />
               {search && (
@@ -214,93 +216,96 @@ export function LibraryView() {
               )}
             </div>
 
-            <Select value={sort} onValueChange={setSort}>
-              <SelectTrigger size="default" className="w-32">
-                <span className="flex min-w-0 items-center gap-1.5">
-                  <ArrowUpDown className="size-3.5 text-muted-foreground" />
-                  <SelectValue />
-                </span>
-              </SelectTrigger>
-              <SelectContent>
-                {SORT_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="ml-auto flex items-center gap-1">
+              <Select value={sort} onValueChange={setSort}>
+                <SelectTrigger size="default" className="w-32">
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <ArrowUpDown className="size-3.5 text-muted-foreground" />
+                    <SelectValue />
+                  </span>
+                </SelectTrigger>
+                <SelectContent>
+                  {SORT_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            <ToggleGroup type="single" variant="outline" spacing={0} value={view} onValueChange={(v) => v && setView(v)} size="default">
-              <ToggleGroupItem value="grid" aria-label="Grid view">
-                <LayoutGrid className="size-3.5" />
-              </ToggleGroupItem>
-              <ToggleGroupItem value="list" aria-label="List view">
-                <List className="size-3.5" />
-              </ToggleGroupItem>
-            </ToggleGroup>
+              <ToggleGroup type="single" variant="outline" spacing={0} value={view} onValueChange={(v) => v && setView(v)} size="default">
+                <ToggleGroupItem value="grid" aria-label="Grid view">
+                  <LayoutGrid className="size-3.5" />
+                </ToggleGroupItem>
+                <ToggleGroupItem value="list" aria-label="List view">
+                  <List className="size-3.5" />
+                </ToggleGroupItem>
+              </ToggleGroup>
 
-            <div>{importButton}</div>
-          </div>
-        </header>
-      )}
-
-      {loading ? (
-        <div className="flex flex-1 items-center justify-center">
-          <Loader2 className="size-5 animate-spin text-muted-foreground" />
-        </div>
-      ) : books.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center p-6">
-          <div className="flex w-full max-w-sm flex-col items-center gap-4 border-2 border-dashed border-border px-8 py-12 text-center">
-            <UploadCloud className="size-10 text-muted-foreground" strokeWidth={1.5} />
-            <div className="space-y-1">
-              <p className="text-sm font-medium">Your library is empty</p>
-              <p className="text-xs text-muted-foreground">Drag &amp; drop EPUB files here, or import them manually.</p>
+              {importButton}
             </div>
-            {importButton}
-          </div>
-        </div>
-      ) : (
-        <div className="flex-1 space-y-8 overflow-auto p-6">
-          {continueReading.length > 0 && (
-            <section className="space-y-3">
-              <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Continue reading</h2>
-              {/* Horizontal strip (no wrap): fixed-width cards scroll sideways. */}
-              <div className="flex gap-5 overflow-x-auto pb-2">
-                {continueReading.map((book) => (
-                  <div key={book.id} className="w-35 shrink-0">
-                    <BookCard book={book} onOpen={openReader} />
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
+          </header>
+        )}
 
-          <section className="space-y-3">
-            <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              {statusFilter === "all" ? "All books" : STATUS_TABS.find((t) => t.value === statusFilter)?.label}
-              <span className="ml-1.5 text-muted-foreground/70 tabular-nums">({visibleBooks.length})</span>
-            </h2>
-            {visibleBooks.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-                <Search className="size-7 text-muted-foreground/60" strokeWidth={1.5} />
-                <p className="text-xs text-muted-foreground">No books match your filters.</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setSearch("");
-                    setStatusFilter("all");
-                  }}
-                >
-                  Clear filters
-                </Button>
+        {loading ? (
+          <div className="flex flex-1 items-center justify-center">
+            <Loader2 className="size-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : books.length === 0 ? (
+          <div className="flex flex-1 items-center justify-center p-6">
+            <div className="flex w-full max-w-sm flex-col items-center gap-4 border-2 border-dashed border-border px-8 py-12 text-center">
+              <UploadCloud className="size-10 text-muted-foreground" strokeWidth={1.5} />
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Your library is empty</p>
+                <p className="text-xs text-muted-foreground">Drag &amp; drop EPUB files here, or import them manually.</p>
               </div>
-            ) : (
-              renderBooks(visibleBooks)
+              {importButton}
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 space-y-8 overflow-auto p-6">
+            {continueReading.length > 0 && (
+              <section className="space-y-3">
+                <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Continue reading</h2>
+                {/* Horizontal strip (no wrap): fixed-width cards scroll sideways. */}
+                <div className="flex gap-5 overflow-x-auto pb-2">
+                  {continueReading.map((book) => (
+                    <div key={book.id} className="w-35 shrink-0">
+                      <BookCard book={book} onOpen={openReader} />
+                    </div>
+                  ))}
+                </div>
+              </section>
             )}
-          </section>
-        </div>
-      )}
+
+            <section className="space-y-3">
+              <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {heading}
+                <span className="ml-1.5 text-muted-foreground/70 tabular-nums">({visibleBooks.length})</span>
+              </h2>
+              {visibleBooks.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+                  <Search className="size-7 text-muted-foreground/60" strokeWidth={1.5} />
+                  <p className="text-xs text-muted-foreground">No books match your filters.</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSearch("");
+                      setStatusFilter("all");
+                      setAuthorFilter(null);
+                    }}
+                  >
+                    Clear filters
+                  </Button>
+                </div>
+              ) : (
+                renderBooks(visibleBooks)
+              )}
+            </section>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

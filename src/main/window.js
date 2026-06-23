@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow } from "electron";
+import { ipcMain, BrowserWindow, shell } from "electron";
 
 /**
  * IPC handlers for the custom title bar's window controls.
@@ -25,5 +25,13 @@ export const registerWindowIpc = () => {
 
   ipcMain.handle("window:is-maximized", (event) => {
     return BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false;
+  });
+
+  // Open a URL in the user's default browser. Restricted to http(s) so a
+  // renderer can never coax the main process into launching other protocols.
+  ipcMain.handle("window:open-external", (_event, url) => {
+    if (typeof url === "string" && /^https?:\/\//i.test(url)) {
+      return shell.openExternal(url);
+    }
   });
 };

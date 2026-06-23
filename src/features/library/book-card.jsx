@@ -19,12 +19,12 @@ export function BookCard({ book, onOpen }) {
     <BookContextMenu book={book}>
       <div className="group/card relative flex flex-col">
         <div className="relative aspect-2/3 w-full overflow-hidden border bg-muted transition-colors group-hover/card:border-foreground/40">
-          <button type="button" onClick={() => onOpen?.(book)} title={book.title} className="block h-full w-full text-left">
+          <button type="button" onClick={() => onOpen?.(book)} title={book.title} className="block h-full w-full text-left cursor-pointer">
             {book.coverDataUrl ? (
               <img src={book.coverDataUrl} alt={book.title} className="h-full w-full object-cover" draggable={false} />
             ) : (
               <div className="flex h-full w-full items-center justify-center p-3">
-                <span className="line-clamp-5 text-center text-xs text-muted-foreground">{book.title}</span>
+                <span className="line-clamp-5 text-center font-mincho text-xs text-muted-foreground">{book.title}</span>
               </div>
             )}
           </button>
@@ -43,10 +43,10 @@ export function BookCard({ book, onOpen }) {
         </div>
 
         <div className="mt-2 space-y-0.5">
-          <p className="line-clamp-2 text-xs font-medium leading-snug">{book.title}</p>
+          <p className="line-clamp-2 font-mincho text-xs font-medium leading-snug">{book.title}</p>
           <div className="flex items-baseline justify-between gap-2">
             {book.author ? (
-              <p className="truncate text-[11px] text-muted-foreground">{book.author}</p>
+              <p className="truncate font-mincho text-[11px] text-muted-foreground">{book.author}</p>
             ) : (
               <span className="text-[11px] text-transparent">·</span>
             )}
