@@ -96,3 +96,30 @@ Rendering then branches on the book's layout, all sharing that one OPF-parse lay
   two-page spreads (its own Shadow DOM, spread-index position).
 - **Mixed** — a reflowable book with embedded fixed-layout image pages reuses the text
   reader, merging paired image sections into a single spread page.
+
+## Installation
+
+### Download
+
+Grab the latest installer from the
+[**Releases**](https://github.com/meokisama/aozora/releases) page. On Windows, run the
+`.exe` — the app installs and auto-updates on subsequent launches.
+
+### Build from source
+
+Requires **Node.js** and **Yarn**.
+
+```bash
+# Clone the repo
+git clone https://github.com/meokisama/aozora.git
+cd aozora
+
+# Install dependencies
+yarn install
+
+# Run in development
+yarn start
+
+# Build a distributable installer (output in out/make/)
+yarn make
+```
