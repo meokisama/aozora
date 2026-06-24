@@ -18,6 +18,7 @@ import { mergeSpreadSections } from "@/lib/reader/merge-spreads";
 import { FixedLayoutView } from "./fixed-layout-view";
 import { buildSearchIndex, searchIndex } from "@/lib/reader/search";
 import { clearSearchHighlight, highlightSearchResult } from "@/lib/reader/highlight";
+import { useReadingSession } from "./use-reading-session";
 
 const api = () => window.electronAPI.library;
 
@@ -64,6 +65,10 @@ export function ReaderView() {
   const book = useReaderStore((s) => s.currentBook);
   const close = useReaderStore((s) => s.close);
   const applyProgress = useLibraryStore((s) => s.applyProgress);
+
+  // Records reading time / characters for the stats page. `mark` is called on
+  // every position change; the session is flushed on book change / unmount.
+  const { mark: markSession } = useReadingSession(book?.id);
 
   const fontSize = useSettingsStore((s) => s.fontSize);
   const lineHeight = useSettingsStore((s) => s.lineHeight);
@@ -165,10 +170,11 @@ export function ReaderView() {
       charRef.current = state.char;
       setCurrentChar(state.char);
       setPageInfo({ page: state.page, totalPages: state.totalPages });
+      markSession(state.char, false);
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(persist, 800);
     },
-    [persist],
+    [persist, markSession],
   );
 
   // Receives position updates from the fixed-layout (manga) viewer. Position is
@@ -180,6 +186,7 @@ export function ReaderView() {
       totalRef.current = totalPages;
       setCurrentChar(ordinal);
       setPageInfo({ page: ordinal, totalPages });
+      markSession(ordinal, true);
       if (!book || !totalPages) return;
       const progress = totalPages > 1 ? Math.min(1, ordinal / (totalPages - 1)) : 1;
       const fields = { exploredCharCount: ordinal, charCount: totalPages, progress, lastOpenedAt: Date.now() };
@@ -191,7 +198,7 @@ export function ReaderView() {
           .catch(() => {});
       }, 800);
     },
-    [book, applyProgress],
+    [book, applyProgress, markSession],
   );
 
   // The bookmark name suggested for the current position: the current TOC
@@ -579,6 +586,7 @@ export function ReaderView() {
       if (!host || !anchorsRef.current.anchors.length) return;
       charRef.current = currentCharAtCenter(host, anchorsRef.current.anchors, verticalRef.current);
       setCurrentChar(charRef.current);
+      markSession(charRef.current, false);
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(persist, 800);
     });

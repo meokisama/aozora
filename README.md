@@ -16,17 +16,17 @@ the things that matter when reading Japanese: tategaki, furigana,
 and a comfortable paginated layout. Import your `.epub` library, then read with full
 TOC navigation, bookmarks, in-book search, and adjustable typography.
 
-It also reads **fixed-layout manga / comic EPUBs** as proper two-page spreads — see
+It also reads **fixed-layout manga EPUB** as proper two-page spreads — see
 [Manga & fixed-layout](#manga--fixed-layout) below.
 
-> **Aozora** targets **Japanese light novel EPUBs specifically**. The parser
+> **Aozora** targets **Japanese EPUB specifically**. The parser
 > and reader are built around the structure and styling conventions of those books
 > (tategaki, ruby, image spreads). Other EPUBs may render incorrectly.
 
-![](./assets/preview-0.png)
-![](./assets/preview-1.png)
-![](./assets/preview-2.png)
-![](./assets/preview-3.png)
+![](./preview/preview-0.png)
+![](./preview/preview-2.png)
+![](./preview/preview-3.png)
+![](./preview/preview-5.png)
 
 ## Features
 
@@ -35,16 +35,18 @@ It also reads **fixed-layout manga / comic EPUBs** as proper two-page spreads �
   - **Continuous** — native scroll.
 - **Furigana** rendered with native `<ruby>`, with five display modes: **show**, **hide**,
   **dimmed**, **toggle-on-click**, and **reveal-on-hover/click**.
-- **Reading position** is tracked by character offset (`exploredCharCount`) at the
+- **Reading position** is tracked by character offset at the
   viewport centre and restored on reopen — survives layout/font changes.
 - **Table of contents** — jump to any chapter; the active chapter is highlighted.
-- **Bookmarks** — multiple per book, with editable names (defaults to
-  `{chapter} · {percent}%`); click to jump, delete on hover.
+- **Bookmarks** — multiple per book, with editable names; click to jump, delete on hover.
 - **Full-text search** within the open book, with hit highlighting via the CSS
   Custom Highlight API (works across ruby and the paginated section swaps).
 - **Manga & fixed-layout** — image-per-page EPUBs render as true two-page spreads
   (see below).
-- **Display settings** (persisted): font size, line height, serif/sans Japanese font
+- **Reading statistics** — automatic session tracking feeds a stats page with a
+  GitHub-style activity heatmap, daily goal, streaks, milestones and per-book
+  totals.
+- **Display settings**: font size, line height, serif/sans Japanese font
   stack, sepia/dark theme, reading mode, furigana mode, manga page layout.
 
 ## Manga & fixed-layout
@@ -55,7 +57,7 @@ makes tategaki, live re-flow, and full-text search work so smoothly. That model 
 built for **reflowable text** — a fixed-layout page (a full-page image) shows up as a
 single standalone page, so manga read one page at a time with no real spreads.
 
-![](./assets/preview-4.png)
+![](./preview/preview-4.png)
 
 Aozora adds a dedicated **fixed-layout path** on top, so image-per-page books read the
 way they're meant to:

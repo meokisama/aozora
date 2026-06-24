@@ -3,11 +3,14 @@ import { Toaster } from "@/components/ui/sonner";
 import { TitleBar } from "@/components/title-bar";
 import { LibraryView } from "@/features/library/library-view";
 import { ReaderView } from "@/features/reader/reader-view";
+import { StatsView } from "@/features/stats/stats-view";
 import { useReaderStore } from "@/stores/reader-store";
+import { useUiStore } from "@/stores/ui-store";
 import { useSettingsStore, THEMES } from "@/stores/settings-store";
 
 export function App() {
   const reading = useReaderStore((s) => s.currentBook !== null);
+  const view = useUiStore((s) => s.view);
   const theme = useSettingsStore((s) => s.theme);
 
   // Drive the whole-app colour scheme from the selected theme: toggling the
@@ -33,7 +36,7 @@ export function App() {
     <div className="flex h-screen flex-col">
       <TitleBar />
       <main className="flex-1 overflow-hidden">
-        {reading ? <ReaderView /> : <LibraryView />}
+        {reading ? <ReaderView /> : view === "stats" ? <StatsView /> : <LibraryView />}
       </main>
       <Toaster />
     </div>

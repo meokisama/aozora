@@ -10,6 +10,7 @@ import { BookRow } from "./book-row";
 import { LibrarySidebar } from "./library-sidebar";
 import { useLibraryStore } from "@/stores/library-store";
 import { useReaderStore } from "@/stores/reader-store";
+import { useUiStore } from "@/stores/ui-store";
 import { useLibraryPrefs, SORT_OPTIONS } from "@/stores/library-prefs-store";
 import { readingStatus } from "@/lib/format";
 
@@ -74,9 +75,12 @@ export function LibraryView() {
   const view = useLibraryPrefs((s) => s.view);
   const setView = useLibraryPrefs((s) => s.setView);
 
+  const statusFilter = useUiStore((s) => s.statusFilter);
+  const setStatusFilter = useUiStore((s) => s.setStatusFilter);
+  const authorFilter = useUiStore((s) => s.authorFilter);
+  const setAuthorFilter = useUiStore((s) => s.setAuthorFilter);
+
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [authorFilter, setAuthorFilter] = useState(null); // selected author name, or null for all
 
   // dragenter/dragleave fire for every child element, so track depth with a
   // counter to know when the cursor has truly left the drop zone.
@@ -86,16 +90,6 @@ export function LibraryView() {
   useEffect(() => {
     loadBooks().catch(() => toast.error("Failed to load library"));
   }, [loadBooks]);
-
-  // Status counts for the tab labels (over the whole library, ignoring search).
-  const counts = useMemo(() => {
-    const c = { all: books.length, favorites: 0, reading: 0, finished: 0, unread: 0 };
-    for (const b of books) {
-      c[readingStatus(b)] += 1;
-      if (b.favorite) c.favorites += 1;
-    }
-    return c;
-  }, [books]);
 
   // Books matching the active status tab + author + search box, then sorted.
   const visibleBooks = useMemo(() => {
@@ -235,16 +229,7 @@ export function LibraryView() {
         </div>
       )}
 
-      {books.length > 0 && (
-        <LibrarySidebar
-          books={books}
-          counts={counts}
-          statusFilter={statusFilter}
-          setStatusFilter={setStatusFilter}
-          authorFilter={authorFilter}
-          setAuthorFilter={setAuthorFilter}
-        />
-      )}
+      {books.length > 0 && <LibrarySidebar />}
 
       <div className="flex min-w-0 flex-1 flex-col">
         {books.length > 0 && (

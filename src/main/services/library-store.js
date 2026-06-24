@@ -55,6 +55,20 @@ function getDb() {
       created_at  INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_bookmarks_book ON bookmarks(book_id);
+
+    -- One row per reading session (a continuous stretch of active reading).
+    -- This is the time-series backing the reading-stats page; the books table
+    -- only keeps the latest position, not history. book_id is SET NULL (not
+    -- cascade) on book removal so totals/streaks survive a deleted book.
+    CREATE TABLE IF NOT EXISTS reading_sessions (
+      id          TEXT PRIMARY KEY,
+      book_id     TEXT REFERENCES books(id) ON DELETE SET NULL,
+      started_at  INTEGER NOT NULL,  -- epoch ms
+      ended_at    INTEGER NOT NULL,  -- epoch ms
+      duration_ms INTEGER NOT NULL DEFAULT 0,  -- active time, idle gaps excluded
+      chars_read  INTEGER NOT NULL DEFAULT 0   -- 0 for fixed-layout (manga) sessions
+    );
+    CREATE INDEX IF NOT EXISTS idx_sessions_started ON reading_sessions(started_at);
   `);
 
   return db;
@@ -221,5 +235,92 @@ export const libraryStore = {
 
   removeBookmark(id) {
     getDb().prepare("DELETE FROM bookmarks WHERE id = ?").run(id);
+  },
+
+  // --- Reading sessions (time-series for the stats page). -------------------
+
+  /** Inserts one completed reading session. */
+  recordSession({ id, bookId, startedAt, endedAt, durationMs, charsRead }) {
+    getDb()
+      .prepare(
+        `INSERT INTO reading_sessions (id, book_id, started_at, ended_at, duration_ms, chars_read)
+         VALUES (@id, @bookId, @startedAt, @endedAt, @durationMs, @charsRead)`,
+      )
+      .run({
+        id,
+        bookId: bookId ?? null,
+        startedAt,
+        endedAt,
+        durationMs: Math.max(0, Math.round(durationMs ?? 0)),
+        charsRead: Math.max(0, Math.round(charsRead ?? 0)),
+      });
+  },
+
+  /** All-time totals across every session (single row). */
+  getStatsOverview() {
+    return getDb()
+      .prepare(
+        `SELECT
+           COALESCE(SUM(chars_read), 0)  AS totalChars,
+           COALESCE(SUM(duration_ms), 0) AS totalMs,
+           COUNT(*)                      AS sessionCount,
+           COUNT(DISTINCT date(started_at / 1000, 'unixepoch', 'localtime')) AS activeDays,
+           MIN(started_at)               AS firstAt
+         FROM reading_sessions`,
+      )
+      .get();
+  },
+
+  /**
+   * Per-day activity, bucketed by LOCAL calendar day ('YYYY-MM-DD'). Feeds the
+   * heatmap, streak calc and daily trend chart. Ordered oldest-first.
+   */
+  getDailyActivity() {
+    return getDb()
+      .prepare(
+        `SELECT date(started_at / 1000, 'unixepoch', 'localtime') AS day,
+                SUM(chars_read)            AS chars,
+                SUM(duration_ms)           AS ms,
+                COUNT(*)                   AS sessions,
+                COUNT(DISTINCT book_id)    AS books
+           FROM reading_sessions
+          GROUP BY day
+          ORDER BY day ASC`,
+      )
+      .all();
+  },
+
+  /** Activity grouped by local hour-of-day (0–23). Drives the rhythm chart. */
+  getHourlyActivity() {
+    return getDb()
+      .prepare(
+        `SELECT CAST(strftime('%H', started_at / 1000, 'unixepoch', 'localtime') AS INTEGER) AS hour,
+                SUM(chars_read)  AS chars,
+                SUM(duration_ms) AS ms
+           FROM reading_sessions
+          GROUP BY hour
+          ORDER BY hour ASC`,
+      )
+      .all();
+  },
+
+  /** Per-book totals (joined to current title/author; deleted books drop out). */
+  getPerBookStats() {
+    return getDb()
+      .prepare(
+        `SELECT s.book_id            AS bookId,
+                b.title              AS title,
+                b.author             AS author,
+                SUM(s.chars_read)    AS chars,
+                SUM(s.duration_ms)   AS ms,
+                COUNT(*)             AS sessions,
+                MAX(s.ended_at)      AS lastAt
+           FROM reading_sessions s
+           LEFT JOIN books b ON b.id = s.book_id
+          WHERE s.book_id IS NOT NULL
+          GROUP BY s.book_id
+          ORDER BY ms DESC`,
+      )
+      .all();
   },
 };
