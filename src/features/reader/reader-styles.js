@@ -68,6 +68,7 @@ export function paginatedStyles(vertical) {
       ${SHARED_DISPLAY}
     }
     ${imageRules(".aozora-content", "6rem", "8rem")}
+    ${spreadRules(".aozora-content")}
     ${furiganaRules(".aozora-content")}
     ${searchHitRule()}
     .aoz-page-content p { break-inside: avoid; }
@@ -75,6 +76,50 @@ export function paginatedStyles(vertical) {
     .aozora-content,
     .aozora-content * {
       font-family: var(--reader-font-family, serif) !important;
+    }
+  `;
+}
+
+/**
+ * Fixed-layout (manga / comic) reader CSS. The stage centres the current spread;
+ * each page is a box sized in JS to the authored viewport × a fit scale, with
+ * the page content laid out at native viewport pixels and uniformly scaled via
+ * `transform` (so any positioned text layers scale with the image). The
+ * flex-direction (set inline per page-progression direction) makes RTL spreads
+ * read right-to-left.
+ */
+export function fixedLayoutStyles() {
+  return `
+    :host { display: block; height: 100%; }
+    .aoz-fxl-stage {
+      box-sizing: border-box;
+      height: 100%;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: var(--reader-bg, #faf8f4);
+    }
+    .aoz-fxl-spread { display: flex; flex-wrap: nowrap; align-items: center; }
+    .aoz-fxl-page { position: relative; overflow: hidden; flex: 0 0 auto; }
+    .aoz-fxl-blank { flex: 0 0 auto; }
+    .aoz-fxl-canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
+    /* The flattened spine wrappers fill the authored viewport box exactly, so
+       the page's SVG/image scales with the canvas transform. */
+    .aoz-fxl-canvas .aoz-book-html-wrapper,
+    .aoz-fxl-canvas .aoz-book-body-wrapper {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+    .aoz-fxl-canvas svg,
+    .aoz-fxl-canvas img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
     }
   `;
 }
@@ -126,6 +171,64 @@ export function imageRules(scope, padV = "5rem", padH = "6rem") {
       max-height: ${maxH};
       break-inside: avoid;
       margin: auto;
+    }
+  `;
+}
+
+/**
+ * Two-page spread layout for mixed books (a reflowable novel with embedded
+ * fixed-layout image pages). `merge-spreads` groups a paired opener+closer into
+ * one `.aoz-spread` text-free section, which the paginated controller centres as
+ * a single page; here the two halves are laid side by side, right-to-left for
+ * RTL books. Each half letterboxes its image (object-fit) so portrait pages sit
+ * centred in their half without distortion.
+ */
+export function spreadRules(scope) {
+  // Each half is capped to half the reader width and the full reader height
+  // (matching imageRules' padding budget). The SVG height is anchored to a
+  // definite value — `div.main` between the wrapper and the SVG has no size, so
+  // a `height: 100%` chain would collapse (the "blank illustration" bug).
+  const maxH = `calc(var(--reader-h, 100vh) - 6rem)`;
+  const halfW = `calc((var(--reader-w, 100vw) - 8rem) / 2)`;
+  return `
+    ${scope} .aoz-spread {
+      /* The reflowable reader sets vertical-rl on RTL books; without resetting
+         it here, the inline axis is vertical and flex-direction:row would stack
+         the two pages top-to-bottom instead of side by side. */
+      writing-mode: horizontal-tb;
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+    }
+    ${scope} .aoz-spread[data-ppd="rtl"] { flex-direction: row-reverse; }
+    ${scope} .aoz-spread[data-ppd="ltr"] { flex-direction: row; }
+    ${scope} .aoz-spread > * {
+      flex: 0 1 auto;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      margin: 0;
+    }
+    ${scope} .aoz-spread .aoz-no-text {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: auto;
+      height: 100%;
+    }
+    ${scope} .aoz-spread svg,
+    ${scope} .aoz-spread img {
+      display: block;
+      width: auto;
+      height: ${maxH};
+      max-width: ${halfW};
+      max-height: ${maxH};
+      object-fit: contain;
     }
   `;
 }

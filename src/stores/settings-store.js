@@ -53,6 +53,19 @@ export const FURIGANA_MODES = [
   { value: "full", label: "Reveal (hover/click)" },
 ];
 
+/**
+ * Page layout for fixed-layout books (manga / comics). Only applies to the
+ * fixed-layout reader; reflowable novels ignore it.
+ *   - auto:   two-page spread when the window is landscape, one page otherwise
+ *   - single: always one page at a time
+ *   - double: always a two-page spread
+ */
+export const MANGA_SPREAD_MODES = [
+  { value: "auto", label: "Auto" },
+  { value: "single", label: "Single" },
+  { value: "double", label: "Spread" },
+];
+
 const DEFAULTS = {
   fontSize: 20, // px
   lineHeight: 1.8,
@@ -60,6 +73,7 @@ const DEFAULTS = {
   theme: "sepia", // keyof THEMES
   readingMode: "paginated", // "continuous" | "paginated"
   furiganaMode: "show", // one of FURIGANA_MODES[].value
+  mangaSpread: "auto", // one of MANGA_SPREAD_MODES[].value
 };
 
 export const useSettingsStore = create(
@@ -72,6 +86,7 @@ export const useSettingsStore = create(
       setTheme: (theme) => set({ theme }),
       setReadingMode: (readingMode) => set({ readingMode }),
       setFuriganaMode: (furiganaMode) => set({ furiganaMode }),
+      setMangaSpread: (mangaSpread) => set({ mangaSpread }),
       reset: () => set({ ...DEFAULTS }),
     }),
     {

@@ -58,6 +58,43 @@ describe("generateHtml (no TOC)", () => {
   });
 });
 
+describe("generateHtml (image-in-spine / OMF)", () => {
+  // OMF / fixed-layout manga reference images directly from the spine.
+  const omfOpf = `<?xml version="1.0"?>
+  <package>
+    <manifest>
+      <item id="image001" href="images/cover.jpg" media-type="image/jpeg"/>
+      <item id="image002" href="images/p01.jpg" media-type="image/jpeg"/>
+    </manifest>
+    <spine page-progression-direction="rtl">
+      <itemref idref="image001"/>
+      <itemref idref="image002" properties="page-spread-right"/>
+    </spine>
+  </package>`;
+  const omf = xmlParser.parse(omfOpf);
+  const data = {
+    "images/cover.jpg": new Blob(["x"], { type: "image/jpeg" }),
+    "images/p01.jpg": new Blob(["y"], { type: "image/jpeg" }),
+  };
+  const { element, characters } = generateHtml(data, omf, ".");
+
+  it("wraps each image-in-spine item in an aoz-<idref> div", () => {
+    expect(element.querySelector(`#${PREPEND}image001`)).toBeTruthy();
+    expect(element.querySelector(`#${PREPEND}image002`)).toBeTruthy();
+  });
+
+  it("emits an <img> whose src is a dummy placeholder for the blob key", () => {
+    const img = element.querySelector(`#${PREPEND}image002 img.aoz-spine-item-image`);
+    expect(img).toBeTruthy();
+    expect(img.getAttribute("src")).toContain("aoz:images/p01.jpg");
+  });
+
+  it("counts no characters and tags the wrappers text-free", () => {
+    expect(characters).toBe(0);
+    expect(element.querySelector(`#${PREPEND}image001 .aoz-no-text`)).toBeTruthy();
+  });
+});
+
 describe("generateHtml (NCX TOC)", () => {
   const ncx = `<?xml version="1.0"?>
   <ncx><navMap>

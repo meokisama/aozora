@@ -49,12 +49,18 @@ export function generateHtml(data, contents, contentsDirectory) {
   const fallbackData = new Map();
   let navKey = "";
 
+  // Spine items are usually XHTML documents, but Open Manga Format (OMF) books
+  // reference images directly from the spine. Track both so the flattener can
+  // synthesize a wrapper for an image-in-spine page.
+  const itemIdToImageRef = {};
   const itemIdToHtmlRef = manifestItems.reduce((acc, item) => {
     if (item["@_fallback"]) fallbackData.set(item["@_id"], item["@_fallback"]);
     const mt = item["@_media-type"];
     if (mt === "application/xhtml+xml" || mt === "text/html") {
       acc[item["@_id"]] = item["@_href"];
       if (item["@_properties"] === "nav") navKey = item["@_href"];
+    } else if (mt?.startsWith("image/")) {
+      itemIdToImageRef[item["@_id"]] = item["@_href"];
     }
     return acc;
   }, {});
@@ -140,60 +146,75 @@ export function generateHtml(data, contents, contentsDirectory) {
       itemIdRef = fallbackData.get(itemIdRef);
       htmlHref = itemIdToHtmlRef[itemIdRef];
     }
+    // Image-in-spine (OMF): the spine item *is* an image with no XHTML wrapper.
+    const imageHref = !htmlHref ? itemIdToImageRef[itemIdRef] : null;
 
-    let contentToParse = data[htmlHref] || "";
+    let innerHtml;
+    let htmlClass = "";
+    let bodyId = "";
+    let bodyClass = "";
 
-    for (const tagMatch of selfClosingContentTagsToFix) {
-      const matches = contentToParse.match(new RegExp(`<${tagMatch}[^>]+?>`, "gim")) || [];
-      for (const match of matches) {
-        if (match.endsWith("/>")) {
-          contentToParse = contentToParse.replace(match, `${match.slice(0, -2)}></${tagMatch}>`);
+    if (imageHref) {
+      // Synthesize a body holding just the image. The dummy placeholder carries
+      // the manifest href (which is also the blob key), so buildReaderHtml swaps
+      // it for an object URL at render time — same path as embedded images.
+      htmlHref = imageHref; // let TOC / href resolution match the image item
+      innerHtml = `<img class="aoz-spine-item-image" alt="" src="${buildDummyImage(imageHref)}" />`;
+    } else {
+      let contentToParse = data[htmlHref] || "";
+
+      for (const tagMatch of selfClosingContentTagsToFix) {
+        const matches = contentToParse.match(new RegExp(`<${tagMatch}[^>]+?>`, "gim")) || [];
+        for (const match of matches) {
+          if (match.endsWith("/>")) {
+            contentToParse = contentToParse.replace(match, `${match.slice(0, -2)}></${tagMatch}>`);
+          }
         }
       }
-    }
 
-    contentToParse = contentToParse
-      .replace(controlCharactersRegex, "")
-      .replace(selfClosingTagsRegex, ">")
-      .replace(htmlHexEntitiesRegex, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
-      .replace(htmlDecEntitiesRegex, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
-      .replace("<!DOCTYPE html []>", "<!DOCTYPE html>")
-      .trim();
+      contentToParse = contentToParse
+        .replace(controlCharactersRegex, "")
+        .replace(selfClosingTagsRegex, ">")
+        .replace(htmlHexEntitiesRegex, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+        .replace(htmlDecEntitiesRegex, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
+        .replace("<!DOCTYPE html []>", "<!DOCTYPE html>")
+        .trim();
 
-    let parsedContent = parser.parseFromString(contentToParse, "text/html");
-    let body = parsedContent.body;
-    if (!body?.childNodes?.length) {
-      parsedContent = parser.parseFromString(contentToParse, "text/xml");
-      body = parsedContent.querySelector("body");
+      let parsedContent = parser.parseFromString(contentToParse, "text/html");
+      let body = parsedContent.body;
       if (!body?.childNodes?.length) {
-        throw new Error("Unable to find valid body content while parsing EPUB");
-      }
-    }
-
-    const htmlClass = parsedContent.querySelector("html")?.className || "";
-    const bodyId = body.id || "";
-    const bodyClass = body.className || "";
-
-    for (const elm of [...body.querySelectorAll("image,img")]) {
-      const attributes = elm.tagName.toLowerCase() === "image" ? elm.getAttributeNames().filter((attr) => attr.endsWith("href")) : ["src"];
-      for (const attr of attributes) {
-        const value = elm.getAttribute(attr);
-        if (value) {
-          elm.setAttribute(attr, path.join(path.dirname(htmlHref), value));
+        parsedContent = parser.parseFromString(contentToParse, "text/xml");
+        body = parsedContent.querySelector("body");
+        if (!body?.childNodes?.length) {
+          throw new Error("Unable to find valid body content while parsing EPUB");
         }
       }
-    }
 
-    let innerHtml = body.innerHTML || "";
-    // Both sides are normalized relative to the OPF directory: the image
-    // href above is `path.join(dirname(htmlHref), value)` and the blob key is
-    // the manifest href. So match the blob key directly — the old
-    // `relative(contentsDirectory, …)` indirection mis-resolved to a `../`
-    // prefix whenever the OPF sat two or more directories deep (e.g.
-    // `OPS/content/`), leaving full-page illustrations unswapped → blank pages.
-    blobLocations.forEach((blobLocation) => {
-      innerHtml = innerHtml.replaceAll(blobLocation, buildDummyImage(blobLocation));
-    });
+      htmlClass = parsedContent.querySelector("html")?.className || "";
+      bodyId = body.id || "";
+      bodyClass = body.className || "";
+
+      for (const elm of [...body.querySelectorAll("image,img")]) {
+        const attributes = elm.tagName.toLowerCase() === "image" ? elm.getAttributeNames().filter((attr) => attr.endsWith("href")) : ["src"];
+        for (const attr of attributes) {
+          const value = elm.getAttribute(attr);
+          if (value) {
+            elm.setAttribute(attr, path.join(path.dirname(htmlHref), value));
+          }
+        }
+      }
+
+      innerHtml = body.innerHTML || "";
+      // Both sides are normalized relative to the OPF directory: the image
+      // href above is `path.join(dirname(htmlHref), value)` and the blob key is
+      // the manifest href. So match the blob key directly — the old
+      // `relative(contentsDirectory, …)` indirection mis-resolved to a `../`
+      // prefix whenever the OPF sat two or more directories deep (e.g.
+      // `OPS/content/`), leaving full-page illustrations unswapped → blank pages.
+      blobLocations.forEach((blobLocation) => {
+        innerHtml = innerHtml.replaceAll(blobLocation, buildDummyImage(blobLocation));
+      });
+    }
 
     const childBodyDiv = document.createElement("div");
     childBodyDiv.className = `aoz-book-body-wrapper ${bodyClass}`;

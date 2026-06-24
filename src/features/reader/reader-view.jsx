@@ -14,6 +14,8 @@ import { buildReaderHtml } from "@/lib/epub/format-html";
 import { getCachedBook, putCachedBook } from "@/lib/reader-cache";
 import { collectAnchors, currentCharAtCenter, scrollToChar, scrollToElementId } from "@/lib/reader/position";
 import { PaginatedController } from "@/lib/reader/paginated";
+import { mergeSpreadSections } from "@/lib/reader/merge-spreads";
+import { FixedLayoutView } from "./fixed-layout-view";
 import { buildSearchIndex, searchIndex } from "@/lib/reader/search";
 import { clearSearchHighlight, highlightSearchResult } from "@/lib/reader/highlight";
 
@@ -76,6 +78,8 @@ export function ReaderView() {
   const objectUrlsRef = useRef([]);
   const anchorsRef = useRef({ anchors: [], total: 0 });
   const controllerRef = useRef(null);
+  const fixedRef = useRef(null); // imperative handle of the fixed-layout viewer
+  const fixedDataRef = useRef(null); // { pages, ppd, bookViewport } for the viewer
   const totalRef = useRef(0);
   const verticalRef = useRef(false);
   const modeRef = useRef(readingMode);
@@ -88,6 +92,7 @@ export function ReaderView() {
 
   const [status, setStatus] = useState("loading"); // loading | ready | error
   const [parseToken, setParseToken] = useState(0); // bumped when parsed content is ready
+  const [fixedLayout, setFixedLayout] = useState(false); // manga / fixed-layout book
   // Writing direction comes from the EPUB itself (page-progression-direction /
   // the book's CSS); there is no manual override.
   const [vertical, setVertical] = useState(true);
@@ -104,7 +109,11 @@ export function ReaderView() {
   const [searchResults, setSearchResults] = useState({ results: [], total: 0, capped: false });
 
   const total = totalRef.current;
-  const progressPct = total ? Math.round((currentChar / total) * 100) : 0;
+  // Fixed-layout position is a page ordinal, so the last page (ordinal total-1)
+  // is 100%; reflowable position is a character offset out of the total.
+  const progressPct = total
+    ? Math.round((fixedLayout && total > 1 ? currentChar / (total - 1) : currentChar / total) * 100)
+    : 0;
 
   // Chapters that carry a TOC label (sub-sections fold into their parent).
   const chapters = useMemo(() => sections.filter((s) => s.label), [sections]);
@@ -162,6 +171,29 @@ export function ReaderView() {
     [persist],
   );
 
+  // Receives position updates from the fixed-layout (manga) viewer. Position is
+  // a page ordinal (0-based, orientation-independent); progress reaches 1 on the
+  // last page so finished manga read as complete.
+  const onFixedChange = useCallback(
+    (ordinal, totalPages) => {
+      charRef.current = ordinal;
+      totalRef.current = totalPages;
+      setCurrentChar(ordinal);
+      setPageInfo({ page: ordinal, totalPages });
+      if (!book || !totalPages) return;
+      const progress = totalPages > 1 ? Math.min(1, ordinal / (totalPages - 1)) : 1;
+      const fields = { exploredCharCount: ordinal, charCount: totalPages, progress, lastOpenedAt: Date.now() };
+      applyProgress(book.id, fields);
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => {
+        api()
+          .saveProgress(book.id, fields)
+          .catch(() => {});
+      }, 800);
+    },
+    [book, applyProgress],
+  );
+
   // The bookmark name suggested for the current position: the current TOC
   // chapter's title + the reading-progress percentage (e.g. "第四章 · 45%").
   // The user can edit it before saving. Falls back to just the percentage when
@@ -183,6 +215,10 @@ export function ReaderView() {
     (char) => {
       setBookmarksOpen(false);
       charRef.current = char;
+      if (modeRef.current === "fixed") {
+        fixedRef.current?.jumpToOrdinal(char); // emits onChange → updates state + saves
+        return;
+      }
       if (modeRef.current === "paginated") {
         controllerRef.current?.restoreToChar(char); // emits onChange → updates state + saves
         return;
@@ -310,12 +346,14 @@ export function ReaderView() {
     anchorsRef.current = { anchors: [], total: 0 };
     controllerRef.current?.destroy();
     controllerRef.current = null;
+    fixedDataRef.current = null;
     htmlRef.current = null;
     parsedRef.current = null;
     totalRef.current = 0;
     charRef.current = 0;
     setCurrentChar(0);
     setPageInfo(null);
+    setFixedLayout(false);
     setSections([]);
     searchIndexRef.current = null;
     clearSearchHighlight();
@@ -340,7 +378,11 @@ export function ReaderView() {
         htmlRef.current = html;
         verticalRef.current = parsed.vertical;
         charRef.current = book.exploredCharCount || 0;
+        if (parsed.fixedLayout) {
+          fixedDataRef.current = { pages: parsed.pages || [], ppd: parsed.ppd, bookViewport: parsed.bookViewport };
+        }
         setVertical(parsed.vertical);
+        setFixedLayout(!!parsed.fixedLayout);
         setSections(parsed.sections || []);
         setParseToken((t) => t + 1); // hand off to the render effect
       } catch (err) {
@@ -378,10 +420,21 @@ export function ReaderView() {
   // Runs when parsed content becomes ready and whenever the reading mode toggles
   // — never re-parsing, only re-laying-out, carrying the character position.
   useEffect(() => {
+    const parsed = parsedRef.current;
+    if (!parsed) return;
+
+    // Fixed-layout (manga) renders through <FixedLayoutView>, which owns its own
+    // shadow DOM and navigation. Nothing to build here — just mark it ready.
+    if (parsed.fixedLayout) {
+      modeRef.current = "fixed";
+      readyRef.current = true;
+      setStatus("ready");
+      return;
+    }
+
     const host = hostRef.current;
     const html = htmlRef.current;
-    const parsed = parsedRef.current;
-    if (!host || !html || !parsed) return;
+    if (!host || !html) return;
 
     let cancelled = false;
     const vert = verticalRef.current;
@@ -402,6 +455,9 @@ export function ReaderView() {
 
       const temp = document.createElement("div");
       temp.innerHTML = html;
+      // Mixed books: merge paired fixed-layout image pages into one spread
+      // section so the controller renders them side by side on a single page.
+      mergeSpreadSections(temp, parsed.spreadPairs, parsed.ppd);
       const sectionEls = Array.from(temp.children);
 
       const controller = new PaginatedController({
@@ -473,9 +529,10 @@ export function ReaderView() {
   const flipNext = useCallback(() => controllerRef.current?.flipPage(1), []);
   const flipPrev = useCallback(() => controllerRef.current?.flipPage(-1), []);
 
-  // Keyboard navigation for the page-flip reader.
+  // Keyboard navigation for the page-flip reader. The fixed-layout viewer owns
+  // its own key handling, so the reflowable handler stands down for manga.
   useEffect(() => {
-    if (readingMode !== "paginated") return;
+    if (fixedLayout || readingMode !== "paginated") return;
     const onKey = (e) => {
       if (e.altKey || e.ctrlKey || e.metaKey || e.repeat) return;
       const vert = verticalRef.current;
@@ -509,7 +566,7 @@ export function ReaderView() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [readingMode, flipNext, flipPrev]);
+  }, [fixedLayout, readingMode, flipNext, flipPrev]);
 
   // Recompute the continuous character offset at the viewport centre
   // (rAF-throttled) and debounce a save.
@@ -563,7 +620,9 @@ export function ReaderView() {
 
   const handleJump = (reference) => {
     setTocOpen(false);
-    if (modeRef.current === "paginated") {
+    if (modeRef.current === "fixed") {
+      fixedRef.current?.jumpToId(reference);
+    } else if (modeRef.current === "paginated") {
       controllerRef.current?.jumpToSectionId(reference);
     } else {
       jumpToReference(reference);
@@ -601,7 +660,7 @@ export function ReaderView() {
           <>
             <div className="h-4 w-px shrink-0 bg-border" />
             <div className="flex shrink-0 items-center gap-2 text-[11px] text-muted-foreground">
-              {paged && pageInfo && (
+              {(paged || fixedLayout) && pageInfo && (
                 <span className="tabular-nums">
                   {pageInfo.page + 1}
                   <span className="opacity-50">/{pageInfo.totalPages}</span>
@@ -620,7 +679,7 @@ export function ReaderView() {
         <Button variant="ghost" size="icon" onClick={() => setTocOpen(true)} disabled={!chapters.length} aria-label="Table of contents">
           <List className="size-4" />
         </Button>
-        <Button variant="ghost" size="icon" onClick={() => setSearchOpen(true)} disabled={!total} aria-label="Search in book">
+        <Button variant="ghost" size="icon" onClick={() => setSearchOpen(true)} disabled={!total || fixedLayout} aria-label="Search in book">
           <Search className="size-4" />
         </Button>
         <Button
@@ -649,23 +708,38 @@ export function ReaderView() {
             )}
           </div>
         )}
-        <div
-          ref={hostRef}
-          onWheel={handleWheel}
-          onScroll={handleScroll}
-          onClick={handleContentClick}
-          className={
-            paged
-              ? // Outer padding lives here (on the host, outside the shadow
-                // scroller) so it never disturbs the page-flip arithmetic. The
-                // scroller measures its own client box, so columns inset to
-                // match. Tune freely: py-* = top/bottom, px-* = sides.
-                "h-full w-full overflow-hidden py-8 px-8"
-              : vertical
-                ? "h-full w-full overflow-x-auto overflow-y-hidden"
-                : "h-full w-full overflow-y-auto overflow-x-hidden"
-          }
-        />
+        {fixedLayout ? (
+          fixedDataRef.current && (
+            <FixedLayoutView
+              ref={fixedRef}
+              html={htmlRef.current}
+              styleSheet={parsedRef.current?.styleSheet || ""}
+              pages={fixedDataRef.current.pages}
+              ppd={fixedDataRef.current.ppd}
+              bookViewport={fixedDataRef.current.bookViewport}
+              initialOrdinal={book.exploredCharCount || 0}
+              onChange={onFixedChange}
+            />
+          )
+        ) : (
+          <div
+            ref={hostRef}
+            onWheel={handleWheel}
+            onScroll={handleScroll}
+            onClick={handleContentClick}
+            className={
+              paged
+                ? // Outer padding lives here (on the host, outside the shadow
+                  // scroller) so it never disturbs the page-flip arithmetic. The
+                  // scroller measures its own client box, so columns inset to
+                  // match. Tune freely: py-* = top/bottom, px-* = sides.
+                  "h-full w-full overflow-hidden py-8 px-8"
+                : vertical
+                  ? "h-full w-full overflow-x-auto overflow-y-hidden"
+                  : "h-full w-full overflow-y-auto overflow-x-hidden"
+            }
+          />
+        )}
       </div>
 
       <ReaderToc open={tocOpen} onOpenChange={setTocOpen} chapters={chapters} activeChapterId={activeChapterId} onJump={handleJump} />
@@ -692,7 +766,7 @@ export function ReaderView() {
         onJump={jumpToSearchResult}
       />
 
-      <ReaderSettingsPanel open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <ReaderSettingsPanel open={settingsOpen} onOpenChange={setSettingsOpen} fixedLayout={fixedLayout} />
     </div>
   );
 }

@@ -20,7 +20,8 @@ module.exports = {
         setupIcon: "assets/app.ico",
         iconUrl: "https://raw.githubusercontent.com/meokisama/aozora/refs/heads/master/assets/app.ico",
         authors: "Meoki",
-        description: "Desktop application to manage and read Japanese light novel EPUBs with tategaki, furigana, and full TOC navigation.",
+        description:
+          "Desktop EPUB reader for Japanese light novels & manga — tategaki, furigana, fixed-layout two-page spreads, TOC, bookmarks, and full-text search.",
       },
     },
     {
@@ -35,7 +36,8 @@ module.exports = {
           productName: "Aozora",
           executableName: "aozora",
           maintainer: "Meoki",
-          description: "Desktop application to manage and read Japanese light novel EPUBs with tategaki, furigana, and full TOC navigation.",
+          description:
+            "Desktop EPUB reader for Japanese light novels & manga — tategaki, furigana, fixed-layout two-page spreads, TOC, bookmarks, and full-text search.",
         },
       },
     },
@@ -46,7 +48,8 @@ module.exports = {
           productName: "Aozora",
           executableName: "aozora",
           maintainer: "Meoki",
-          description: "Desktop application to manage and read Japanese light novel EPUBs with tategaki, furigana, and full TOC navigation.",
+          description:
+            "Desktop EPUB reader for Japanese light novels & manga — tategaki, furigana, fixed-layout two-page spreads, TOC, bookmarks, and full-text search.",
         },
       },
     },

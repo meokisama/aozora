@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
   xmlParser,
   isOpfPrefixed,
@@ -7,6 +9,14 @@ import {
   getMetadata,
   getMetaKey,
   getPageProgressionDirection,
+  getRenditionProperty,
+  getMetaContentByName,
+  getRenditionLayout,
+  isFixedLayout,
+  getBookViewport,
+  parsePageSpread,
+  parseItemLayout,
+  getSpinePageSpreads,
   asArray,
   firstText,
 } from "@/lib/epub/opf";
@@ -127,5 +137,110 @@ describe("getPageProgressionDirection", () => {
   });
   it("returns empty string when unset", () => {
     expect(getPageProgressionDirection(prefixed)).toBe("");
+  });
+});
+
+describe("parsePageSpread", () => {
+  it("reads the bare form", () => {
+    expect(parsePageSpread("page-spread-left")).toBe("left");
+    expect(parsePageSpread("page-spread-right")).toBe("right");
+    expect(parsePageSpread("page-spread-center")).toBe("center");
+  });
+  it("reads the rendition-prefixed form among other tokens", () => {
+    expect(parsePageSpread("svg rendition:page-spread-center")).toBe("center");
+  });
+  it("returns null when absent", () => {
+    expect(parsePageSpread("svg")).toBeNull();
+    expect(parsePageSpread(undefined)).toBeNull();
+  });
+});
+
+// Real fixed-layout (pre-paginated, 電書協 / fixed-layout-jp template) OPF.
+const fixed = xmlParser.parse(
+  readFileSync(fileURLToPath(new URL("../../../sample/manga-2/item/standard.opf", import.meta.url)), "utf8"),
+);
+
+describe("fixed-layout metadata", () => {
+  it("detects pre-paginated layout", () => {
+    expect(getRenditionLayout(fixed)).toBe("pre-paginated");
+    expect(isFixedLayout(fixed)).toBe(true);
+    expect(isFixedLayout(plain)).toBe(false);
+    expect(getRenditionLayout(plain)).toBe("reflowable");
+  });
+
+  it("reads a rendition property's text", () => {
+    expect(getRenditionProperty(fixed, "rendition:spread")).toBe("landscape");
+  });
+
+  it("reads a legacy name/content meta", () => {
+    expect(getMetaContentByName(fixed, "original-resolution")).toBe("1303x2048");
+  });
+
+  it("resolves the base viewport", () => {
+    expect(getBookViewport(fixed)).toEqual({ width: 1303, height: 2048 });
+    expect(getBookViewport(plain)).toBeNull();
+  });
+
+  it("reads spine page-spread sides in order", () => {
+    const spine = getSpinePageSpreads(fixed);
+    expect(spine[0]).toEqual({ idref: "p-000a", pageSpread: "center", layout: null, linear: true });
+    expect(spine[1]).toEqual({ idref: "p-000b", pageSpread: "right", layout: null, linear: true });
+    expect(spine[2]).toEqual({ idref: "p-0001", pageSpread: "left", layout: null, linear: true });
+  });
+});
+
+// Open Manga Format book (manga-1): no rendition:layout, declares omf:version
+// and references images directly from the spine.
+const omf = xmlParser.parse(
+  readFileSync(fileURLToPath(new URL("../../../sample/manga-1/OPS/standard.opf", import.meta.url)), "utf8"),
+);
+
+// Mixed book (combine-3): globally reflowable light novel with embedded
+// fixed-layout image pages declared via per-itemref rendition:layout-pre-paginated.
+const mixed = xmlParser.parse(
+  readFileSync(fileURLToPath(new URL("../../../sample/combine-3/item/standard.opf", import.meta.url)), "utf8"),
+);
+
+describe("parseItemLayout", () => {
+  it("reads a per-item layout override", () => {
+    expect(parseItemLayout("rendition:layout-pre-paginated page-spread-right")).toBe("pre-paginated");
+    expect(parseItemLayout("rendition:layout-reflowable")).toBe("reflowable");
+    expect(parseItemLayout("page-spread-left")).toBeNull();
+    expect(parseItemLayout(undefined)).toBeNull();
+  });
+});
+
+describe("mixed book (reflowable + embedded fixed pages)", () => {
+  it("is reflowable at the book level", () => {
+    expect(getRenditionLayout(mixed)).toBe("reflowable");
+    expect(isFixedLayout(mixed)).toBe(false);
+  });
+
+  it("exposes per-item pre-paginated overrides with their page-spread", () => {
+    const byId = Object.fromEntries(getSpinePageSpreads(mixed).map((p) => [p.idref, p]));
+    expect(byId["p-cover"]).toMatchObject({ layout: "pre-paginated", pageSpread: "center" });
+    expect(byId["p-001"]).toMatchObject({ layout: "pre-paginated", pageSpread: "right" });
+    expect(byId["p-002"]).toMatchObject({ layout: "pre-paginated", pageSpread: "left" });
+    // A reflowable text page: no layout override, no page-spread.
+    expect(byId["p-021"]).toMatchObject({ layout: null, pageSpread: null });
+  });
+});
+
+describe("Open Manga Format (omf) detection", () => {
+  it("treats omf:version as pre-paginated even without rendition:layout", () => {
+    expect(getRenditionProperty(omf, "rendition:layout")).toBe("");
+    expect(getRenditionLayout(omf)).toBe("pre-paginated");
+    expect(isFixedLayout(omf)).toBe(true);
+  });
+
+  it("resolves the viewport from omf:viewport", () => {
+    expect(getBookViewport(omf)).toEqual({ width: 1440, height: 2048 });
+  });
+
+  it("reads image idrefs and their page-spread sides from the spine", () => {
+    const spine = getSpinePageSpreads(omf);
+    expect(spine[0]).toEqual({ idref: "image001", pageSpread: null, layout: null, linear: true });
+    expect(spine[1]).toEqual({ idref: "image002", pageSpread: "right", layout: null, linear: true });
+    expect(spine[2]).toEqual({ idref: "image003", pageSpread: "left", layout: null, linear: true });
   });
 });

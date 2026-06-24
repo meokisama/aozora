@@ -7,14 +7,18 @@
 
 const DB_NAME = "aozora-reader";
 const STORE = "books";
-const DB_VERSION = 1;
+// v2: the parsed payload gained fixed-layout fields (fixedLayout/pages/ppd/…).
+// Pre-release policy is forward-only — drop the old cache rather than migrate, so
+// previously-opened books re-parse and pick up the new fields.
+const DB_VERSION = 2;
 
 function openDb() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
-      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
+      if (db.objectStoreNames.contains(STORE)) db.deleteObjectStore(STORE);
+      db.createObjectStore(STORE);
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
