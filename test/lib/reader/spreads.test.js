@@ -1,6 +1,4 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { buildSpreads } from "@/lib/reader/spreads";
 import { xmlParser, getSpinePageSpreads, getPageProgressionDirection } from "@/lib/epub/opf";
 
@@ -93,9 +91,26 @@ describe("buildSpreads", () => {
   });
 });
 
-describe("buildSpreads on the real sample OPF (manga-2)", () => {
-  const opfPath = fileURLToPath(new URL("../../../sample/manga-2/item/standard.opf", import.meta.url));
-  const contents = xmlParser.parse(readFileSync(opfPath, "utf8"));
+describe("buildSpreads from a parsed fixed-layout spine", () => {
+  // Cover (center), then right/left pairs — the canonical RTL manga sequence.
+  const OPF = `<?xml version="1.0"?>
+  <package version="3.0">
+    <manifest>
+      <item id="c" href="c.xhtml" media-type="application/xhtml+xml" properties="svg"/>
+      <item id="b1" href="b1.xhtml" media-type="application/xhtml+xml" properties="svg"/>
+      <item id="a1" href="a1.xhtml" media-type="application/xhtml+xml" properties="svg"/>
+      <item id="b2" href="b2.xhtml" media-type="application/xhtml+xml" properties="svg"/>
+      <item id="a2" href="a2.xhtml" media-type="application/xhtml+xml" properties="svg"/>
+    </manifest>
+    <spine page-progression-direction="rtl">
+      <itemref idref="c" properties="rendition:page-spread-center"/>
+      <itemref idref="b1" properties="page-spread-right"/>
+      <itemref idref="a1" properties="page-spread-left"/>
+      <itemref idref="b2" properties="page-spread-right"/>
+      <itemref idref="a2" properties="page-spread-left"/>
+    </spine>
+  </package>`;
+  const contents = xmlParser.parse(OPF);
   const ppd = getPageProgressionDirection(contents);
   const spinePages = getSpinePageSpreads(contents).filter((p) => p.linear);
   const spreads = buildSpreads(spinePages, ppd);
@@ -104,24 +119,18 @@ describe("buildSpreads on the real sample OPF (manga-2)", () => {
     expect(ppd).toBe("rtl");
   });
 
-  it("starts with the cover (center) alone", () => {
-    expect(spreads[0].single).toBe(true);
-    expect(spreads[0].items[0].idref).toBe("p-000a");
-    expect(spreads[0].pageSpread).toBe("center");
+  it("starts with the cover (center) alone, then pairs right→left", () => {
+    expect(spreads[0]).toMatchObject({ single: true, pageSpread: "center" });
+    expect(spreads[0].items[0].idref).toBe("c");
+    expect(spreads.slice(1).map((s) => s.items.map((p) => p.idref))).toEqual([
+      ["b1", "a1"],
+      ["b2", "a2"],
+    ]);
   });
 
-  it("orders each pair opener-first (right then left for rtl)", () => {
-    expect(spreads[1].items.map((p) => p.idref)).toEqual(["p-000b", "p-0001"]);
-    expect(spreads[1].single).toBe(false);
-  });
-
-  it("never places more than two pages in a spread", () => {
-    expect(spreads.every((s) => s.items.length <= 2)).toBe(true);
-  });
-
-  it("accounts for every page exactly once", () => {
+  it("accounts for every page exactly once, max two per spread", () => {
     const flat = spreads.flatMap((s) => s.items.map((p) => p.idref));
     expect(flat).toHaveLength(spinePages.length);
-    expect(new Set(flat).size).toBe(spinePages.length);
+    expect(spreads.every((s) => s.items.length <= 2)).toBe(true);
   });
 });

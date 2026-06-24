@@ -1,6 +1,4 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import {
   xmlParser,
   isOpfPrefixed,
@@ -155,10 +153,30 @@ describe("parsePageSpread", () => {
   });
 });
 
-// Real fixed-layout (pre-paginated, 電書協 / fixed-layout-jp template) OPF.
-const fixed = xmlParser.parse(
-  readFileSync(fileURLToPath(new URL("../../../sample/manga-2/item/standard.opf", import.meta.url)), "utf8"),
-);
+// Fixed-layout (pre-paginated, fixed-layout-jp template) book: image pages
+// wrapped in XHTML+SVG, cover (center) then right/left pairs.
+const FIXED_OPF = `<?xml version="1.0"?>
+<package version="3.0" prefix="rendition: http://www.idpf.org/vocab/rendition/# fixed-layout-jp: http://www.digital-comic.jp/">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>固定レイアウト</dc:title>
+    <meta property="rendition:layout">pre-paginated</meta>
+    <meta property="rendition:orientation">auto</meta>
+    <meta property="rendition:spread">landscape</meta>
+    <meta name="original-resolution" content="1303x2048"/>
+    <meta property="fixed-layout-jp:viewport">width=1303, height=2048</meta>
+  </metadata>
+  <manifest>
+    <item id="p-000a" href="xhtml/p-000a.xhtml" media-type="application/xhtml+xml" properties="svg"/>
+    <item id="p-000b" href="xhtml/p-000b.xhtml" media-type="application/xhtml+xml" properties="svg"/>
+    <item id="p-0001" href="xhtml/p-0001.xhtml" media-type="application/xhtml+xml" properties="svg"/>
+  </manifest>
+  <spine page-progression-direction="rtl">
+    <itemref idref="p-000a" properties="rendition:page-spread-center" linear="yes"/>
+    <itemref idref="p-000b" properties="page-spread-right" linear="yes"/>
+    <itemref idref="p-0001" properties="page-spread-left" linear="yes"/>
+  </spine>
+</package>`;
+const fixed = xmlParser.parse(FIXED_OPF);
 
 describe("fixed-layout metadata", () => {
   it("detects pre-paginated layout", () => {
@@ -189,17 +207,51 @@ describe("fixed-layout metadata", () => {
   });
 });
 
-// Open Manga Format book (manga-1): no rendition:layout, declares omf:version
-// and references images directly from the spine.
-const omf = xmlParser.parse(
-  readFileSync(fileURLToPath(new URL("../../../sample/manga-1/OPS/standard.opf", import.meta.url)), "utf8"),
-);
+// Open Manga Format book: no rendition:layout, declares omf:version and
+// references page images directly from the spine (no XHTML wrapper).
+const OMF_OPF = `<?xml version="1.0"?>
+<package version="3.0" prefix="omf: http://openmangaformat.org/schema/1.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>オープンマンガ</dc:title>
+    <meta property="omf:version">omf.1.0</meta>
+    <meta property="omf:viewport">width=1440, height=2048</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="navigation_standard.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="image001" href="images/cover.jpg" media-type="image/jpeg"/>
+    <item id="image002" href="images/p01.jpg" media-type="image/jpeg"/>
+    <item id="image003" href="images/p02.jpg" media-type="image/jpeg"/>
+  </manifest>
+  <spine toc="ncx" page-progression-direction="rtl">
+    <itemref idref="image001"/>
+    <itemref idref="image002" properties="page-spread-right"/>
+    <itemref idref="image003" properties="page-spread-left"/>
+  </spine>
+</package>`;
+const omf = xmlParser.parse(OMF_OPF);
 
-// Mixed book (combine-3): globally reflowable light novel with embedded
-// fixed-layout image pages declared via per-itemref rendition:layout-pre-paginated.
-const mixed = xmlParser.parse(
-  readFileSync(fileURLToPath(new URL("../../../sample/combine-3/item/standard.opf", import.meta.url)), "utf8"),
-);
+// Mixed book: globally reflowable light novel with embedded fixed-layout image
+// pages declared via per-itemref rendition:layout-pre-paginated.
+const MIXED_OPF = `<?xml version="1.0"?>
+<package version="3.0" prefix="rendition: http://www.idpf.org/vocab/rendition/#">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>混在</dc:title>
+    <meta property="rendition:layout">reflowable</meta>
+  </metadata>
+  <manifest>
+    <item id="p-cover" href="xhtml/p-cover.xhtml" media-type="application/xhtml+xml" properties="svg"/>
+    <item id="p-001" href="xhtml/p-001.xhtml" media-type="application/xhtml+xml" properties="svg"/>
+    <item id="p-002" href="xhtml/p-002.xhtml" media-type="application/xhtml+xml" properties="svg"/>
+    <item id="p-021" href="xhtml/p-021.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine page-progression-direction="rtl">
+    <itemref linear="yes" idref="p-cover" properties="rendition:layout-pre-paginated rendition:spread-none rendition:page-spread-center"/>
+    <itemref linear="yes" idref="p-001" properties="rendition:layout-pre-paginated page-spread-right"/>
+    <itemref linear="yes" idref="p-002" properties="rendition:layout-pre-paginated page-spread-left"/>
+    <itemref linear="yes" idref="p-021"/>
+  </spine>
+</package>`;
+const mixed = xmlParser.parse(MIXED_OPF);
 
 describe("parseItemLayout", () => {
   it("reads a per-item layout override", () => {

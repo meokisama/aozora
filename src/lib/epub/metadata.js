@@ -1,12 +1,12 @@
 import { BlobReader, BlobWriter, TextWriter, ZipReader, configure } from "@zip.js/zip.js";
 import path from "path-browserify";
-import { xmlParser, getManifestItems, getMetadata, getMetaKey, asArray, firstText } from "./opf";
+import { xmlParser, getManifestItems, getSpineItemRefs, getMetadata, getMetaKey, asArray, firstText } from "./opf";
 
 // Disable web workers: simpler/more robust under the Electron renderer + Vite
 // bundler. Metadata reads only touch a few small entries, so it's plenty fast.
 configure({ useWebWorkers: false });
 
-function resolveCoverHref(manifestItems, metadata, metaKey) {
+export function resolveCoverHref(manifestItems, metadata, metaKey, spineRefs) {
   // EPUB3: a manifest item flagged properties="cover-image".
   const byProperty = manifestItems.find((item) => item["@_properties"] === "cover-image");
   if (byProperty) return byProperty["@_href"];
@@ -14,10 +14,20 @@ function resolveCoverHref(manifestItems, metadata, metaKey) {
   // EPUB2: <meta name="cover" content="<itemId>"> → manifest item href.
   const coverMeta = asArray(metadata?.[metaKey]).find((m) => m && m["@_name"] === "cover");
   const coverId = coverMeta?.["@_content"];
-  if (!coverId) return null;
+  if (coverId) {
+    const item = manifestItems.find((it) => it["@_id"] === coverId);
+    if (item?.["@_href"]) return item["@_href"];
+  }
 
-  const item = manifestItems.find((it) => it["@_id"] === coverId);
-  return item?.["@_href"] ?? null;
+  // Fallback for fixed-layout / manga (e.g. Open Manga Format) that declare no
+  // cover metadata: the first spine item is the cover. Use it when it's an image.
+  const firstIdref = spineRefs[0]?.["@_idref"];
+  if (firstIdref) {
+    const item = manifestItems.find((it) => it["@_id"] === firstIdref);
+    if (item && (item["@_media-type"] || "").startsWith("image/")) return item["@_href"] ?? null;
+  }
+
+  return null;
 }
 
 /**
@@ -50,6 +60,7 @@ export async function extractEpubMetadata(blob) {
 
     const contents = xmlParser.parse(await opfEntry.getData(new TextWriter()));
     const manifestItems = getManifestItems(contents);
+    const spineRefs = getSpineItemRefs(contents);
     const metadata = getMetadata(contents);
     const metaKey = getMetaKey(contents);
 
@@ -59,7 +70,7 @@ export async function extractEpubMetadata(blob) {
 
     let coverBytes = null;
     let coverMime = null;
-    const coverHref = resolveCoverHref(manifestItems, metadata, metaKey);
+    const coverHref = resolveCoverHref(manifestItems, metadata, metaKey, spineRefs);
     if (coverHref) {
       const opfDir = path.dirname(opfPath);
       const coverPath = path.join(opfDir, coverHref);
