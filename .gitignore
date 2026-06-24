@@ -15,7 +15,6 @@ coverage
 *.lcov
 .nyc_output
 .lock-wscript
-ttsu/
 build/Release
 node_modules/
 jspm_packages/
@@ -40,4 +39,3 @@ typings/
 .vite/
 out/
 dist/
-bibi/
