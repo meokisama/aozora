@@ -6,7 +6,13 @@ module.exports = {
     asar: true,
     icon: "assets/app",
     executableName: "aozora",
-    ignore: [/node_modules\/(?!(better-sqlite3|bindings|file-uri-to-path)\/)/],
+    ignore: (file) => {
+      if (!file) return false;
+      if (file.startsWith("/.vite")) return false;
+      if (file === "/node_modules") return false;
+      if (/^\/node_modules\/(better-sqlite3|bindings|file-uri-to-path)(\/|$)/.test(file)) return false;
+      return true;
+    },
     appCopyright: "Copyright © 2026 Meoki",
   },
   rebuildConfig: {},
