@@ -115,28 +115,6 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
-/* width */
-::-webkit-scrollbar {
-  width: 3px;
-  height: 3px;
-}
-
-/* Track */
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-/* Handle */
-::-webkit-scrollbar-thumb {
-  background: #a0a0a0;
-  border-radius: 5px;
-}
-
-/* Handle on hover */
-::-webkit-scrollbar-thumb:hover {
-  background: #727272;
-}
-
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -148,5 +126,22 @@
   }
   body {
     @apply bg-background text-foreground font-sans overflow-hidden;
+  }
+
+  /* Global thin scrollbars. In @layer base so per-element utility overrides
+     (e.g. hover-reveal in the sidebar) win without needing !important. */
+  ::-webkit-scrollbar {
+    width: 3px;
+    height: 3px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #a0a0a0;
+    border-radius: 5px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #727272;
   }
 }

@@ -59,27 +59,27 @@ export function LibrarySidebar({ books, counts, statusFilter, setStatusFilter, a
         <img src={aozoraLogo} alt="Aozora" className="h-26 w-auto object-contain" draggable={false} />
       </div>
 
-      <div className="flex-1 space-y-5 overflow-y-auto px-2 py-3">
-        <nav className="space-y-0.5">
-          <SectionLabel>Library</SectionLabel>
-          {STATUS_NAV.map((item) => (
-            <NavItem
-              key={item.value}
-              icon={item.icon}
-              label={item.label}
-              count={counts[item.value]}
-              active={statusFilter === item.value && !authorFilter}
-              onClick={() => {
-                setAuthorFilter(null);
-                setStatusFilter(item.value);
-              }}
-            />
-          ))}
-        </nav>
+      <nav className="shrink-0 space-y-0.5 px-2 py-3">
+        <SectionLabel>Library</SectionLabel>
+        {STATUS_NAV.map((item) => (
+          <NavItem
+            key={item.value}
+            icon={item.icon}
+            label={item.label}
+            count={counts[item.value]}
+            active={statusFilter === item.value && !authorFilter}
+            onClick={() => {
+              setAuthorFilter(null);
+              setStatusFilter(item.value);
+            }}
+          />
+        ))}
+      </nav>
 
-        {authors.length > 0 && (
-          <nav className="space-y-0.5">
-            <SectionLabel>Authors</SectionLabel>
+      {authors.length > 0 && (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <SectionLabel>Authors</SectionLabel>
+          <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-3 [&::-webkit-scrollbar-thumb]:bg-transparent [&::-webkit-scrollbar-thumb]:transition-colors hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40">
             {authors.map((a) => (
               <NavItem
                 key={a.name}
@@ -95,8 +95,8 @@ export function LibrarySidebar({ books, counts, statusFilter, setStatusFilter, a
               />
             ))}
           </nav>
-        )}
-      </div>
+        </div>
+      )}
     </aside>
   );
 }

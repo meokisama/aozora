@@ -23,6 +23,7 @@ It also reads **fixed-layout manga / comic EPUBs** as proper two-page spreads �
 > and reader are built around the structure and styling conventions of those books
 > (tategaki, ruby, image spreads). Other EPUBs may render incorrectly.
 
+![](./assets/preview-0.png)
 ![](./assets/preview-1.png)
 ![](./assets/preview-2.png)
 ![](./assets/preview-3.png)
@@ -54,10 +55,12 @@ makes tategaki, live re-flow, and full-text search work so smoothly. That model 
 built for **reflowable text** — a fixed-layout page (a full-page image) shows up as a
 single standalone page, so manga read one page at a time with no real spreads.
 
+![](./assets/preview-4.png)
+
 Aozora adds a dedicated **fixed-layout path** on top, so image-per-page books read the
 way they're meant to:
 
-- **Detects fixed-layout books** declared `rendition:layout="pre-paginated"`, *and*
+- **Detects fixed-layout books** declared `rendition:layout="pre-paginated"`, _and_
   **Open Manga Format (OMF)** books that reference page images directly from the spine
   (no XHTML wrapper).
 - **Two-page spreads** — adjacent pages are paired into a spread honoring each page's
