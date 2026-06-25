@@ -5,7 +5,7 @@ import pluginReact from "eslint-plugin-react";
 import { defineConfig, globalIgnores } from "eslint/config";
 
 export default defineConfig([
-  globalIgnores([".vite/", "out/", "dist/", "ttsu/", "bibi/", "yomitan/"]),
+  globalIgnores([".vite/", "out/", "dist/", "references/"]),
 
   { files: ["**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}"], plugins: { js }, extends: ["js/recommended"] },
   tseslint.configs.recommended,
