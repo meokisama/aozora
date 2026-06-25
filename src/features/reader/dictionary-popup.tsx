@@ -1,6 +1,7 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { LookupResult } from "@/lib/types";
 import { downstepNumber } from "@/lib/dictionary/pitch";
+import { distributeFurigana } from "@/lib/dictionary/furigana";
 import { StructuredGloss } from "./structured-gloss";
 import { PitchAccent } from "./pitch-accent";
 import { KanjiCard } from "./kanji-card";
@@ -39,9 +40,37 @@ interface Props {
   onMouseEnter?: () => void;
   /** Cursor left the popup (the reader schedules its dismissal). */
   onMouseLeave?: () => void;
+  /** Reports the popup's final viewport box after each placement (for the sticky zone). */
+  onLayout?: (rect: { left: number; top: number; right: number; bottom: number }) => void;
 }
 
-export function DictionaryPopup({ result, anchor, onMouseEnter, onMouseLeave }: Props) {
+/**
+ * The headword with its reading rendered as furigana above the kanji (Yomitan
+ * style). The reading is distributed per-segment so only kanji runs carry
+ * furigana; kana/okurigana stay bare. Kana-only headwords render as plain text.
+ */
+function Furigana({ expression, reading }: { expression: string; reading: string }) {
+  const segments = useMemo(
+    () => distributeFurigana(expression, reading || expression),
+    [expression, reading],
+  );
+  return (
+    <span className="text-base leading-tight font-medium">
+      {segments.map((seg, i) =>
+        seg.reading ? (
+          <ruby key={i}>
+            {seg.text}
+            <rt className="text-[0.62em] font-normal text-foreground/75">{seg.reading}</rt>
+          </ruby>
+        ) : (
+          <span key={i}>{seg.text}</span>
+        ),
+      )}
+    </span>
+  );
+}
+
+export function DictionaryPopup({ result, anchor, onMouseEnter, onMouseLeave, onLayout }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
 
@@ -68,7 +97,8 @@ export function DictionaryPopup({ result, anchor, onMouseEnter, onMouseLeave }: 
     left = Math.max(MARGIN, Math.min(left, vw - w - MARGIN));
 
     setPos({ left, top });
-  }, [result, anchor]);
+    onLayout?.({ left, top, right: left + w, bottom: top + h });
+  }, [result, anchor, onLayout]);
 
   if (!result || (!result.entries.length && !result.kanji.length) || !anchor) return null;
 
@@ -91,8 +121,7 @@ export function DictionaryPopup({ result, anchor, onMouseEnter, onMouseLeave }: 
         {result.entries.map((entry, i) => (
           <li key={`${entry.expression}-${entry.reading ?? ""}-${i}`} className="p-3">
             <div className="flex items-baseline gap-2">
-              <span className="text-base leading-none font-medium">{entry.expression}</span>
-              {entry.reading && entry.reading !== entry.expression && <span className="text-xs text-muted-foreground">【{entry.reading}】</span>}
+              <Furigana expression={entry.expression} reading={entry.reading ?? ""} />
               {entry.reasons.length > 0 && <span className="text-[10px] text-muted-foreground">{entry.reasons.join(" › ")}</span>}
             </div>
 

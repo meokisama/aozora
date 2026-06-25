@@ -113,6 +113,12 @@ export function ReaderView() {
   // cursor has settled inside it by the time it fires.
   const clearTimerRef = useRef(0);
   const popupHoveredRef = useRef(false);
+  // Sticky-zone state: once a popup is open it's pinned to the matched run, and
+  // re-scanning is frozen while the cursor stays inside the corridor connecting
+  // the word to the popup (matched-run rect ∪ popup rect, padded). This lets the
+  // cursor travel into the popup without crossing words re-triggering a lookup.
+  const lookupAnchorRef = useRef<DOMRect | null>(null); // matched-run box of the open popup
+  const popupRectRef = useRef<{ left: number; top: number; right: number; bottom: number } | null>(null);
   const dictEnabled = useDictionaryStore((s) => s.enabled);
   const dictModifier = useDictionaryStore((s) => s.modifier);
   const dictEnabledRef = useRef(dictEnabled);
@@ -182,9 +188,35 @@ export function ReaderView() {
       clearTimerRef.current = 0;
     }
     popupHoveredRef.current = false;
+    lookupAnchorRef.current = null;
+    popupRectRef.current = null;
     lastQueryRef.current = "";
     setLookupHighlight(null);
     setLookup(null);
+  }, []);
+
+  // The popup reports its placed box here so the frozen zone can span the gap
+  // between the matched word and the popup itself.
+  const handlePopupLayout = useCallback(
+    (rect: { left: number; top: number; right: number; bottom: number }) => {
+      popupRectRef.current = rect;
+    },
+    [],
+  );
+
+  // Is the cursor inside the open popup's frozen zone — the padded bounding box
+  // spanning the matched word and the popup (and the gap between them)? While
+  // inside, scanning is suppressed so the popup stays pinned and reachable.
+  const inFrozenZone = useCallback((x: number, y: number) => {
+    const a = lookupAnchorRef.current;
+    if (!a) return false; // no popup open
+    const p = popupRectRef.current;
+    const PAD = 12;
+    const left = Math.min(a.left, p?.left ?? a.left) - PAD;
+    const right = Math.max(a.right, p?.right ?? a.right) + PAD;
+    const top = Math.min(a.top, p?.top ?? a.top) - PAD;
+    const bottom = Math.max(a.bottom, p?.bottom ?? a.bottom) + PAD;
+    return x >= left && x <= right && y >= top && y <= bottom;
   }, []);
 
   // Schedules dismissal after a short grace window, so the cursor can cross the
@@ -220,7 +252,7 @@ export function ReaderView() {
       charRef.current = state.char;
       setCurrentChar(state.char);
       setPageInfo({ page: state.page, totalPages: state.totalPages });
-      markSession(state.char, false);
+      markSession(state.char, "paginated");
       clearLookup(); // the matched run scrolled off the page
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(persist, 800);
@@ -237,7 +269,7 @@ export function ReaderView() {
       totalRef.current = totalPages;
       setCurrentChar(ordinal);
       setPageInfo({ page: ordinal, totalPages });
-      markSession(ordinal, true);
+      markSession(ordinal, "fixed");
       if (!book || !totalPages) return;
       const progress = totalPages > 1 ? Math.min(1, ordinal / (totalPages - 1)) : 1;
       const fields = { exploredCharCount: ordinal, charCount: totalPages, progress, lastOpenedAt: Date.now() };
@@ -423,8 +455,11 @@ export function ReaderView() {
             clearTimerRef.current = 0;
           }
           const range = source.rangeForLength(result.matchedLength);
+          const anchor = range?.getBoundingClientRect() ?? null;
           setLookupHighlight(range);
-          setLookup({ result, anchor: range?.getBoundingClientRect() ?? null });
+          lookupAnchorRef.current = anchor; // pin point for the frozen zone
+          popupRectRef.current = null; // re-measured by the popup's onLayout
+          setLookup({ result, anchor });
         })
         .catch(() => {});
     },
@@ -446,6 +481,15 @@ export function ReaderView() {
     if (!dictEnabledRef.current || modeRef.current === "fixed") return;
     if (!modifierHeld(dictModifierRef.current, e)) {
       clearLookup();
+      return;
+    }
+    // Popup open and cursor still in the word→popup corridor: keep it pinned,
+    // don't re-scan the text being crossed, and cancel any pending dismissal.
+    if (inFrozenZone(e.clientX, e.clientY)) {
+      if (clearTimerRef.current) {
+        clearTimeout(clearTimerRef.current);
+        clearTimerRef.current = 0;
+      }
       return;
     }
     scheduleLookup();
@@ -743,7 +787,7 @@ export function ReaderView() {
       if (!host || !anchorsRef.current.anchors.length) return;
       charRef.current = currentCharAtCenter(host, anchorsRef.current.anchors, verticalRef.current);
       setCurrentChar(charRef.current);
-      markSession(charRef.current, false);
+      markSession(charRef.current, "continuous");
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(persist, 800);
     });
@@ -910,6 +954,7 @@ export function ReaderView() {
         <DictionaryPopup
           result={lookup?.result ?? null}
           anchor={lookup?.anchor ?? null}
+          onLayout={handlePopupLayout}
           onMouseEnter={() => {
             popupHoveredRef.current = true;
             if (clearTimerRef.current) {

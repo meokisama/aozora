@@ -1,5 +1,20 @@
 import { useCallback, useEffect, useRef } from "react";
-import { type SessionAccumulator, createAccumulator, advance } from "@/lib/stats/session-tracker";
+import {
+  type SessionAccumulator,
+  type PaginatedAccumulator,
+  createAccumulator,
+  createPaginatedAccumulator,
+  advance,
+  advancePaginated,
+} from "@/lib/stats/session-tracker";
+
+/**
+ * The reader's three layout modes feed position differently, so character
+ * accounting branches on this: `continuous` is sampled per tick by `advance`,
+ * `paginated` is credited per flip by `advancePaginated`, and `fixed` (manga)
+ * records time only (positions are page ordinals, not characters).
+ */
+export type SessionMode = "continuous" | "paginated" | "fixed";
 
 /**
  * Tracks reading sessions for the stats page. The position/character accounting
@@ -13,36 +28,45 @@ import { type SessionAccumulator, createAccumulator, advance } from "@/lib/stats
  *     active — the window is visible and there has been input within IDLE_MS.
  *     Idle / hidden time is not counted (and the char accumulator is not
  *     advanced on those ticks either, so its baseline resumes cleanly).
- *   - characters: on each active tick the latest position is handed to
- *     `advance()`, which decides how much (if any) to credit.
+ *   - characters: how they're credited depends on the mode (see SessionMode) —
+ *     `continuous` hands the latest position to `advance()` each active tick;
+ *     `paginated` credits a finished page's span on the flip via
+ *     `advancePaginated()`, gated on having dwelled on it long enough; `fixed`
+ *     records no characters at all.
  *
- * The reader feeds the latest position via `mark(pos, isFixed)`; the tick does
- * the accounting. Fixed-layout (manga) positions are page ordinals, not
- * characters, so those sessions record time only (charsRead stays 0).
+ * The reader feeds the latest position via `mark(pos, mode)`; the tick does the
+ * time accounting (and, for continuous, the character sampling).
  */
 
 interface Session {
   active: boolean;
   bookId: string | null;
-  isFixed: boolean;
+  mode: SessionMode;
   startedAt: number;
   lastTickAt: number;
   lastActivityAt: number;
   activeMs: number;
   currentPos: number;
   acc: SessionAccumulator;
+  /** paginated only: span accounting credited on each flip */
+  pacc: PaginatedAccumulator;
+  /** paginated only: `activeMs` snapshot when the current page was entered, so a
+   *  flip's dwell = activeMs − pageEnteredActiveMs (idle/hidden already excluded) */
+  pageEnteredActiveMs: number;
 }
 
 const IDLE_SESSION: Session = {
   active: false,
   bookId: null,
-  isFixed: false,
+  mode: "continuous",
   startedAt: 0,
   lastTickAt: 0,
   lastActivityAt: 0,
   activeMs: 0,
   currentPos: 0,
   acc: createAccumulator(0),
+  pacc: createPaginatedAccumulator(0),
+  pageEnteredActiveMs: 0,
 };
 
 const TICK_MS = 1000;
@@ -52,46 +76,60 @@ const MAX_TICK_MS = 5 * TICK_MS; // cap a single tick's time (guards against tim
 export function useReadingSession(bookId?: string | null) {
   const ref = useRef<Session>({ ...IDLE_SESSION });
 
-  const begin = (pos: number, isFixed: boolean, now: number) => {
+  const begin = (pos: number, mode: SessionMode, now: number) => {
     ref.current = {
       active: true,
       bookId: bookId ?? null,
-      isFixed,
+      mode,
       startedAt: now,
       lastTickAt: now,
       lastActivityAt: now,
       activeMs: 0,
       currentPos: pos,
       acc: createAccumulator(pos),
+      pacc: createPaginatedAccumulator(pos),
+      pageEnteredActiveMs: 0,
     };
   };
+
+  // Characters read come from whichever accumulator the mode uses.
+  const charsReadOf = (s: Session) =>
+    s.mode === "paginated" ? s.pacc.charsAccum : s.mode === "continuous" ? s.acc.charsAccum : 0;
 
   const flush = useCallback(() => {
     const s = ref.current;
     if (!s.active) return;
     s.active = false;
-    if (s.activeMs < 1000 && s.acc.charsAccum <= 0) return;
+    const charsRead = charsReadOf(s);
+    if (s.activeMs < 1000 && charsRead <= 0) return;
     window.electronAPI.stats
       .recordSession({
         bookId: s.bookId ?? null,
         startedAt: s.startedAt,
         endedAt: s.lastActivityAt,
         durationMs: s.activeMs,
-        charsRead: s.acc.charsAccum,
+        charsRead,
       })
       .catch(() => {});
   }, []);
 
-  // Position/activity feed from the reader. Only records the latest position and
-  // marks activity; the tick (below) turns it into time + characters.
+  // Position/activity feed from the reader. Records the latest position and marks
+  // activity. For paginated, a position change is a page flip, so the finished
+  // page's span is credited here (event-driven); continuous defers to the tick.
   const mark = useCallback(
-    (pos: number, isFixed = false) => {
+    (pos: number, mode: SessionMode = "continuous") => {
       if (!bookId) return;
       const s = ref.current;
       const now = Date.now();
       if (!s.active) {
-        begin(pos, isFixed, now);
+        begin(pos, mode, now);
         return;
+      }
+      if (s.mode === "paginated" && pos !== s.currentPos) {
+        // Flip: credit the page just left, gated on how long it was dwelled on
+        // (active time only — idle/hidden never reached activeMs).
+        s.pacc = advancePaginated(s.pacc, pos, s.activeMs - s.pageEnteredActiveMs);
+        s.pageEnteredActiveMs = s.activeMs;
       }
       s.currentPos = pos;
       s.lastActivityAt = now;
@@ -113,9 +151,9 @@ export function useReadingSession(bookId?: string | null) {
 
     s.activeMs += Math.min(elapsed, MAX_TICK_MS);
 
-    // Character accounting (text layout only — manga positions are page ordinals).
-    // The state machine decides reading vs scrolling and how much to credit.
-    if (!s.isFixed) s.acc = advance(s.acc, s.currentPos);
+    // Continuous scrolling is sampled here (the state machine decides reading vs
+    // scrolling). Paginated is credited per flip in `mark`; fixed counts no chars.
+    if (s.mode === "continuous") s.acc = advance(s.acc, s.currentPos);
   }, []);
 
   useEffect(() => {

@@ -3,6 +3,9 @@ import {
   createAccumulator,
   advance,
   DEFAULT_TRACKER_CONFIG,
+  createPaginatedAccumulator,
+  advancePaginated,
+  DEFAULT_PAGINATED_CONFIG,
   type SessionAccumulator,
 } from "@/lib/stats/session-tracker";
 
@@ -109,5 +112,62 @@ describe("session-tracker: purity", () => {
     expect(acc.lastPos).toBe(0);
     expect(next).not.toBe(acc);
     expect(next.charsAccum).toBe(30);
+  });
+});
+
+// A page flip to `pos` after dwelling `dwellMs` active ms on the page just left.
+const DWELL = DEFAULT_PAGINATED_CONFIG.minDwellMs;
+
+describe("paginated-tracker", () => {
+  it("credits a finished page's span on a dwelled forward flip", () => {
+    // Start on page at char 0; flip to 400 after reading for 5s.
+    const acc = advancePaginated(createPaginatedAccumulator(0), 400, 5000);
+    expect(acc.charsAccum).toBe(400);
+    expect(acc.lastPos).toBe(400);
+  });
+
+  it("credits across several dwelled flips (the bug: was always 0)", () => {
+    let acc = createPaginatedAccumulator(0);
+    acc = advancePaginated(acc, 400, DWELL); // page 1: 400 chars
+    acc = advancePaginated(acc, 750, DWELL); // page 2: 350 chars
+    acc = advancePaginated(acc, 1300, DWELL); // page 3: 550 chars
+    expect(acc.charsAccum).toBe(1300);
+  });
+
+  it("does not credit a skim-flip that didn't dwell long enough", () => {
+    const acc = advancePaginated(createPaginatedAccumulator(0), 400, DWELL - 1);
+    expect(acc.charsAccum).toBe(0);
+    expect(acc.lastPos).toBe(400); // still resyncs so the span isn't credited later
+  });
+
+  it("credits nothing for a backward re-read flip, only resyncs", () => {
+    let acc = createPaginatedAccumulator(800);
+    acc = advancePaginated(acc, 400, 9999); // flipped back
+    expect(acc.charsAccum).toBe(0);
+    expect(acc.lastPos).toBe(400);
+  });
+
+  it("treats a far teleport (TOC/search/bookmark) as navigation, not reading", () => {
+    const acc = advancePaginated(
+      createPaginatedAccumulator(0),
+      DEFAULT_PAGINATED_CONFIG.jumpThreshold + 10,
+      9999,
+    );
+    expect(acc.charsAccum).toBe(0);
+  });
+
+  it("does not credit the skipped span on the flip after a skim", () => {
+    let acc = createPaginatedAccumulator(0);
+    acc = advancePaginated(acc, 400, DWELL - 1); // skimmed past page 1, no credit
+    acc = advancePaginated(acc, 800, DWELL); // dwelled on page 2 → credit only its span
+    expect(acc.charsAccum).toBe(400);
+  });
+
+  it("does not mutate the input accumulator", () => {
+    const acc = createPaginatedAccumulator(0);
+    const next = advancePaginated(acc, 400, DWELL);
+    expect(acc.charsAccum).toBe(0);
+    expect(acc.lastPos).toBe(0);
+    expect(next).not.toBe(acc);
   });
 });

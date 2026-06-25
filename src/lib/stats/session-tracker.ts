@@ -123,3 +123,64 @@ export function advance(
     settleStreak,
   };
 }
+
+/**
+ * Paginated-mode accounting. Unlike continuous scrolling (sampled per second by
+ * `advance`), paginated reading is EVENT-driven: position is static while a page
+ * is on screen and jumps by a whole page's char span on each flip. The per-tick
+ * sampler can't see that — every flip's delta exceeds `scrollEnter` (so it reads
+ * as "scrolling", credits 0) and every dwell tick has delta 0 (no credit either),
+ * which is why charsRead was always 0 in paginated mode.
+ *
+ * Instead we credit on the flip: the forward delta is the char span of the page
+ * the reader just *finished*, credited only when they dwelled on it long enough
+ * (so fast skim-flipping isn't counted as reading) and the move isn't a teleport
+ * (TOC/search/bookmark) or a backward re-read. `dwellMs` is the ACTIVE time spent
+ * on the page just left — the caller excludes idle/hidden time before passing it.
+ */
+export interface PaginatedAccumulator {
+  charsAccum: number;
+  lastPos: number;
+}
+
+export interface PaginatedConfig {
+  /** |Δ| ≥ this ⇒ navigation teleport (TOC/search/bookmark) — resync, credit 0 */
+  jumpThreshold: number;
+  /** must dwell at least this many active ms on a page before its span counts */
+  minDwellMs: number;
+}
+
+/** Shares `jumpThreshold` with the continuous tracker; ~3s dwell gates skimming. */
+export const DEFAULT_PAGINATED_CONFIG: PaginatedConfig = {
+  jumpThreshold: DEFAULT_TRACKER_CONFIG.jumpThreshold,
+  minDwellMs: 3000,
+};
+
+/** Fresh paginated accumulator anchored at the page the session began on. */
+export function createPaginatedAccumulator(pos: number): PaginatedAccumulator {
+  return { charsAccum: 0, lastPos: pos };
+}
+
+/**
+ * Advances the paginated accumulator on a page-flip to absolute char offset
+ * `pos` (the cumulative offset at the start of the newly-shown page). Pure:
+ * returns a new accumulator, never mutates the input. Call once per flip event.
+ */
+export function advancePaginated(
+  acc: PaginatedAccumulator,
+  pos: number,
+  dwellMs: number,
+  config: PaginatedConfig = DEFAULT_PAGINATED_CONFIG,
+): PaginatedAccumulator {
+  const delta = pos - acc.lastPos;
+  // Credit the finished page's span only for a forward flip that isn't a
+  // teleport and was dwelled on long enough. Teleports, backward re-reads, and
+  // skim-flips credit nothing but still resync, so skipped spans are never
+  // credited retroactively on a later flip.
+  const credited =
+    delta > 0 && delta < config.jumpThreshold && dwellMs >= config.minDwellMs ? delta : 0;
+  return {
+    charsAccum: acc.charsAccum + credited,
+    lastPos: pos,
+  };
+}

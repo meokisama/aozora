@@ -11,16 +11,17 @@
 
 ## About
 
-**Aozora 青空**, is a desktop app **built for managing and reading Japanese light novel
-EPUBs** — tuned for the things that matter when reading Japanese: tategaki, furigana, and a comfortable paginated layout. Import your `.epub` library, then
-read with full TOC navigation, bookmarks, in-book search, and adjustable typography.
+**Aozora 青空** is a **desktop EPUB reader for Japanese light novels & manga** — tuned
+for the things that matter when reading Japanese: tategaki, **multiple furigana display
+modes**, **full-text search**, and a comfortable paginated layout. Import your `.epub`
+library, then read with full TOC navigation, bookmarks, and adjustable typography.
 
-It's a reading tool, not just a viewer: a built-in
-**[Yomitan-style hover dictionary](#dictionary)** looks up words instantly — with
-deinflection and structured glossaries from your own imported dictionaries — while
-**reading statistics** turn every session into an activity heatmap with daily goals
-and streaks. It also reads **[fixed-layout manga EPUBs](#manga--fixed-layout)** as
-proper two-page spreads.
+It's a reading tool, not just a viewer: a built-in hover dictionary with
+**[support for Yomitan dictionaries](#dictionary)** looks up words instantly — with
+deinflection, furigana headwords, frequency, pitch accent, and kanji breakdowns from
+your own imported dictionaries — while **reading statistics** turn every session into an
+activity heatmap with daily goals and streaks. It also reads
+**[fixed-layout manga EPUBs](#manga--fixed-layout)** as proper two-page spreads.
 
 > **Aozora** targets **Japanese EPUB specifically**. The parser and reader are built
 > around the structure and styling conventions of those books (tategaki, ruby, image
@@ -42,8 +43,8 @@ proper two-page spreads.
   Custom Highlight API (works across ruby and the paginated section swaps).
 - [**Dictionary**](#dictionary) — Yomitan-style pop-up lookup: hover a word, hold a modifier
   (Shift by default), and get deinflected entries from your imported Yomitan
-  dictionaries, with structured glossaries — numbered senses, tables, ruby, images
-  (see below).
+  dictionaries — furigana headwords, structured glossaries (numbered senses, tables,
+  ruby, images), frequency, pitch-accent graphs, and kanji breakdowns (see below).
 - [**Manga & fixed-layout**](#manga--fixed-layout) — image-per-page EPUBs render as true two-page spreads
   (see below).
 - **Reading statistics** — automatic session tracking feeds a stats page with a
@@ -82,22 +83,34 @@ way they're meant to:
 
 ## Dictionary
 
-A built-in **Yomitan-style hover dictionary** lets you read with instant lookups — no
-external app, no copy-paste. Hover a word in the reader and the matching dictionary
-entry pops up right next to it.
+A built-in **hover dictionary with support for Yomitan dictionaries** lets you read with
+instant lookups — no external app, no copy-paste. Hover a word in the reader and the
+matching entry pops up right next to it.
 
 - Open the **Dictionaries** page (sidebar) and **Import** one or more Yomitan
   dictionaries — `.zip` files in Yomitan/Yomichan **format v3**: JMdict, monolingual
-  国語 dictionaries, pitch-accent dictionaries, and so on. Aozora ships no bundled
-  dictionary; you bring your own.
+  国語 dictionaries, frequency lists, pitch-accent dictionaries, KANJIDIC, and so on.
+  Aozora ships no bundled dictionary; you bring your own.
 - In the reader, **hover a word and hold the trigger key** — **Shift** by default,
   changeable to **Alt**, **Ctrl**, or **Hover only**. The matched run is highlighted
-  and a popup shows the entries; release the key to dismiss.
+  and the popup stays **pinned** to the word, so you can move the cursor straight into
+  it to scroll, copy, or read long entries without it jumping to another word.
 - On the Dictionaries page you can toggle the whole feature, pick the trigger key,
   enable/disable each dictionary, and **reorder** them to set consult **priority**
   (higher dictionaries are shown first).
 
 ![](./preview/preview-6.png)
+
+Each entry shows everything your dictionaries provide, rendered like Yomitan:
+
+- **Furigana headwords** — the reading sits above the kanji as `<ruby>`, distributed
+  per-segment so only the kanji carries furigana (食べる → 食[た]べる).
+- **Structured glossaries** kept intact — numbered senses, lists, tables, ruby, and
+  **embedded images** (e.g. stroke diagrams, pitch graphs) from the dictionary archive.
+- **Frequency** badges, **pitch-accent** graphs (OJAD-style, with the downstep number),
+  and **part-of-speech / commonness tags** colour-coded by category.
+- **Kanji breakdown** — on/kun readings, meanings, stroke/grade/JLPT/frequency stats,
+  and a kanji-only fallback when you hover a lone character.
 
 Instead of a tokenizer, Aozora uses **rikai/Yomitan-style scanning**. For the text
 starting at the cursor it tries successively shorter prefixes (longest first), runs
