@@ -1,24 +1,20 @@
 import { useCallback, useEffect, useRef } from "react";
+import { type SessionAccumulator, createAccumulator, advance } from "@/lib/stats/session-tracker";
 
 /**
- * Tracks reading sessions for the stats page, mirroring how ッツ (ttu) Reader
- * does it (see ttsu/.../book-reading-tracker.svelte). The key idea — and the fix
- * for the naive "sum every forward delta" approach — is to SAMPLE the reading
- * position on a fixed 1-second tick rather than accumulate on every scroll/flip
- * event:
+ * Tracks reading sessions for the stats page. The position/character accounting
+ * is SAMPLED on a fixed 1-second tick (rather than accumulated on every scroll/
+ * flip event) and fed to the reading-vs-scrolling state machine in
+ * lib/stats/session-tracker — see that file for the character-crediting rules
+ * (READ_CAP, scroll detection, dwell-to-resume). This hook owns the parts that
+ * need the DOM/timers:
  *
- *   - characters: each tick counts the NET position change since the last tick
- *     (current − last). Because it's based on absolute position, scrolling
- *     forward then back within a tick cancels out, and re-reading a passage
- *     doesn't double-count (the signed sum telescopes to end − start). Backward
- *     movement counts negative (clamped so a session never goes below 0).
- *   - skip threshold: if a single tick's net move is ≥ SKIP_THRESHOLD it's a
- *     navigation jump (TOC, search, fast multi-page flipping) — ignored, not
- *     counted, and the baseline resyncs. This is what stops "flip pages quickly"
- *     from inflating the character count.
  *   - time: each tick adds the elapsed second, but only while the reader is
  *     active — the window is visible and there has been input within IDLE_MS.
- *     Idle / hidden time is not counted.
+ *     Idle / hidden time is not counted (and the char accumulator is not
+ *     advanced on those ticks either, so its baseline resumes cleanly).
+ *   - characters: on each active tick the latest position is handed to
+ *     `advance()`, which decides how much (if any) to credit.
  *
  * The reader feeds the latest position via `mark(pos, isFixed)`; the tick does
  * the accounting. Fixed-layout (manga) positions are page ordinals, not
@@ -33,9 +29,8 @@ interface Session {
   lastTickAt: number;
   lastActivityAt: number;
   activeMs: number;
-  charsAccum: number;
   currentPos: number;
-  lastPos: number;
+  acc: SessionAccumulator;
 }
 
 const IDLE_SESSION: Session = {
@@ -46,14 +41,12 @@ const IDLE_SESSION: Session = {
   lastTickAt: 0,
   lastActivityAt: 0,
   activeMs: 0,
-  charsAccum: 0,
   currentPos: 0,
-  lastPos: 0,
+  acc: createAccumulator(0),
 };
 
 const TICK_MS = 1000;
 const IDLE_MS = 180_000; // no input for this long ⇒ stop counting time (AFK)
-const SKIP_THRESHOLD = 2700; // per-tick net move ≥ this ⇒ navigation, not reading (ttu default)
 const MAX_TICK_MS = 5 * TICK_MS; // cap a single tick's time (guards against timer stalls)
 
 export function useReadingSession(bookId?: string | null) {
@@ -68,9 +61,8 @@ export function useReadingSession(bookId?: string | null) {
       lastTickAt: now,
       lastActivityAt: now,
       activeMs: 0,
-      charsAccum: 0,
       currentPos: pos,
-      lastPos: pos,
+      acc: createAccumulator(pos),
     };
   };
 
@@ -78,14 +70,14 @@ export function useReadingSession(bookId?: string | null) {
     const s = ref.current;
     if (!s.active) return;
     s.active = false;
-    if (s.activeMs < 1000 && s.charsAccum <= 0) return;
+    if (s.activeMs < 1000 && s.acc.charsAccum <= 0) return;
     window.electronAPI.stats
       .recordSession({
         bookId: s.bookId ?? null,
         startedAt: s.startedAt,
         endedAt: s.lastActivityAt,
         durationMs: s.activeMs,
-        charsRead: s.charsAccum,
+        charsRead: s.acc.charsAccum,
       })
       .catch(() => {});
   }, []);
@@ -121,15 +113,9 @@ export function useReadingSession(bookId?: string | null) {
 
     s.activeMs += Math.min(elapsed, MAX_TICK_MS);
 
-    if (!s.isFixed) {
-      const diff = s.currentPos - s.lastPos;
-      if (Math.abs(diff) >= SKIP_THRESHOLD) {
-        s.lastPos = s.currentPos; // navigation jump — resync, don't count
-      } else {
-        s.charsAccum = Math.max(0, s.charsAccum + diff);
-        s.lastPos = s.currentPos;
-      }
-    }
+    // Character accounting (text layout only — manga positions are page ordinals).
+    // The state machine decides reading vs scrolling and how much to credit.
+    if (!s.isFixed) s.acc = advance(s.acc, s.currentPos);
   }, []);
 
   useEffect(() => {

@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TitleBar } from "@/components/title-bar";
 import { LibraryView } from "@/features/library/library-view";
@@ -35,9 +35,7 @@ export function App() {
   return (
     <div className="flex h-screen flex-col">
       <TitleBar />
-      <main className="flex-1 overflow-hidden">
-        {reading ? <ReaderView /> : view === "stats" ? <StatsView /> : <LibraryView />}
-      </main>
+      <main className="flex-1 overflow-hidden">{reading ? <ReaderView /> : view === "stats" ? <StatsView /> : <LibraryView />}</main>
       <Toaster />
     </div>
   );
