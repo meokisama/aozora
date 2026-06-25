@@ -1,7 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { formatDuration, formatCompact } from "@/lib/stats/aggregate";
 
 interface StatCardProps {
   icon: LucideIcon;
@@ -49,29 +48,3 @@ export function BarChart({ bars, height = 96 }: { bars: Bar[]; height?: number }
   );
 }
 
-interface BookBarProps {
-  title: string;
-  author: string | null;
-  ms: number;
-  chars: number;
-  max: number;
-}
-
-/** A row in the "Most-read books" list: title + a time bar. */
-export function BookBar({ title, author, ms, chars, max }: BookBarProps) {
-  return (
-    <div className="space-y-1">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="min-w-0 truncate text-xs">{title}</span>
-        <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">{formatDuration(ms)}</span>
-      </div>
-      <div className="h-1.5 w-full bg-muted/50">
-        <div className="h-full bg-primary/70" style={{ width: max > 0 ? `${(ms / max) * 100}%` : 0 }} />
-      </div>
-      <p className="truncate text-[10px] text-muted-foreground">
-        {author ? `${author} · ` : ""}
-        {formatCompact(chars)} chars
-      </p>
-    </div>
-  );
-}

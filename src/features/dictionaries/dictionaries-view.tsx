@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
-import { BookA, ChevronDown, ChevronUp, Download, Loader2, Trash2 } from "lucide-react";
+import { BookA, Download, ExternalLink, GripVertical, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -18,9 +29,16 @@ import {
 } from "@/components/ui/alert-dialog";
 import { LibrarySidebar } from "@/features/library/library-sidebar";
 import { useDictionaryStore, LOOKUP_MODIFIERS, type LookupModifier } from "@/stores/dictionary-store";
+import { cn } from "@/lib/utils";
 import type { DictionaryInfo } from "@/lib/types";
 
 const api = () => window.electronAPI.dictionary;
+
+// Pre-built Yomitan dictionaries (JMdict/JMnedict/KANJIDIC). The app can't bundle
+// them (licensing + size), so we point users here to download a ZIP themselves
+// and import it below.
+const JMDICT_URL = "https://github.com/yomidevs/jmdict-yomitan";
+const openJmdict = () => window.electronAPI?.window?.openExternal(JMDICT_URL);
 
 /**
  * Human label for what a dictionary contributes. A term dictionary has glosses
@@ -34,6 +52,72 @@ function countLabel(d: Pick<DictionaryInfo, "termCount" | "freqCount" | "pitchCo
   if (d.pitchCount) parts.push(`${d.pitchCount.toLocaleString()} pitch accents`);
   if (d.kanjiCount) parts.push(`${d.kanjiCount.toLocaleString()} kanji`);
   return parts.join(" · ") || "no entries";
+}
+
+/**
+ * One draggable row in the consult-order list. The drag handle (grip) is the
+ * only drag source, so the enable switch and remove button stay clickable; the
+ * row reorders via dnd-kit and the new order is persisted by the parent.
+ */
+function SortableDictRow({
+  dict,
+  onToggle,
+  onRemove,
+}: {
+  dict: DictionaryInfo;
+  onToggle: (id: string, next: boolean) => void;
+  onRemove: (id: string) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: dict.id });
+  const style = { transform: CSS.Transform.toString(transform), transition };
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className={cn("flex items-center gap-3 bg-background p-3", isDragging && "relative z-10 shadow-md")}
+    >
+      <button
+        type="button"
+        className="cursor-grab touch-none text-muted-foreground/60 hover:text-muted-foreground active:cursor-grabbing"
+        aria-label={`Reorder ${dict.title}`}
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="size-4" />
+      </button>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="truncate text-sm font-medium">{dict.title}</span>
+          {dict.revision && <Badge variant="outline">{dict.revision}</Badge>}
+        </div>
+        <p className="text-[11px] text-muted-foreground">{countLabel(dict)}</p>
+      </div>
+
+      <Switch checked={dict.enabled} onCheckedChange={(v) => onToggle(dict.id, v)} aria-label={`Enable ${dict.title}`} />
+
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button size="icon" variant="ghost" className="size-7 text-muted-foreground" aria-label={`Remove ${dict.title}`}>
+            <Trash2 className="size-3.5" />
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove “{dict.title}”?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This deletes the dictionary and all its entries ({countLabel(dict)}). You can re-import it later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => onRemove(dict.id)}>Remove</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </li>
+  );
 }
 
 /**
@@ -116,15 +200,24 @@ export function DictionariesView() {
     [refresh],
   );
 
-  // Move a dictionary up/down the consult order. Priorities are reassigned from
-  // the new array order (0..n) so the list stays contiguous regardless of any
-  // gaps left by removals.
-  const move = useCallback(
-    async (index: number, delta: -1 | 1) => {
-      const target = index + delta;
-      if (target < 0 || target >= dicts.length) return;
-      const next = [...dicts];
-      [next[index], next[target]] = [next[target], next[index]];
+  // A small drag distance keeps clicks on the grip from being read as drags;
+  // keyboard sensor makes the list reorderable without a mouse.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  // Drag-to-reorder the consult order. Priorities are reassigned from the new
+  // array order (0..n) so the list stays contiguous regardless of any gaps left
+  // by removals; only the rows whose priority actually changed are persisted.
+  const handleDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      const from = dicts.findIndex((d) => d.id === active.id);
+      const to = dicts.findIndex((d) => d.id === over.id);
+      if (from < 0 || to < 0) return;
+      const next = arrayMove(dicts, from, to);
       setDicts(next.map((d, i) => ({ ...d, priority: i }))); // optimistic
       try {
         await Promise.all(next.map((d, i) => (d.priority === i ? null : api().setPriority(d.id, i))));
@@ -204,61 +297,33 @@ export function DictionariesView() {
                 </div>
               </div>
             ) : (
-              <ul className="divide-y border">
-                {dicts.map((d, i) => (
-                  <li key={d.id} className="flex items-center gap-3 p-3">
-                    <div className="flex flex-col">
-                      <div className="flex items-center gap-0.5">
-                        <Button size="icon" variant="ghost" className="size-5" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move up">
-                          <ChevronUp className="size-3.5" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="size-5"
-                          disabled={i === dicts.length - 1}
-                          onClick={() => move(i, 1)}
-                          aria-label="Move down"
-                        >
-                          <ChevronDown className="size-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-medium">{d.title}</span>
-                        {d.revision && <Badge variant="outline">{d.revision}</Badge>}
-                      </div>
-                      <p className="text-[11px] text-muted-foreground">{countLabel(d)}</p>
-                    </div>
-
-                    <Switch checked={d.enabled} onCheckedChange={(v) => toggleDict(d.id, v)} aria-label={`Enable ${d.title}`} />
-
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button size="icon" variant="ghost" className="size-7 text-muted-foreground" aria-label={`Remove ${d.title}`}>
-                          <Trash2 className="size-3.5" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Remove “{d.title}”?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This deletes the dictionary and all its entries ({countLabel(d)}). You can re-import it later.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => removeDict(d.id)}>Remove</AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </li>
-                ))}
-              </ul>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={dicts.map((d) => d.id)} strategy={verticalListSortingStrategy}>
+                  <ul className="divide-y border">
+                    {dicts.map((d) => (
+                      <SortableDictRow key={d.id} dict={d} onToggle={toggleDict} onRemove={removeDict} />
+                    ))}
+                  </ul>
+                </SortableContext>
+              </DndContext>
             )}
-            {dicts.length > 1 && <p className="text-[11px] text-muted-foreground/70">Dictionaries higher in the list are consulted first.</p>}
+            {dicts.length > 1 && (
+              <p className="text-[11px] text-muted-foreground/70">Drag to reorder — dictionaries higher in the list are consulted first.</p>
+            )}
+
+            <div className="flex items-start gap-2.5 border bg-muted/30 p-3">
+              <ExternalLink className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+              <p className="text-[11px]/relaxed text-muted-foreground">
+                You can download free Yomitan dictionaries (JMdict, JMnedict, KANJIDIC) as ZIP files and import them here. Get them from:{" "}
+                <button
+                  type="button"
+                  onClick={openJmdict}
+                  className="break-all font-medium text-foreground underline underline-offset-2 hover:text-foreground/80"
+                >
+                  {JMDICT_URL}
+                </button>
+              </p>
+            </div>
           </section>
         </div>
       </div>

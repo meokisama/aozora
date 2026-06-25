@@ -4,14 +4,16 @@ import { Card } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LibrarySidebar } from "@/features/library/library-sidebar";
+import { BookCard } from "@/features/library/book-card";
 import { useLibraryStore } from "@/stores/library-store";
+import { useReaderStore } from "@/stores/reader-store";
 import { useStatsPrefs } from "@/stores/stats-prefs-store";
 import { readingStatus } from "@/lib/format";
 import { toDayKey, shiftDay, computeStreaks, formatDuration, formatCompact } from "@/lib/stats/aggregate";
 import type { DayValue } from "@/lib/stats/aggregate";
 import type { Stats } from "@/lib/types";
 import { Heatmap, HeatmapLegend } from "./heatmap";
-import { StatCard, BarChart, BookBar } from "./stats-widgets";
+import { StatCard, BarChart } from "./stats-widgets";
 import { GoalCard } from "./goal-card";
 import { Milestones } from "./milestones";
 
@@ -27,6 +29,7 @@ const api = () => window.electronAPI.stats;
  */
 export function StatsView() {
   const books = useLibraryStore((s) => s.books);
+  const openReader = useReaderStore((s) => s.open);
   const dailyGoal = useStatsPrefs((s) => s.dailyGoal);
   const setDailyGoal = useStatsPrefs((s) => s.setDailyGoal);
   const [data, setData] = useState<Stats | null>(null); // { overview, daily, hourly, perBook }
@@ -103,8 +106,20 @@ export function StatsView() {
     return buckets.map((b) => ({ ...b, tip: `${String(b.key).padStart(2, "0")}:00 · ${formatCompact(b.chars)} chars · ${formatDuration(b.ms)}` }));
   }, [data, metric]);
 
-  const topBooks = useMemo(() => (data?.perBook ?? []).slice(0, 8), [data]);
-  const topBooksMax = topBooks.reduce((m, b) => Math.max(m, b.ms || 0), 0);
+  // Most-read books, shown as library-style cards. Join each per-book stat to its
+  // full library Book (for the cover); drop any whose book is gone from the
+  // library so we only render real covers. Keep the read-time/chars for a caption.
+  const booksById = useMemo(() => new Map(books.map((b) => [b.id, b])), [books]);
+  const topBooks = useMemo(
+    () =>
+      (data?.perBook ?? [])
+        .flatMap((stat) => {
+          const book = booksById.get(stat.bookId);
+          return book ? [{ stat, book }] : [];
+        })
+        .slice(0, 12),
+    [data, booksById],
+  );
 
   const booksFinished = useMemo(() => books.filter((b) => readingStatus(b) === "finished").length, [books]);
 
@@ -248,17 +263,20 @@ export function StatsView() {
               booksFinished={booksFinished}
             />
 
-            {/* Most-read books. */}
+            {/* Most-read books, ranked by time read and shown as library cards. */}
             {topBooks.length > 0 && (
               <section className="space-y-3">
                 <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Most-read books</h2>
-                <Card size="sm" className="gap-4">
-                  <div className="space-y-3 px-3 py-1">
-                    {topBooks.map((b) => (
-                      <BookBar key={b.bookId} title={b.title || "Untitled"} author={b.author} ms={b.ms || 0} chars={b.chars || 0} max={topBooksMax} />
-                    ))}
-                  </div>
-                </Card>
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-x-5 gap-y-6">
+                  {topBooks.map(({ stat, book }) => (
+                    <div key={stat.bookId} className="space-y-1">
+                      <BookCard book={book} onOpen={openReader} />
+                      <p className="text-[10px] text-muted-foreground/80 tabular-nums">
+                        {formatDuration(stat.ms || 0)} · {formatCompact(stat.chars || 0)} chars
+                      </p>
+                    </div>
+                  ))}
+                </div>
               </section>
             )}
           </div>
