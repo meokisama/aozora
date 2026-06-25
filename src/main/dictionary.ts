@@ -50,4 +50,9 @@ export const registerDictionaryIpc = (): void => {
   // The hot path: called as the user hovers text. `text` is the run starting at
   // the cursor; the store returns matches for the longest matching prefix.
   ipcMain.handle("dictionary:lookup", (_event, text: string) => dictionaryStore.lookup(text));
+
+  // Lazily resolves a structured-content image to a data URL as the popup renders.
+  ipcMain.handle("dictionary:get-media", (_event, dictId: string, path: string) =>
+    dictionaryStore.getMedia(dictId, path),
+  );
 };

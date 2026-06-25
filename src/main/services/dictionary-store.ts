@@ -2,12 +2,13 @@ import { app } from "electron";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import Database from "better-sqlite3";
-import { Uint8ArrayReader, TextWriter, ZipReader, configure, type Entry } from "@zip.js/zip.js";
+import { Uint8ArrayReader, Uint8ArrayWriter, TextWriter, ZipReader, configure, type Entry } from "@zip.js/zip.js";
 import { deinflect, conditionFlagsForPartsOfSpeech, conditionsMatch, type Deinflection } from "@/lib/dictionary/deinflect";
 import type {
   DictionaryInfo,
   DictionaryEntry,
   DictionaryGloss,
+  GlossContent,
   LookupResult,
   DictionaryImportProgress,
 } from "@/lib/types";
@@ -58,6 +59,16 @@ function getDb(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_terms_expression ON terms(expression);
     CREATE INDEX IF NOT EXISTS idx_terms_reading    ON terms(reading);
     CREATE INDEX IF NOT EXISTS idx_terms_dict       ON terms(dict_id);
+
+    -- Image media referenced by structured-content glossaries (img.path), stored
+    -- as blobs and served to the popup as data URLs (see getMedia).
+    CREATE TABLE IF NOT EXISTS media (
+      dict_id TEXT NOT NULL REFERENCES dictionaries(id) ON DELETE CASCADE,
+      path    TEXT NOT NULL,
+      mime    TEXT NOT NULL,
+      data    BLOB NOT NULL,
+      PRIMARY KEY (dict_id, path)
+    );
   `);
   return db;
 }
@@ -65,28 +76,57 @@ function getDb(): Database.Database {
 // --- Yomitan dictionary parsing --------------------------------------------
 
 /**
- * Flattens one Yomitan glossary item to plain text. Items are either bare
- * strings or "structured content" objects (a small subset of HTML as a JSON
- * tree); we walk the tree and concatenate its text, dropping images/markup.
+ * Whether a Yomitan glossary item carries any renderable text. Used only to drop
+ * empty items at import time — unlike the old flatten step, the item itself is
+ * stored verbatim (structure intact) so the popup can render it like Yomitan.
+ * Image-only nodes count as empty for now (archive media is not yet extracted).
  */
-function flattenGloss(node: unknown): string {
-  if (node == null) return "";
-  if (typeof node === "string") return node;
-  if (typeof node === "number") return String(node);
-  if (Array.isArray(node)) return node.map(flattenGloss).join("");
-  if (typeof node === "object") {
+function glossHasText(node: unknown): boolean {
+  if (typeof node === "string") return node.trim().length > 0;
+  if (typeof node === "number") return true;
+  if (Array.isArray(node)) return node.some(glossHasText);
+  if (node != null && typeof node === "object") {
     const obj = node as Record<string, unknown>;
-    if (obj.type === "structured-content") return flattenGloss(obj.content);
-    if (obj.type === "text" && typeof obj.text === "string") return obj.text;
-    if ("content" in obj) return flattenGloss(obj.content);
+    if (obj.tag === "img" || obj.type === "image") return false;
+    if (typeof obj.text === "string") return obj.text.trim().length > 0;
+    if ("content" in obj) return glossHasText(obj.content);
+    return true;
   }
-  return "";
+  return false;
 }
 
 /** Reads a ZIP entry's contents as text (entries from getEntries always have getData). */
 function entryText(entry: Entry | undefined): Promise<string> {
   if (!entry || !("getData" in entry) || !entry.getData) throw new Error("Corrupt ZIP entry.");
   return entry.getData(new TextWriter());
+}
+
+/** Image extensions Yomitan glossaries can reference, mapped to their MIME type. */
+const IMAGE_EXT_MIME: Record<string, string> = {
+  svg: "image/svg+xml",
+  png: "image/png",
+  gif: "image/gif",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  webp: "image/webp",
+  bmp: "image/bmp",
+  apng: "image/apng",
+  avif: "image/avif",
+};
+
+/** MIME for a media filename by extension, or null if it isn't a renderable image. */
+function mediaMime(name: string): string | null {
+  const dot = name.lastIndexOf(".");
+  if (dot < 0) return null;
+  return IMAGE_EXT_MIME[name.slice(dot + 1).toLowerCase()] ?? null;
+}
+
+/** Normalises an archive media path so import and lookup agree (drops leading ./ and /). */
+function normalizeMediaPath(p: string): string {
+  let s = p;
+  while (s.startsWith("./")) s = s.slice(2);
+  while (s.startsWith("/")) s = s.slice(1);
+  return s;
 }
 
 /** A Yomitan v3 term-bank row: [expr, reading, defTags, rules, score, glossary, seq, termTags]. */
@@ -100,10 +140,11 @@ interface ParsedDict {
     reading: string;
     tags: string | null;
     rules: string;
-    definitions: string[];
+    definitions: GlossContent[];
     score: number;
     sequence: number;
   }[];
+  media: { path: string; mime: string; data: Uint8Array }[];
 }
 
 /** Reads a Yomitan dictionary ZIP (format/version 3) into memory. */
@@ -136,10 +177,9 @@ async function parseYomitanZip(bytes: Uint8Array): Promise<ParsedDict> {
       for (const row of bank) {
         const [expression, reading, defTags, rules, score, glossary, sequence] = row;
         if (!expression) continue;
-        const definitions = (Array.isArray(glossary) ? glossary : [])
-          .map(flattenGloss)
-          .map((s) => s.trim())
-          .filter(Boolean);
+        // Keep each glossary item verbatim (string or structured-content tree),
+        // dropping only the empty/image-only ones. The renderer handles structure.
+        const definitions = (Array.isArray(glossary) ? glossary : []).filter(glossHasText) as GlossContent[];
         if (!definitions.length) continue;
         rows.push({
           expression,
@@ -153,7 +193,18 @@ async function parseYomitanZip(bytes: Uint8Array): Promise<ParsedDict> {
       }
     }
 
-    return { title: index.title || "Untitled dictionary", revision: index.revision ?? null, rows };
+    // Extract image media (pitch-accent diagrams, stroke order, …) referenced by
+    // structured-content `img` nodes. Stored as blobs and later served as data URLs.
+    const media: ParsedDict["media"] = [];
+    for (const entry of entries) {
+      if (entry.directory || !("getData" in entry) || !entry.getData) continue;
+      const mime = mediaMime(entry.filename);
+      if (!mime) continue;
+      const data = await entry.getData(new Uint8ArrayWriter());
+      media.push({ path: normalizeMediaPath(entry.filename), mime, data });
+    }
+
+    return { title: index.title || "Untitled dictionary", revision: index.revision ?? null, rows, media };
   } finally {
     await reader.close();
   }
@@ -233,11 +284,14 @@ export const dictionaryStore = {
       `INSERT INTO terms (dict_id, expression, reading, tags, rules, definitions, score, sequence)
          VALUES (@dictId, @expression, @reading, @tags, @rules, @definitions, @score, @sequence)`,
     );
+    const insertMedia = database.prepare(
+      `INSERT OR REPLACE INTO media (dict_id, path, mime, data) VALUES (@dictId, @path, @mime, @data)`,
+    );
 
-    const importAll = database.transaction((rows: ParsedDict["rows"]) => {
+    const importAll = database.transaction((parsed: ParsedDict) => {
       if (existing) database.prepare("DELETE FROM dictionaries WHERE id = ?").run(existing.id);
       insertDict.run({ id, title: parsed.title, revision: parsed.revision, importedAt: Date.now(), priority: nextPriority });
-      for (const r of rows) {
+      for (const r of parsed.rows) {
         insertTerm.run({
           dictId: id,
           expression: r.expression,
@@ -249,8 +303,11 @@ export const dictionaryStore = {
           sequence: r.sequence,
         });
       }
+      for (const m of parsed.media) {
+        insertMedia.run({ dictId: id, path: m.path, mime: m.mime, data: Buffer.from(m.data) });
+      }
     });
-    importAll(parsed.rows);
+    importAll(parsed);
 
     onProgress?.({ phase: "done", title: parsed.title, termsInserted: parsed.rows.length });
     return this.getDict(id)!;
@@ -258,6 +315,19 @@ export const dictionaryStore = {
 
   removeDict(id: string): void {
     getDb().prepare("DELETE FROM dictionaries WHERE id = ?").run(id);
+  },
+
+  /**
+   * Returns a glossary image as a data URL (the convention used for book covers
+   * too), or null if the dictionary has no such media. Called lazily by the popup
+   * as it renders structured-content `img` nodes.
+   */
+  getMedia(dictId: string, mediaPath: string): string | null {
+    const row = getDb()
+      .prepare("SELECT mime, data FROM media WHERE dict_id = ? AND path = ?")
+      .get(dictId, normalizeMediaPath(mediaPath)) as { mime: string; data: Buffer } | undefined;
+    if (!row) return null;
+    return `data:${row.mime};base64,${row.data.toString("base64")}`;
   },
 
   setEnabled(id: string, enabled: boolean): DictionaryInfo | null {
@@ -310,7 +380,8 @@ export const dictionaryStore = {
              FROM terms t
              JOIN dictionaries d ON d.id = t.dict_id
             WHERE d.enabled = 1
-              AND (t.expression IN (${placeholders}) OR t.reading IN (${placeholders}))`,
+              AND (t.expression IN (${placeholders}) OR t.reading IN (${placeholders}))
+            ORDER BY d.priority ASC, t.sequence ASC, t.id ASC`,
         )
         .all(...terms, ...terms) as {
         expression: string;
@@ -365,7 +436,7 @@ export const dictionaryStore = {
           entry.byDict.push(dictGroup);
         }
         try {
-          for (const g of JSON.parse(r.definitions) as string[]) dictGroup.glosses.push(g);
+          for (const g of JSON.parse(r.definitions) as GlossContent[]) dictGroup.glosses.push(g);
         } catch {
           /* skip malformed */
         }

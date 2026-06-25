@@ -78,23 +78,29 @@ export function DictionariesView() {
     }
   }, [refresh]);
 
-  const toggleDict = useCallback(async (id: string, next: boolean) => {
-    setDicts((prev) => prev.map((d) => (d.id === id ? { ...d, enabled: next } : d))); // optimistic
-    try {
-      await api().setEnabled(id, next);
-    } catch {
-      await refresh(); // revert to the source of truth on failure
-    }
-  }, [refresh]);
+  const toggleDict = useCallback(
+    async (id: string, next: boolean) => {
+      setDicts((prev) => prev.map((d) => (d.id === id ? { ...d, enabled: next } : d))); // optimistic
+      try {
+        await api().setEnabled(id, next);
+      } catch {
+        await refresh(); // revert to the source of truth on failure
+      }
+    },
+    [refresh],
+  );
 
-  const removeDict = useCallback(async (id: string) => {
-    setDicts((prev) => prev.filter((d) => d.id !== id)); // optimistic
-    try {
-      await api().remove(id);
-    } finally {
-      await refresh();
-    }
-  }, [refresh]);
+  const removeDict = useCallback(
+    async (id: string) => {
+      setDicts((prev) => prev.filter((d) => d.id !== id)); // optimistic
+      try {
+        await api().remove(id);
+      } finally {
+        await refresh();
+      }
+    },
+    [refresh],
+  );
 
   // Move a dictionary up/down the consult order. Priorities are reassigned from
   // the new array order (0..n) so the list stays contiguous regardless of any
@@ -123,8 +129,7 @@ export function DictionariesView() {
           <header className="space-y-1">
             <h1 className="text-lg font-medium tracking-tight">Dictionaries</h1>
             <p className="text-xs text-muted-foreground">
-              Look up Japanese words by hovering text in the reader. Import Yomitan dictionaries (format 3) and choose how
-              lookups are triggered.
+              Look up Japanese words by hovering text in the reader. Import Yomitan dictionaries (format 3) and choose how lookups are triggered.
             </p>
           </header>
 
@@ -190,14 +195,7 @@ export function DictionariesView() {
                   <li key={d.id} className="flex items-center gap-3 p-3">
                     <div className="flex flex-col">
                       <div className="flex items-center gap-0.5">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="size-5"
-                          disabled={i === 0}
-                          onClick={() => move(i, -1)}
-                          aria-label="Move up"
-                        >
+                        <Button size="icon" variant="ghost" className="size-5" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move up">
                           <ChevronUp className="size-3.5" />
                         </Button>
                         <Button
@@ -221,12 +219,7 @@ export function DictionariesView() {
                       <p className="text-[11px] text-muted-foreground">{d.termCount.toLocaleString()} terms</p>
                     </div>
 
-                    <Switch
-                      size="sm"
-                      checked={d.enabled}
-                      onCheckedChange={(v) => toggleDict(d.id, v)}
-                      aria-label={`Enable ${d.title}`}
-                    />
+                    <Switch checked={d.enabled} onCheckedChange={(v) => toggleDict(d.id, v)} aria-label={`Enable ${d.title}`} />
 
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
@@ -238,8 +231,7 @@ export function DictionariesView() {
                         <AlertDialogHeader>
                           <AlertDialogTitle>Remove “{d.title}”?</AlertDialogTitle>
                           <AlertDialogDescription>
-                            This deletes the dictionary and all {d.termCount.toLocaleString()} of its terms. You can re-import it
-                            later.
+                            This deletes the dictionary and all {d.termCount.toLocaleString()} of its terms. You can re-import it later.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -252,9 +244,7 @@ export function DictionariesView() {
                 ))}
               </ul>
             )}
-            {dicts.length > 1 && (
-              <p className="text-[11px] text-muted-foreground/70">Dictionaries higher in the list are consulted first.</p>
-            )}
+            {dicts.length > 1 && <p className="text-[11px] text-muted-foreground/70">Dictionaries higher in the list are consulted first.</p>}
           </section>
         </div>
       </div>

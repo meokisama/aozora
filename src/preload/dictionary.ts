@@ -25,6 +25,9 @@ export const dictionaryApi = {
   /** Looks up the dictionary form(s) at the start of `text`. */
   lookup: (text: string) => ipcRenderer.invoke("dictionary:lookup", text),
 
+  /** Resolves a glossary image (by dict id + archive path) to a data URL, or null. */
+  getMedia: (dictId: string, path: string) => ipcRenderer.invoke("dictionary:get-media", dictId, path),
+
   /** Subscribes to import-progress events. Returns an unsubscribe function. */
   onImportProgress: (cb: (p: DictionaryImportProgress) => void) => {
     const listener = (_event: unknown, p: DictionaryImportProgress) => cb(p);

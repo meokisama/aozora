@@ -145,13 +145,85 @@ export interface DictionaryInfo {
   termCount: number;
 }
 
+/**
+ * Inline-style subset a Yomitan structured-content node can carry. Mirrors
+ * `StructuredContentStyle` in references/yomitan (structured-content.d.ts); the
+ * popup maps these onto React `CSSProperties` when rendering a gloss.
+ */
+export interface GlossStyle {
+  fontStyle?: string;
+  fontWeight?: string;
+  fontSize?: string;
+  color?: string;
+  background?: string;
+  backgroundColor?: string;
+  textDecorationLine?: string | string[];
+  textDecorationStyle?: string;
+  textDecorationColor?: string;
+  borderColor?: string;
+  borderStyle?: string;
+  borderRadius?: string;
+  borderWidth?: string;
+  verticalAlign?: string;
+  textAlign?: string;
+  textEmphasis?: string;
+  textShadow?: string;
+  margin?: string;
+  marginTop?: number | string;
+  marginLeft?: number | string;
+  marginRight?: number | string;
+  marginBottom?: number | string;
+  padding?: string;
+  paddingTop?: string;
+  paddingLeft?: string;
+  paddingRight?: string;
+  paddingBottom?: string;
+  wordBreak?: string;
+  whiteSpace?: string;
+  listStyleType?: string;
+}
+
+/**
+ * One structured-content element node (a small subset of HTML expressed as JSON).
+ * Mirrors Yomitan's `structured-content.Element` plus the `{type:"text"|
+ * "structured-content"|"image"}` glossary wrappers — see references/yomitan.
+ */
+export interface GlossElement {
+  /** HTML-ish tag for a structured-content element (div, span, ul, li, ruby, …). */
+  tag?: string;
+  /** Wrapper discriminator on a top-level glossary item. */
+  type?: "text" | "image" | "structured-content";
+  /** Text payload for a `{type:"text"}` wrapper. */
+  text?: string;
+  content?: GlossContent;
+  style?: GlossStyle;
+  data?: Record<string, string>;
+  lang?: string;
+  href?: string;
+  title?: string;
+  open?: boolean;
+  colSpan?: number;
+  rowSpan?: number;
+  /** Image path inside the archive (media extraction not yet implemented). */
+  path?: string;
+  alt?: string;
+}
+
+/**
+ * One Yomitan glossary item, stored verbatim from the term bank: a plain string,
+ * a structured-content tree, or an array of either. Kept structured (not
+ * flattened to text) so the popup can render lists, tables, ruby and line breaks
+ * the way Yomitan does.
+ */
+export type GlossContent = string | GlossElement | GlossContent[];
+
 /** The glosses one source dictionary contributes for a matched headword. */
 export interface DictionaryGloss {
   dictId: string;
   dictTitle: string;
   /** Part-of-speech / definition tags from the dictionary (e.g. "v5u, vt"). */
   tags: string | null;
-  glosses: string[];
+  glosses: GlossContent[];
 }
 
 /** A single matched headword (expression + reading) with its glosses. */

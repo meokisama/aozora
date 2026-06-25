@@ -40,7 +40,10 @@ const FALLBACK_VIEWPORT = { width: 1200, height: 1800 };
 
 function parseViewBox(value: string | null | undefined): Viewport | null {
   if (!value) return null;
-  const parts = value.trim().split(/[\s,]+/).map(Number);
+  const parts = value
+    .trim()
+    .split(/[\s,]+/)
+    .map(Number);
   if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
     return { width: parts[2], height: parts[3] };
   }
@@ -81,10 +84,7 @@ export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProp
   const theme = useSettingsStore((s) => s.theme);
 
   const doubleSpreads = useMemo(() => buildSpreads(pages, ppd as "ltr" | "rtl"), [pages, ppd]);
-  const singleViews = useMemo<Spread[]>(
-    () => pages.map((p) => ({ index: p.ordinal, items: [p], single: true, pageSpread: p.pageSpread })),
-    [pages],
-  );
+  const singleViews = useMemo<Spread[]>(() => pages.map((p) => ({ index: p.ordinal, items: [p], single: true, pageSpread: p.pageSpread })), [pages]);
 
   const before = ppd === "rtl" ? "right" : "left"; // opener side
 
@@ -120,8 +120,7 @@ export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProp
     const stageH = stage.clientHeight;
     if (stageW === 0 || stageH === 0) return;
 
-    const isDouble =
-      spreadMode === "double" || (spreadMode === "auto" && stageW / stageH >= LANDSCAPE_RATIO);
+    const isDouble = spreadMode === "double" || (spreadMode === "auto" && stageW / stageH >= LANDSCAPE_RATIO);
     const views = isDouble ? doubleSpreads : singleViews;
     viewsRef.current = views;
 

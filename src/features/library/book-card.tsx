@@ -31,7 +31,7 @@ export function BookCard({ book, onOpen }: { book: Book; onOpen?: (book: Book) =
           <div className="relative aspect-2/3 w-full overflow-hidden rounded-[5px] border bg-muted transition-all transform-gpu will-change-transform duration-300 ease-out group-hover/cover:-translate-y-1 group-hover/cover:shadow-xl">
             <button type="button" onClick={() => onOpen?.(book)} title={book.title} className="block h-full w-full cursor-pointer text-left">
               <img
-                src={useFallback ? bookTemplate : book.coverDataUrl ?? bookTemplate}
+                src={useFallback ? bookTemplate : (book.coverDataUrl ?? bookTemplate)}
                 alt={useFallback ? "" : book.title}
                 onError={() => setCoverError(true)}
                 className="h-full w-full object-cover"

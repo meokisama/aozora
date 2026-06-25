@@ -126,10 +126,7 @@ export function LibraryView() {
   const importToastId = useRef<string | number | null>(null);
   useEffect(() => {
     if (importing) {
-      const msg =
-        importProgress && importProgress.total > 1
-          ? `Importing ${importProgress.current}/${importProgress.total}…`
-          : "Importing…";
+      const msg = importProgress && importProgress.total > 1 ? `Importing ${importProgress.current}/${importProgress.total}…` : "Importing…";
       importToastId.current = toast.loading(msg, { id: importToastId.current ?? undefined });
     } else if (importToastId.current != null) {
       toast.dismiss(importToastId.current);
@@ -215,11 +212,7 @@ export function LibraryView() {
 
   const heading =
     authorFilter ??
-    (statusFilter === "all"
-      ? "All books"
-      : statusFilter === "favorites"
-        ? "Favorites"
-        : STATUS_TABS.find((t) => t.value === statusFilter)?.label);
+    (statusFilter === "all" ? "All books" : statusFilter === "favorites" ? "Favorites" : STATUS_TABS.find((t) => t.value === statusFilter)?.label);
 
   return (
     <div className="relative flex h-full" onDragEnter={handleDragEnter} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>

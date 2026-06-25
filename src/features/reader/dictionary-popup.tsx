@@ -1,5 +1,15 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type { LookupResult } from "@/lib/types";
+import { StructuredGloss } from "./structured-gloss";
+
+// Tailwind child selectors that give structured-content glosses sensible defaults
+// (list markers, table borders) outside the reader's shadow root. Inline styles
+// carried by the dictionary still apply on top of these.
+const GLOSS_CLASS =
+  "text-xs leading-snug [&_ul]:ml-4 [&_ul]:list-disc [&_ol]:ml-4 [&_ol]:list-decimal " +
+  "[&_li]:my-0.5 [&_table]:my-1 [&_table]:border-collapse [&_td]:border [&_td]:border-border " +
+  "[&_td]:px-1 [&_th]:border [&_th]:border-border [&_th]:px-1 [&_rt]:text-[0.6em] " +
+  "marker:text-muted-foreground/60";
 
 /**
  * Floating dictionary popup, anchored to the matched run under the cursor
@@ -71,12 +81,8 @@ export function DictionaryPopup({ result, anchor }: Props) {
           <li key={`${entry.expression}-${entry.reading ?? ""}-${i}`} className="p-3">
             <div className="flex items-baseline gap-2">
               <span className="text-base leading-none font-medium">{entry.expression}</span>
-              {entry.reading && entry.reading !== entry.expression && (
-                <span className="text-xs text-muted-foreground">【{entry.reading}】</span>
-              )}
-              {entry.reasons.length > 0 && (
-                <span className="text-[10px] text-muted-foreground">{entry.reasons.join(" › ")}</span>
-              )}
+              {entry.reading && entry.reading !== entry.expression && <span className="text-xs text-muted-foreground">【{entry.reading}】</span>}
+              {entry.reasons.length > 0 && <span className="text-[10px] text-muted-foreground">{entry.reasons.join(" › ")}</span>}
             </div>
 
             {entry.byDict.map((group) => (
@@ -85,15 +91,19 @@ export function DictionaryPopup({ result, anchor }: Props) {
                   <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70">{group.dictTitle}</span>
                   {group.tags && <span className="text-[10px] text-muted-foreground/70">{group.tags}</span>}
                 </div>
-                {group.glosses.length === 1 ? (
-                  <p className="text-xs leading-snug">{group.glosses[0]}</p>
-                ) : (
-                  <ol className="ml-4 list-decimal space-y-0.5 text-xs leading-snug marker:text-muted-foreground/60">
-                    {group.glosses.map((g, gi) => (
-                      <li key={gi}>{g}</li>
-                    ))}
-                  </ol>
-                )}
+                <div className={GLOSS_CLASS}>
+                  {group.glosses.length === 1 ? (
+                    <StructuredGloss content={group.glosses[0]} dictId={group.dictId} />
+                  ) : (
+                    <ol className="ml-4 list-decimal space-y-0.5">
+                      {group.glosses.map((g, gi) => (
+                        <li key={gi}>
+                          <StructuredGloss content={g} dictId={group.dictId} />
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </div>
               </div>
             ))}
           </li>
