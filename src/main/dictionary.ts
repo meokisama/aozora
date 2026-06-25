@@ -39,20 +39,14 @@ export const registerDictionaryIpc = (): void => {
     return true;
   });
 
-  ipcMain.handle("dictionary:set-enabled", (_event, id: string, enabled: boolean) =>
-    dictionaryStore.setEnabled(id, enabled),
-  );
+  ipcMain.handle("dictionary:set-enabled", (_event, id: string, enabled: boolean) => dictionaryStore.setEnabled(id, enabled));
 
-  ipcMain.handle("dictionary:set-priority", (_event, id: string, priority: number) =>
-    dictionaryStore.setPriority(id, priority),
-  );
+  ipcMain.handle("dictionary:set-priority", (_event, id: string, priority: number) => dictionaryStore.setPriority(id, priority));
 
   // The hot path: called as the user hovers text. `text` is the run starting at
   // the cursor; the store returns matches for the longest matching prefix.
   ipcMain.handle("dictionary:lookup", (_event, text: string) => dictionaryStore.lookup(text));
 
   // Lazily resolves a structured-content image to a data URL as the popup renders.
-  ipcMain.handle("dictionary:get-media", (_event, dictId: string, path: string) =>
-    dictionaryStore.getMedia(dictId, path),
-  );
+  ipcMain.handle("dictionary:get-media", (_event, dictId: string, path: string) => dictionaryStore.getMedia(dictId, path));
 };

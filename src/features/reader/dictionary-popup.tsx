@@ -1,6 +1,10 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type { LookupResult } from "@/lib/types";
+import { downstepNumber } from "@/lib/dictionary/pitch";
 import { StructuredGloss } from "./structured-gloss";
+import { PitchAccent } from "./pitch-accent";
+import { KanjiCard } from "./kanji-card";
+import { TagBadges } from "./dictionary-tags";
 
 // Tailwind child selectors that give structured-content glosses sensible defaults
 // (list markers, table borders) outside the reader's shadow root. Inline styles
@@ -16,8 +20,9 @@ const GLOSS_CLASS =
  * (Yomitan-style — not a click-triggered modal). The reader hands it the lookup
  * result and the matched run's bounding box; the popup positions itself just
  * below that box, flipping above and clamping to the viewport when it would
- * overflow. It is non-interactive for the page (pointer events only matter for
- * scrolling its own long content), so it never steals the reader's hover.
+ * overflow. The cursor may enter it to scroll long content: the reader keeps it
+ * alive while hovered (onMouseEnter/onMouseLeave) instead of dismissing on the
+ * first move off the matched word.
  *
  * Rendered nothing when there is no result, so the reader can keep it mounted
  * and just feed it state.
@@ -30,9 +35,13 @@ interface Props {
   result: LookupResult | null;
   /** Bounding box of the matched run, in viewport coordinates. */
   anchor: DOMRect | null;
+  /** Cursor entered the popup (the reader keeps it alive so its content can be scrolled). */
+  onMouseEnter?: () => void;
+  /** Cursor left the popup (the reader schedules its dismissal). */
+  onMouseLeave?: () => void;
 }
 
-export function DictionaryPopup({ result, anchor }: Props) {
+export function DictionaryPopup({ result, anchor, onMouseEnter, onMouseLeave }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
 
@@ -61,13 +70,15 @@ export function DictionaryPopup({ result, anchor }: Props) {
     setPos({ left, top });
   }, [result, anchor]);
 
-  if (!result || !result.entries.length || !anchor) return null;
+  if (!result || (!result.entries.length && !result.kanji.length) || !anchor) return null;
 
   return (
     <div
       ref={ref}
       role="dialog"
       aria-label="Dictionary"
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       style={{
         position: "fixed",
         left: pos?.left ?? -9999,
@@ -85,11 +96,40 @@ export function DictionaryPopup({ result, anchor }: Props) {
               {entry.reasons.length > 0 && <span className="text-[10px] text-muted-foreground">{entry.reasons.join(" › ")}</span>}
             </div>
 
+            {entry.frequencies.length > 0 && (
+              <div className="mt-1 flex flex-wrap items-center gap-1">
+                {entry.frequencies.map((f) => (
+                  <span
+                    key={f.dictId}
+                    title={f.dictTitle}
+                    className="inline-flex items-center gap-1 rounded-sm border border-border/60 px-1 py-px text-[10px] text-muted-foreground"
+                  >
+                    <span className="max-w-24 truncate opacity-70">{f.dictTitle}</span>
+                    <span className="tabular-nums">{f.displayValue ?? String(f.value)}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {entry.pitches.length > 0 && (
+              <div className="mt-1.5 space-y-0.5">
+                {entry.pitches.map((p, pi) => (
+                  <div key={`${p.dictId}-${pi}`} className="flex items-center gap-2">
+                    <PitchAccent reading={p.reading} position={p.position} />
+                    <span className="text-[10px] text-muted-foreground tabular-nums">[{downstepNumber(p.position)}]</span>
+                    <span className="max-w-24 truncate text-[10px] text-muted-foreground/60" title={p.dictTitle}>
+                      {p.dictTitle}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {entry.byDict.map((group) => (
               <div key={group.dictId} className="mt-2 space-y-1">
-                <div className="flex items-baseline gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70">{group.dictTitle}</span>
-                  {group.tags && <span className="text-[10px] text-muted-foreground/70">{group.tags}</span>}
+                  <TagBadges tags={group.tags} />
                 </div>
                 <div className={GLOSS_CLASS}>
                   {group.glosses.length === 1 ? (
@@ -109,6 +149,14 @@ export function DictionaryPopup({ result, anchor }: Props) {
           </li>
         ))}
       </ul>
+
+      {result.kanji.length > 0 && (
+        <div className="space-y-3 border-t bg-muted/30 p-3">
+          {result.kanji.map((k, i) => (
+            <KanjiCard key={`${k.dictId}-${k.character}-${i}`} kanji={k} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

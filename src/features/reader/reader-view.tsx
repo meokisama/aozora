@@ -108,6 +108,11 @@ export function ReaderView() {
   const lookupSeqRef = useRef(0);
   const lookupRafRef = useRef(0);
   const lastQueryRef = useRef("");
+  // Dismissal is deferred so the cursor can travel from the matched word into the
+  // popup (to scroll it) without it vanishing: a timer clears the popup unless the
+  // cursor has settled inside it by the time it fires.
+  const clearTimerRef = useRef(0);
+  const popupHoveredRef = useRef(false);
   const dictEnabled = useDictionaryStore((s) => s.enabled);
   const dictModifier = useDictionaryStore((s) => s.modifier);
   const dictEnabledRef = useRef(dictEnabled);
@@ -172,10 +177,27 @@ export function ReaderView() {
 
   /** Dismisses the dictionary popup and clears the matched-run highlight. */
   const clearLookup = useCallback(() => {
+    if (clearTimerRef.current) {
+      clearTimeout(clearTimerRef.current);
+      clearTimerRef.current = 0;
+    }
+    popupHoveredRef.current = false;
     lastQueryRef.current = "";
     setLookupHighlight(null);
     setLookup(null);
   }, []);
+
+  // Schedules dismissal after a short grace window, so the cursor can cross the
+  // gap from the matched word into the popup without it disappearing. Cancelled
+  // when the cursor reaches the popup (popupHoveredRef) or a fresh lookup runs.
+  const scheduleClear = useCallback(() => {
+    if (clearTimerRef.current) return;
+    clearTimerRef.current = window.setTimeout(() => {
+      clearTimerRef.current = 0;
+      if (popupHoveredRef.current) return; // cursor settled in the popup — keep it
+      clearLookup();
+    }, 220);
+  }, [clearLookup]);
 
   /** Scrolls the continuous reader to the tracked character (or the book start). */
   const restoreContinuous = useCallback((vert: boolean) => {
@@ -370,10 +392,20 @@ export function ReaderView() {
 
       const source = cursorTextFromPoint(x, y, contentRoot);
       if (!source) {
-        clearLookup();
+        // No text under the cursor (e.g. the line-gap between the word and the
+        // popup): dismiss through the grace window so reaching for the popup to
+        // scroll it doesn't kill it mid-travel.
+        scheduleClear();
         return;
       }
-      if (source.text === lastQueryRef.current) return; // same run already resolved
+      if (source.text === lastQueryRef.current) {
+        // Back on the run we already resolved — cancel any pending dismissal.
+        if (clearTimerRef.current) {
+          clearTimeout(clearTimerRef.current);
+          clearTimerRef.current = 0;
+        }
+        return;
+      }
       lastQueryRef.current = source.text;
 
       const seq = ++lookupSeqRef.current;
@@ -381,10 +413,14 @@ export function ReaderView() {
         .lookup(source.text)
         .then((result) => {
           if (seq !== lookupSeqRef.current) return; // superseded by a newer lookup
-          if (!result || !result.matchedLength || !result.entries.length) {
+          if (!result || !result.matchedLength || (!result.entries.length && !result.kanji.length)) {
             setLookupHighlight(null);
             setLookup(null); // keep lastQueryRef so the same no-match run isn't re-queried
             return;
+          }
+          if (clearTimerRef.current) {
+            clearTimeout(clearTimerRef.current); // a fresh hit supersedes a pending dismissal
+            clearTimerRef.current = 0;
           }
           const range = source.rangeForLength(result.matchedLength);
           setLookupHighlight(range);
@@ -392,7 +428,7 @@ export function ReaderView() {
         })
         .catch(() => {});
     },
-    [clearLookup],
+    [scheduleClear],
   );
 
   // Coalesce rapid mousemoves into one lookup per frame.
@@ -428,7 +464,9 @@ export function ReaderView() {
       if (m) runLookupAt(m.x, m.y);
     };
     const onUp = (e: KeyboardEvent) => {
-      if (e.key === keyName) clearLookup();
+      // Grace window: releasing the modifier to reach for the popup (to scroll it)
+      // shouldn't dismiss it if the cursor lands inside in time.
+      if (e.key === keyName) scheduleClear();
     };
     window.addEventListener("keydown", onDown);
     window.addEventListener("keyup", onUp);
@@ -436,7 +474,7 @@ export function ReaderView() {
       window.removeEventListener("keydown", onDown);
       window.removeEventListener("keyup", onUp);
     };
-  }, [dictEnabled, dictModifier, fixedLayout, runLookupAt, clearLookup]);
+  }, [dictEnabled, dictModifier, fixedLayout, runLookupAt, scheduleClear]);
 
   // Expose the reader area's pixel size as inherited CSS vars so illustrations
   // can be capped against it, and re-paginate the page-flip reader on resize.
@@ -855,7 +893,7 @@ export function ReaderView() {
             onScroll={handleScroll}
             onClick={handleContentClick}
             onMouseMove={handleMouseMove}
-            onMouseLeave={clearLookup}
+            onMouseLeave={scheduleClear}
             className={
               paged
                 ? // Outer padding lives here (on the host, outside the shadow
@@ -869,7 +907,21 @@ export function ReaderView() {
             }
           />
         )}
-        <DictionaryPopup result={lookup?.result ?? null} anchor={lookup?.anchor ?? null} />
+        <DictionaryPopup
+          result={lookup?.result ?? null}
+          anchor={lookup?.anchor ?? null}
+          onMouseEnter={() => {
+            popupHoveredRef.current = true;
+            if (clearTimerRef.current) {
+              clearTimeout(clearTimerRef.current);
+              clearTimerRef.current = 0;
+            }
+          }}
+          onMouseLeave={() => {
+            popupHoveredRef.current = false;
+            scheduleClear();
+          }}
+        />
       </div>
 
       <ReaderToc open={tocOpen} onOpenChange={setTocOpen} chapters={chapters} activeChapterId={activeChapterId} onJump={handleJump} />

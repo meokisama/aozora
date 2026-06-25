@@ -2,15 +2,7 @@ import { app } from "electron";
 import path from "node:path";
 import fs from "node:fs";
 import Database from "better-sqlite3";
-import type {
-  Book,
-  Bookmark,
-  ProgressUpdate,
-  StatsOverview,
-  DailyActivity,
-  HourlyActivity,
-  PerBookStats,
-} from "@/lib/types";
+import type { Book, Bookmark, ProgressUpdate, StatsOverview, DailyActivity, HourlyActivity, PerBookStats } from "@/lib/types";
 
 /**
  * SQLite-backed library store. Source of truth for book metadata and reading
@@ -244,9 +236,7 @@ export const libraryStore = {
   // --- Bookmarks (per book, ordered by reading position). ------------------
 
   listBookmarks(bookId: string): Bookmark[] {
-    const rows = getDb()
-      .prepare("SELECT * FROM bookmarks WHERE book_id = ? ORDER BY char_offset ASC, created_at ASC")
-      .all(bookId);
+    const rows = getDb().prepare("SELECT * FROM bookmarks WHERE book_id = ? ORDER BY char_offset ASC, created_at ASC").all(bookId);
     return rows.map(rowToBookmark) as Bookmark[];
   },
 

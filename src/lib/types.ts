@@ -143,6 +143,12 @@ export interface DictionaryInfo {
   enabled: boolean;
   priority: number; // lower = consulted first
   termCount: number;
+  /** Number of frequency ratings (term-meta "freq"). Non-zero for frequency dictionaries. */
+  freqCount: number;
+  /** Number of pitch-accent entries (term-meta "pitch"). Non-zero for pitch dictionaries. */
+  pitchCount: number;
+  /** Number of kanji entries (kanji_bank). Non-zero for kanji dictionaries. */
+  kanjiCount: number;
 }
 
 /**
@@ -217,13 +223,57 @@ export interface GlossElement {
  */
 export type GlossContent = string | GlossElement | GlossContent[];
 
+/**
+ * A dictionary tag resolved against its tag bank: the short token plus the
+ * human-readable note and category (used for tooltip + colour) when the
+ * dictionary defined one. Tokens with no tag-bank entry keep just their name.
+ */
+export interface DictionaryTag {
+  name: string;
+  /** Tag-bank category (e.g. "partOfSpeech", "frequent"); "" when unknown. */
+  category: string;
+  /** Human-readable description shown as a tooltip; "" when unknown. */
+  notes: string;
+  /** Sort order from the tag bank (lower first). */
+  order: number;
+}
+
 /** The glosses one source dictionary contributes for a matched headword. */
 export interface DictionaryGloss {
   dictId: string;
   dictTitle: string;
-  /** Part-of-speech / definition tags from the dictionary (e.g. "v5u, vt"). */
-  tags: string | null;
+  /** Part-of-speech / definition tags (resolved against the dictionary's tag bank). */
+  tags: DictionaryTag[];
   glosses: GlossContent[];
+}
+
+/**
+ * A frequency rating one dictionary assigns to a matched headword (from a
+ * term-meta bank, mode "freq"). `value` is the numeric rank used for sorting
+ * (lower = more common); `displayValue` is what to show (a pre-formatted string
+ * like "12,345" or "Common"), falling back to the number when absent.
+ */
+export interface DictionaryFrequency {
+  dictId: string;
+  dictTitle: string;
+  value: number;
+  displayValue: string | null;
+}
+
+/**
+ * One pitch-accent pattern a dictionary assigns to a matched headword (from a
+ * term-meta bank, mode "pitch"). `position` is the downstep mora position (0 =
+ * heiban, 1 = atamadaka, n = drop after mora n) or an explicit "HLHL…" string;
+ * the reader derives the morae from `reading` to draw the accent graph.
+ */
+export interface DictionaryPitch {
+  dictId: string;
+  dictTitle: string;
+  reading: string;
+  position: number | string;
+  /** 1-based mora positions with a nasal / devoiced sound (usually empty). */
+  nasal: number[];
+  devoice: number[];
 }
 
 /** A single matched headword (expression + reading) with its glosses. */
@@ -237,6 +287,31 @@ export interface DictionaryEntry {
    */
   reasons: string[];
   byDict: DictionaryGloss[];
+  /** Frequency ratings from any imported frequency dictionaries (may be empty). */
+  frequencies: DictionaryFrequency[];
+  /** Pitch-accent patterns from any imported pitch dictionaries (may be empty). */
+  pitches: DictionaryPitch[];
+}
+
+/**
+ * One kanji's information from a kanji dictionary (e.g. KANJIDIC). Shown in a
+ * separate section of the popup for the kanji present in the matched run.
+ */
+export interface KanjiEntry {
+  dictId: string;
+  dictTitle: string;
+  character: string;
+  /** On'yomi readings (katakana), already split. */
+  onyomi: string[];
+  /** Kun'yomi readings (hiragana), already split. */
+  kunyomi: string[];
+  meanings: string[];
+  /** Classification tags (e.g. "jouyou"), resolved against the dictionary's tag bank. */
+  tags: DictionaryTag[];
+  /** Raw stat map (strokes, grade, jlpt, freq, plus dictionary index codes). */
+  stats: Record<string, string | number>;
+  /** Frequency ratings from kanji-meta dictionaries (separate from stats.freq; may be empty). */
+  frequencies: DictionaryFrequency[];
 }
 
 /** Result of looking up the text run that starts at the cursor. */
@@ -244,6 +319,8 @@ export interface LookupResult {
   /** How many source characters the longest match consumed (for highlighting). */
   matchedLength: number;
   entries: DictionaryEntry[];
+  /** Kanji breakdowns for the kanji in the matched run (may be empty). */
+  kanji: KanjiEntry[];
 }
 
 /** Progress event emitted by the main process while importing a dictionary. */

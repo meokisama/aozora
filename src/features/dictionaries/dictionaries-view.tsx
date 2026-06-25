@@ -23,6 +23,20 @@ import type { DictionaryInfo } from "@/lib/types";
 const api = () => window.electronAPI.dictionary;
 
 /**
+ * Human label for what a dictionary contributes. A term dictionary has glosses
+ * ("terms"); a frequency dictionary (e.g. JPDB) has only frequency ratings and
+ * legitimately reports 0 terms, so surface its frequency count instead.
+ */
+function countLabel(d: Pick<DictionaryInfo, "termCount" | "freqCount" | "pitchCount" | "kanjiCount">): string {
+  const parts: string[] = [];
+  if (d.termCount) parts.push(`${d.termCount.toLocaleString()} terms`);
+  if (d.freqCount) parts.push(`${d.freqCount.toLocaleString()} frequencies`);
+  if (d.pitchCount) parts.push(`${d.pitchCount.toLocaleString()} pitch accents`);
+  if (d.kanjiCount) parts.push(`${d.kanjiCount.toLocaleString()} kanji`);
+  return parts.join(" · ") || "no entries";
+}
+
+/**
  * Dictionary management page. Renders beside the shared sidebar (like the
  * library / stats pages) and is the single home for everything dictionary-
  * related: the hover-lookup behaviour (enable + which modifier triggers it,
@@ -68,7 +82,7 @@ export function DictionariesView() {
     try {
       const info = await api().pickAndImport();
       if (info) {
-        toast.success(`Imported “${info.title}” (${info.termCount.toLocaleString()} terms)`);
+        toast.success(`Imported “${info.title}” (${countLabel(info)})`);
         await refresh();
       }
     } catch (err) {
@@ -216,7 +230,7 @@ export function DictionariesView() {
                         <span className="truncate text-sm font-medium">{d.title}</span>
                         {d.revision && <Badge variant="outline">{d.revision}</Badge>}
                       </div>
-                      <p className="text-[11px] text-muted-foreground">{d.termCount.toLocaleString()} terms</p>
+                      <p className="text-[11px] text-muted-foreground">{countLabel(d)}</p>
                     </div>
 
                     <Switch checked={d.enabled} onCheckedChange={(v) => toggleDict(d.id, v)} aria-label={`Enable ${d.title}`} />
@@ -231,7 +245,7 @@ export function DictionariesView() {
                         <AlertDialogHeader>
                           <AlertDialogTitle>Remove “{d.title}”?</AlertDialogTitle>
                           <AlertDialogDescription>
-                            This deletes the dictionary and all {d.termCount.toLocaleString()} of its terms. You can re-import it later.
+                            This deletes the dictionary and all its entries ({countLabel(d)}). You can re-import it later.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>

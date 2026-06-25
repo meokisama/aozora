@@ -5,13 +5,6 @@ import { randomUUID } from "node:crypto";
 import { libraryStore } from "./services/library-store.js";
 import type { Book, AddBookPayload, UpdateBookPayload, ProgressUpdate, AddBookmarkPayload } from "@/lib/types";
 
-// EPUB covers are full-page scans but the library grid only ever shows small
-// thumbnails (cards render ~140–230 CSS px). The aliasing ("vỡ") came not from
-// the covers being huge in absolute terms but from the *ratio*: handing the
-// <img> a 600px bitmap to paint at ~150px is a ~4x single-pass downscale, which
-// Chromium does badly. So resample once with Skia ("best") down to near the
-// rendered size, leaving the browser an almost 1:1 image. Quality is high since
-// a 300px JPEG is tiny anyway.
 const COVER_MAX_WIDTH = 300;
 const COVER_JPEG_QUALITY = 90;
 
