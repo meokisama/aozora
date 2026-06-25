@@ -11,7 +11,7 @@ import { ReaderSearch } from "./reader-search";
 import { applyReaderVars, continuousStyles, paginatedStyles } from "./reader-styles";
 import { parseBook, type ParsedBook, type FixedLayoutPage } from "@/lib/epub/parse-book";
 import type { Section } from "@/lib/epub/generate-html";
-import type { Bookmark as BookmarkRecord } from "@/lib/types";
+import type { Bookmark as BookmarkRecord, LookupResult } from "@/lib/types";
 import { buildReaderHtml } from "@/lib/epub/format-html";
 import { getCachedBook, putCachedBook } from "@/lib/reader-cache";
 import { collectAnchors, currentCharAtCenter, scrollToChar, scrollToElementId, type Anchor } from "@/lib/reader/position";
@@ -19,7 +19,10 @@ import { PaginatedController, type PaginatedState } from "@/lib/reader/paginated
 import { mergeSpreadSections } from "@/lib/reader/merge-spreads";
 import { FixedLayoutView, type FixedLayoutHandle } from "./fixed-layout-view";
 import { buildSearchIndex, searchIndex, type SearchResult, type SearchIndexEntry } from "@/lib/reader/search";
-import { clearSearchHighlight, highlightSearchResult } from "@/lib/reader/highlight";
+import { clearSearchHighlight, highlightSearchResult, setLookupHighlight } from "@/lib/reader/highlight";
+import { cursorTextFromPoint } from "@/lib/reader/lookup-text";
+import { useDictionaryStore, modifierHeld } from "@/stores/dictionary-store";
+import { DictionaryPopup } from "./dictionary-popup";
 import { useReadingSession } from "./use-reading-session";
 
 const api = () => window.electronAPI.library;
@@ -97,6 +100,21 @@ export function ReaderView() {
   const readyRef = useRef(false);
   const searchIndexRef = useRef<SearchIndexEntry[] | null>(null); // lazily built on first search
 
+  // Hover-dictionary state: the last cursor position (so a modifier keydown can
+  // trigger a lookup without moving the mouse), a sequence guard so a stale async
+  // lookup can't overwrite a newer one, a rAF gate to coalesce mousemoves, and
+  // the text of the last run we queried (to skip re-querying the same word).
+  const lastMouseRef = useRef<{ x: number; y: number } | null>(null);
+  const lookupSeqRef = useRef(0);
+  const lookupRafRef = useRef(0);
+  const lastQueryRef = useRef("");
+  const dictEnabled = useDictionaryStore((s) => s.enabled);
+  const dictModifier = useDictionaryStore((s) => s.modifier);
+  const dictEnabledRef = useRef(dictEnabled);
+  const dictModifierRef = useRef(dictModifier);
+  dictEnabledRef.current = dictEnabled;
+  dictModifierRef.current = dictModifier;
+
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [parseToken, setParseToken] = useState(0); // bumped when parsed content is ready
   const [fixedLayout, setFixedLayout] = useState(false); // manga / fixed-layout book
@@ -114,6 +132,7 @@ export function ReaderView() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<{ results: SearchResult[]; total: number; capped: boolean }>({ results: [], total: 0, capped: false });
+  const [lookup, setLookup] = useState<{ result: LookupResult; anchor: DOMRect | null } | null>(null);
 
   const total = totalRef.current;
   // Fixed-layout position is a page ordinal, so the last page (ordinal total-1)
@@ -151,6 +170,13 @@ export function ReaderView() {
       .catch(() => {});
   }, [book, applyProgress]);
 
+  /** Dismisses the dictionary popup and clears the matched-run highlight. */
+  const clearLookup = useCallback(() => {
+    lastQueryRef.current = "";
+    setLookupHighlight(null);
+    setLookup(null);
+  }, []);
+
   /** Scrolls the continuous reader to the tracked character (or the book start). */
   const restoreContinuous = useCallback((vert: boolean) => {
     const host = hostRef.current;
@@ -173,10 +199,11 @@ export function ReaderView() {
       setCurrentChar(state.char);
       setPageInfo({ page: state.page, totalPages: state.totalPages });
       markSession(state.char, false);
+      clearLookup(); // the matched run scrolled off the page
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(persist, 800);
     },
-    [persist, markSession],
+    [persist, markSession, clearLookup],
   );
 
   // Receives position updates from the fixed-layout (manga) viewer. Position is
@@ -328,6 +355,89 @@ export function ReaderView() {
     });
   }, [searchResults, chapters, total]);
 
+  // Runs a dictionary lookup for the text under a viewport point. Resolves the
+  // run starting at the cursor (furigana excluded), queries the main process for
+  // the longest match, then highlights exactly that run and shows the popup
+  // anchored to it. A sequence guard drops stale async results, and identical
+  // runs are skipped so jiggling the mouse over one word doesn't re-query.
+  const runLookupAt = useCallback(
+    (x: number, y: number) => {
+      const shadow = hostRef.current?.shadowRoot;
+      if (!shadow || modeRef.current === "fixed") return;
+      const sel = modeRef.current === "paginated" ? ".aoz-page-content" : ".aozora-content";
+      const contentRoot = shadow.querySelector(sel);
+      if (!contentRoot) return;
+
+      const source = cursorTextFromPoint(x, y, contentRoot);
+      if (!source) {
+        clearLookup();
+        return;
+      }
+      if (source.text === lastQueryRef.current) return; // same run already resolved
+      lastQueryRef.current = source.text;
+
+      const seq = ++lookupSeqRef.current;
+      window.electronAPI.dictionary
+        .lookup(source.text)
+        .then((result) => {
+          if (seq !== lookupSeqRef.current) return; // superseded by a newer lookup
+          if (!result || !result.matchedLength || !result.entries.length) {
+            setLookupHighlight(null);
+            setLookup(null); // keep lastQueryRef so the same no-match run isn't re-queried
+            return;
+          }
+          const range = source.rangeForLength(result.matchedLength);
+          setLookupHighlight(range);
+          setLookup({ result, anchor: range?.getBoundingClientRect() ?? null });
+        })
+        .catch(() => {});
+    },
+    [clearLookup],
+  );
+
+  // Coalesce rapid mousemoves into one lookup per frame.
+  const scheduleLookup = useCallback(() => {
+    if (lookupRafRef.current) return;
+    lookupRafRef.current = requestAnimationFrame(() => {
+      lookupRafRef.current = 0;
+      const m = lastMouseRef.current;
+      if (m) runLookupAt(m.x, m.y);
+    });
+  }, [runLookupAt]);
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    lastMouseRef.current = { x: e.clientX, y: e.clientY };
+    if (!dictEnabledRef.current || modeRef.current === "fixed") return;
+    if (!modifierHeld(dictModifierRef.current, e)) {
+      clearLookup();
+      return;
+    }
+    scheduleLookup();
+  };
+
+  // Pressing/releasing the lookup modifier triggers (or dismisses) a lookup at
+  // the last cursor position — so holding Shift over a word that the pointer is
+  // already resting on works without a wiggle. Inactive when the trigger is
+  // "hover only" (no modifier) or for fixed-layout books.
+  useEffect(() => {
+    if (!dictEnabled || dictModifier === "none" || fixedLayout) return;
+    const keyName = dictModifier === "shift" ? "Shift" : dictModifier === "alt" ? "Alt" : "Control";
+    const onDown = (e: KeyboardEvent) => {
+      if (e.key !== keyName || e.repeat) return;
+      const m = lastMouseRef.current;
+      if (m) runLookupAt(m.x, m.y);
+    };
+    const onUp = (e: KeyboardEvent) => {
+      if (e.key === keyName) clearLookup();
+    };
+    window.addEventListener("keydown", onDown);
+    window.addEventListener("keyup", onUp);
+    return () => {
+      window.removeEventListener("keydown", onDown);
+      window.removeEventListener("keyup", onUp);
+    };
+  }, [dictEnabled, dictModifier, fixedLayout, runLookupAt, clearLookup]);
+
   // Expose the reader area's pixel size as inherited CSS vars so illustrations
   // can be capped against it, and re-paginate the page-flip reader on resize.
   useEffect(() => {
@@ -366,6 +476,9 @@ export function ReaderView() {
     setSections([]);
     searchIndexRef.current = null;
     clearSearchHighlight();
+    setLookupHighlight(null);
+    setLookup(null);
+    lastQueryRef.current = "";
     setSearchOpen(false);
     setSearchQuery("");
     setSearchResults({ results: [], total: 0, capped: false });
@@ -510,6 +623,9 @@ export function ReaderView() {
       persist();
       readyRef.current = false;
       clearSearchHighlight();
+      setLookupHighlight(null);
+      setLookup(null);
+      lastQueryRef.current = "";
       controllerRef.current?.destroy();
       controllerRef.current = null;
       if (shadow) shadow.innerHTML = "";
@@ -581,6 +697,7 @@ export function ReaderView() {
   // (rAF-throttled) and debounce a save.
   const handleScroll = () => {
     if (modeRef.current !== "continuous") return;
+    clearLookup(); // the matched run scrolled away
     if (rafRef.current) return;
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = 0;
@@ -737,6 +854,8 @@ export function ReaderView() {
             onWheel={handleWheel}
             onScroll={handleScroll}
             onClick={handleContentClick}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={clearLookup}
             className={
               paged
                 ? // Outer padding lives here (on the host, outside the shadow
@@ -750,6 +869,7 @@ export function ReaderView() {
             }
           />
         )}
+        <DictionaryPopup result={lookup?.result ?? null} anchor={lookup?.anchor ?? null} />
       </div>
 
       <ReaderToc open={tocOpen} onOpenChange={setTocOpen} chapters={chapters} activeChapterId={activeChapterId} onJump={handleJump} />

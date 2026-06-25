@@ -3,6 +3,9 @@ import type {
   AddBookPayload,
   Book,
   Bookmark,
+  DictionaryImportProgress,
+  DictionaryInfo,
+  LookupResult,
   PickedFile,
   ProgressUpdate,
   ReadingSession,
@@ -46,10 +49,21 @@ export interface StatsApi {
   get(): Promise<Stats>;
 }
 
+export interface DictionaryApi {
+  list(): Promise<DictionaryInfo[]>;
+  pickAndImport(): Promise<DictionaryInfo | null>;
+  remove(id: string): Promise<boolean>;
+  setEnabled(id: string, enabled: boolean): Promise<DictionaryInfo | null>;
+  setPriority(id: string, priority: number): Promise<DictionaryInfo | null>;
+  lookup(text: string): Promise<LookupResult>;
+  onImportProgress(callback: (progress: DictionaryImportProgress) => void): () => void;
+}
+
 export interface ElectronAPI {
   window: WindowApi;
   library: LibraryApi;
   stats: StatsApi;
+  dictionary: DictionaryApi;
 }
 
 declare global {

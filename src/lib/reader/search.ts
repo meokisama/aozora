@@ -53,7 +53,7 @@ const INLINE_TAGS = new Set([
 ]);
 
 /** The nearest non-inline ancestor of a node (its "paragraph"), bounded by root. */
-function blockAncestor(node: Node, root: Element): Element {
+export function blockAncestor(node: Node, root: Element): Element {
   let el: Element | null = node.nodeType === Node.TEXT_NODE ? node.parentElement : (node as Element);
   while (el && el !== root && el.parentElement && INLINE_TAGS.has(el.tagName)) {
     el = el.parentElement;

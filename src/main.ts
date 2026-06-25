@@ -5,6 +5,7 @@ import { updateElectronApp } from "update-electron-app";
 import { registerWindowIpc } from "./main/window.js";
 import { registerLibraryIpc } from "./main/library.js";
 import { registerStatsIpc } from "./main/stats.js";
+import { registerDictionaryIpc } from "./main/dictionary.js";
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -49,6 +50,7 @@ app.whenReady().then(() => {
   registerWindowIpc();
   registerLibraryIpc();
   registerStatsIpc();
+  registerDictionaryIpc();
   createWindow();
 
   // On OS X it's common to re-create a window in the app when the

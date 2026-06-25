@@ -19,12 +19,26 @@ import { countJapanese } from "@/lib/epub/dom-utils";
 import { collectBlocks, normalize, type Block } from "@/lib/reader/search";
 
 const HL_NAME = "aoz-search-hit";
+const DICT_HL_NAME = "aoz-dict-hit";
 
 const supported = (): boolean =>
   typeof CSS !== "undefined" && !!CSS.highlights && typeof Highlight !== "undefined";
 
 export function clearSearchHighlight(): void {
   if (supported()) CSS.highlights.delete(HL_NAME);
+}
+
+/**
+ * Paints (or clears) the run the hover dictionary matched. Unlike the search
+ * highlight, the caller already holds a live Range over the matched text (built
+ * by `lookup-text.ts`'s `rangeForLength`), so this just registers it under the
+ * dictionary highlight name; `::highlight(aoz-dict-hit)` in the reader styles
+ * supplies the paint. Pass null to clear.
+ */
+export function setLookupHighlight(range: Range | null): void {
+  if (!supported()) return;
+  if (range) CSS.highlights.set(DICT_HL_NAME, new Highlight(range));
+  else CSS.highlights.delete(DICT_HL_NAME);
 }
 
 /** Builds a Range over [start, start+len) raw characters within a block. */

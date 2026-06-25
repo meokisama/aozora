@@ -19,6 +19,7 @@ build/Release
 node_modules/
 jspm_packages/
 typings/
+references/
 *.tsbuildinfo
 .npm
 .eslintcache

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type AppView = "library" | "stats";
+export type AppView = "library" | "stats" | "dictionaries";
 export type StatusFilter = "all" | "favorites" | "reading" | "finished" | "unread";
 
 interface UiState {

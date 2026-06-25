@@ -126,3 +126,58 @@ export interface Stats {
   hourly: HourlyActivity[];
   perBook: PerBookStats[];
 }
+
+// --- Dictionary (Yomitan-format term dictionaries). -------------------------
+//
+// The hover dictionary stores imported Yomitan dictionaries in their own SQLite
+// database (userData/dictionary.db), separate from the library. Lookups run in
+// the main process: the renderer hands over the text run starting at the cursor
+// and gets back the matched headwords with their glosses.
+
+/** An imported dictionary, as listed in the management UI. */
+export interface DictionaryInfo {
+  id: string;
+  title: string;
+  revision: string | null;
+  importedAt: number;
+  enabled: boolean;
+  priority: number; // lower = consulted first
+  termCount: number;
+}
+
+/** The glosses one source dictionary contributes for a matched headword. */
+export interface DictionaryGloss {
+  dictId: string;
+  dictTitle: string;
+  /** Part-of-speech / definition tags from the dictionary (e.g. "v5u, vt"). */
+  tags: string | null;
+  glosses: string[];
+}
+
+/** A single matched headword (expression + reading) with its glosses. */
+export interface DictionaryEntry {
+  expression: string;
+  reading: string | null;
+  /**
+   * Human-readable deinflection chain that got from the surface form to this
+   * dictionary form, outermost first (e.g. ["polite", "past"]). Empty when the
+   * surface form already was the dictionary form.
+   */
+  reasons: string[];
+  byDict: DictionaryGloss[];
+}
+
+/** Result of looking up the text run that starts at the cursor. */
+export interface LookupResult {
+  /** How many source characters the longest match consumed (for highlighting). */
+  matchedLength: number;
+  entries: DictionaryEntry[];
+}
+
+/** Progress event emitted by the main process while importing a dictionary. */
+export interface DictionaryImportProgress {
+  phase: "reading" | "inserting" | "done" | "error";
+  title?: string;
+  termsInserted?: number;
+  message?: string;
+}

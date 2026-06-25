@@ -37,6 +37,7 @@ export function continuousStyles(vertical: boolean) {
     ${imageRules(".aozora-content")}
     ${furiganaRules(".aozora-content")}
     ${searchHitRule()}
+    ${lookupHitRule()}
     .aozora-content a { color: inherit; }
     /* The reader's font choice must win over fonts the book hardcodes on its
        own elements — many 電書協-template novels set font-family directly on
@@ -71,6 +72,7 @@ export function paginatedStyles(vertical: boolean) {
     ${spreadRules(".aozora-content")}
     ${furiganaRules(".aozora-content")}
     ${searchHitRule()}
+    ${lookupHitRule()}
     .aoz-page-content p { break-inside: avoid; }
     .aozora-content a { color: inherit; }
     .aozora-content,
@@ -278,6 +280,15 @@ export function furiganaRules(scope: string) {
  */
 export function searchHitRule() {
   return `::highlight(aoz-search-hit) { background-color: rgba(250, 204, 21, 0.45); color: inherit; }`;
+}
+
+/**
+ * Paints the run the hover dictionary matched (registered as a Range under the
+ * `aoz-dict-hit` highlight; see `lib/reader/highlight.ts`). A cooler, lighter
+ * wash than the search hit so the two are distinguishable when both are active.
+ */
+export function lookupHitRule() {
+  return `::highlight(aoz-dict-hit) { background-color: rgba(56, 189, 248, 0.35); color: inherit; }`;
 }
 
 /** Writes the reader display settings onto the host as inherited CSS vars. */

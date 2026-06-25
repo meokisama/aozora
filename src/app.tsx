@@ -4,6 +4,7 @@ import { TitleBar } from "@/components/title-bar";
 import { LibraryView } from "@/features/library/library-view";
 import { ReaderView } from "@/features/reader/reader-view";
 import { StatsView } from "@/features/stats/stats-view";
+import { DictionariesView } from "@/features/dictionaries/dictionaries-view";
 import { useReaderStore } from "@/stores/reader-store";
 import { useUiStore } from "@/stores/ui-store";
 import { useSettingsStore, THEMES } from "@/stores/settings-store";
@@ -35,7 +36,17 @@ export function App() {
   return (
     <div className="flex h-screen flex-col">
       <TitleBar />
-      <main className="flex-1 overflow-hidden">{reading ? <ReaderView /> : view === "stats" ? <StatsView /> : <LibraryView />}</main>
+      <main className="flex-1 overflow-hidden">
+        {reading ? (
+          <ReaderView />
+        ) : view === "stats" ? (
+          <StatsView />
+        ) : view === "dictionaries" ? (
+          <DictionariesView />
+        ) : (
+          <LibraryView />
+        )}
+      </main>
       <Toaster />
     </div>
   );

@@ -28,7 +28,7 @@
     "type": "git",
     "url": "https://github.com/meokisama/aozora.git"
   },
-  "license": "MIT",
+  "license": "GPL-3.0",
   "devDependencies": {
     "@electron-forge/cli": "^7.11.2",
     "@electron-forge/maker-deb": "^7.11.2",
