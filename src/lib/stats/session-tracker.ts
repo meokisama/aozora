@@ -1,31 +1,21 @@
 /**
- * Reading-vs-scrolling accounting for the stats page — the layout-independent
- * core of the 1-second sampler in features/reader/use-reading-session.ts, split
- * out so it can be unit-tested (see test/lib/stats/session-tracker.test.js).
+ * Reading-vs-scrolling accounting — layout-independent core of the 1s sampler in
+ * features/reader/use-reading-session.ts. Reading has a dwell structure
+ * (pause-advance-pause); scrolling is sustained motion. So: a two-state machine
+ * with hysteresis, sampled once per active second (idle/hidden ticks never reach
+ * `advance`):
  *
- * The naive "sum every forward delta" approach counts fast scrolling as reading.
- * A pure per-tick speed cap is better but still credits sustained slow-ish
- * scrolling forever. The robust distinction is behavioural: real reading has a
- * dwell structure (pause — advance — pause), whereas scrolling is sustained
- * motion. So this is a two-state machine with hysteresis, sampled once per
- * active second (`advance` is called only on ticks the reader is visible + not
- * idle — idle/hidden time never reaches here):
+ *   READING   — credit the net forward move, capped at READ_CAP/tick so a fast
+ *               flick can't inflate. Backward moves subtract (telescoping), so
+ *               re-reads don't double-count and scroll-forward-then-back cancels.
+ *   SCROLLING — entered when a tick exceeds SCROLL_ENTER (or on a JUMP teleport).
+ *               Credits nothing while it lasts; baseline resyncs every tick so
+ *               scrolled distance is never credited retroactively. Resumes
+ *               READING only after speed stays below SETTLE for SETTLE_TICKS
+ *               consecutive seconds (the reader actually paused to read).
  *
- *   READING   — position advances within human reading speed. Credit the net
- *               forward move, capped at READ_CAP chars/tick so a fast flick
- *               inside the reading band can't inflate the count. Small backward
- *               moves subtract (telescoping), so re-reading a passage doesn't
- *               double-count and scroll-forward-then-back cancels.
- *   SCROLLING — entered the instant a tick's speed exceeds SCROLL_ENTER (or on a
- *               JUMP, a TOC/search teleport). Credits NOTHING, for as long as it
- *               lasts — this is what stops "scroll continuously" from counting.
- *               The position baseline is resynced every tick, so the scrolled
- *               distance is never credited retroactively. Returns to READING
- *               only after the speed settles below SETTLE for SETTLE_TICKS
- *               consecutive seconds — i.e. the reader actually paused to read.
- *
- * Fixed-layout (manga) positions are page ordinals, not characters, so those
- * sessions don't use this at all (charsRead stays 0); see the hook.
+ * Fixed-layout (manga) positions are page ordinals, not chars, so those sessions
+ * don't use this (charsRead stays 0); see the hook.
  */
 
 export type ReadState = "reading" | "scrolling";
@@ -52,11 +42,10 @@ export interface TrackerConfig {
 }
 
 /**
- * Tuned for Japanese prose (chars ≈ position units). Fast JP reading is ~10–12
- * chars/s; READ_CAP = 50 leaves generous headroom so genuine fast reading is
- * never clipped, while SCROLL_ENTER = 150 (9000/min — unreadable) reliably flags
- * scrolling. SETTLE = 60 ≥ READ_CAP so normal reading counts as "settled" and
- * can resume crediting after a scroll.
+ * Tuned for Japanese prose (chars ≈ position units). Fast JP reading ~10–12
+ * chars/s, so READ_CAP=50 never clips genuine reading while SCROLL_ENTER=150
+ * (9000/min — unreadable) reliably flags scrolling. SETTLE=60 ≥ READ_CAP so
+ * normal reading counts as settled and can resume crediting after a scroll.
  */
 export const DEFAULT_TRACKER_CONFIG: TrackerConfig = {
   jumpThreshold: 2700,
@@ -76,11 +65,7 @@ export function createAccumulator(pos: number): SessionAccumulator {
  * `pos`. Pure: returns a new accumulator, never mutates the input. Call once per
  * active second (the caller gates out idle/hidden time before calling).
  */
-export function advance(
-  acc: SessionAccumulator,
-  pos: number,
-  config: TrackerConfig = DEFAULT_TRACKER_CONFIG,
-): SessionAccumulator {
+export function advance(acc: SessionAccumulator, pos: number, config: TrackerConfig = DEFAULT_TRACKER_CONFIG): SessionAccumulator {
   const delta = pos - acc.lastPos;
   const speed = Math.abs(delta);
   let state = acc.state;
@@ -125,18 +110,15 @@ export function advance(
 }
 
 /**
- * Paginated-mode accounting. Unlike continuous scrolling (sampled per second by
- * `advance`), paginated reading is EVENT-driven: position is static while a page
- * is on screen and jumps by a whole page's char span on each flip. The per-tick
- * sampler can't see that — every flip's delta exceeds `scrollEnter` (so it reads
- * as "scrolling", credits 0) and every dwell tick has delta 0 (no credit either),
- * which is why charsRead was always 0 in paginated mode.
+ * Paginated-mode accounting. EVENT-driven (not sampled per second like
+ * `advance`): position is static on a page then jumps a whole page span on flip,
+ * which the per-tick sampler can't credit (every flip looks like scrolling,
+ * every dwell tick has delta 0) — that's why charsRead was always 0 here.
  *
- * Instead we credit on the flip: the forward delta is the char span of the page
- * the reader just *finished*, credited only when they dwelled on it long enough
- * (so fast skim-flipping isn't counted as reading) and the move isn't a teleport
- * (TOC/search/bookmark) or a backward re-read. `dwellMs` is the ACTIVE time spent
- * on the page just left — the caller excludes idle/hidden time before passing it.
+ * Instead, credit on the flip: the span of the page just finished, only when
+ * dwelled on long enough (gates skim-flipping) and the move isn't a teleport or
+ * backward re-read. `dwellMs` is ACTIVE time on the page just left (caller
+ * excludes idle/hidden).
  */
 export interface PaginatedAccumulator {
   charsAccum: number;
@@ -177,8 +159,7 @@ export function advancePaginated(
   // teleport and was dwelled on long enough. Teleports, backward re-reads, and
   // skim-flips credit nothing but still resync, so skipped spans are never
   // credited retroactively on a later flip.
-  const credited =
-    delta > 0 && delta < config.jumpThreshold && dwellMs >= config.minDwellMs ? delta : 0;
+  const credited = delta > 0 && delta < config.jumpThreshold && dwellMs >= config.minDwellMs ? delta : 0;
   return {
     charsAccum: acc.charsAccum + credited,
     lastPos: pos,

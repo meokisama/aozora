@@ -1,15 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { BookA, Download, ExternalLink, GripVertical, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
@@ -55,9 +47,8 @@ function countLabel(d: Pick<DictionaryInfo, "termCount" | "freqCount" | "pitchCo
 }
 
 /**
- * One draggable row in the consult-order list. The drag handle (grip) is the
- * only drag source, so the enable switch and remove button stay clickable; the
- * row reorders via dnd-kit and the new order is persisted by the parent.
+ * One draggable row in the consult-order list. The grip is the only drag source,
+ * so the switch and remove button stay clickable; parent persists the new order.
  */
 function SortableDictRow({
   dict,
@@ -72,11 +63,7 @@ function SortableDictRow({
   const style = { transform: CSS.Transform.toString(transform), transition };
 
   return (
-    <li
-      ref={setNodeRef}
-      style={style}
-      className={cn("flex items-center gap-3 bg-background p-3", isDragging && "relative z-10 shadow-md")}
-    >
+    <li ref={setNodeRef} style={style} className={cn("flex items-center gap-3 bg-background p-3", isDragging && "relative z-10 shadow-md")}>
       <button
         type="button"
         className="cursor-grab touch-none text-muted-foreground/60 hover:text-muted-foreground active:cursor-grabbing"
@@ -121,13 +108,10 @@ function SortableDictRow({
 }
 
 /**
- * Dictionary management page. Renders beside the shared sidebar (like the
- * library / stats pages) and is the single home for everything dictionary-
- * related: the hover-lookup behaviour (enable + which modifier triggers it,
- * persisted in `useDictionaryStore`) and the imported Yomitan dictionaries
- * (import, enable per dictionary, reorder consult priority, remove). The
- * dictionaries and the lookup engine live in the main process; this view drives
- * them over IPC and mirrors the returned list locally.
+ * Dictionary management page (beside the shared sidebar): hover-lookup behaviour
+ * (persisted in useDictionaryStore) and the imported Yomitan dictionaries
+ * (import, enable, reorder consult priority, remove). The dictionaries and lookup
+ * engine live in the main process; this view drives them over IPC and mirrors the list.
  */
 export function DictionariesView() {
   const enabled = useDictionaryStore((s) => s.enabled);
@@ -138,7 +122,7 @@ export function DictionariesView() {
   const [dicts, setDicts] = useState<DictionaryInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
-  const [progress, setProgress] = useState(""); // import status line (large dictionaries take a while)
+  const [progress, setProgress] = useState(""); // import status line (large imports take a while)
 
   const refresh = useCallback(async () => {
     try {

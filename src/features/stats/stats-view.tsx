@@ -20,19 +20,16 @@ import { Milestones } from "./milestones";
 const api = () => window.electronAPI.stats;
 
 /**
- * The reading-statistics page. Renders beside the shared sidebar (like the
- * library) and visualises the reading_sessions time-series: headline totals, a
- * daily goal, a GitHub-style activity heatmap, daily / hourly rhythm charts,
- * milestones and a most-read books ranking. All aggregation is done in SQLite;
- * this component fetches it, derives streaks / heatmap geometry, and lays out
- * the (mostly presentational) section components.
+ * The reading-statistics page. Aggregation runs in SQLite; this component
+ * fetches it, derives streaks / heatmap geometry, and lays out the (mostly
+ * presentational) section components.
  */
 export function StatsView() {
   const books = useLibraryStore((s) => s.books);
   const openReader = useReaderStore((s) => s.open);
   const dailyGoal = useStatsPrefs((s) => s.dailyGoal);
   const setDailyGoal = useStatsPrefs((s) => s.setDailyGoal);
-  const [data, setData] = useState<Stats | null>(null); // { overview, daily, hourly, perBook }
+  const [data, setData] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [metric, setMetric] = useState("chars"); // chars | minutes
   const [year, setYear] = useState(() => new Date().getFullYear());
@@ -106,9 +103,8 @@ export function StatsView() {
     return buckets.map((b) => ({ ...b, tip: `${String(b.key).padStart(2, "0")}:00 · ${formatCompact(b.chars)} chars · ${formatDuration(b.ms)}` }));
   }, [data, metric]);
 
-  // Most-read books, shown as library-style cards. Join each per-book stat to its
-  // full library Book (for the cover); drop any whose book is gone from the
-  // library so we only render real covers. Keep the read-time/chars for a caption.
+  // Join each per-book stat to its library Book; drop stats whose book is gone
+  // so we only render real covers.
   const booksById = useMemo(() => new Map(books.map((b) => [b.id, b])), [books]);
   const topBooks = useMemo(
     () =>

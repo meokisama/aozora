@@ -1,12 +1,11 @@
 /**
  * Reading-position helpers for the continuous reader.
  *
- * The position model is character-based (`exploredCharCount`): we
- * count the Japanese characters before the current reading point so progress
- * survives re-flow (font/size changes) and restores accurately regardless of
- * pixel layout. Anchors map cumulative character offsets to DOM elements; the
- * reading point is taken at the centre of the viewport, which behaves the same
- * for vertical-rl (horizontal scroll) and horizontal-tb (vertical scroll).
+ * Character-based model (`exploredCharCount`): counting Japanese characters
+ * before the reading point lets progress survive re-flow (font/size changes)
+ * regardless of pixel layout. Anchors map cumulative char offsets to elements;
+ * the reading point is the viewport centre, which works the same for vertical-rl
+ * (horizontal scroll) and horizontal-tb (vertical scroll).
  */
 
 import { getParagraphNodes, getCharacterCount } from "@/lib/epub/dom-utils";

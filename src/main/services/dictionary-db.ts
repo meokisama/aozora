@@ -3,15 +3,9 @@ import path from "node:path";
 import Database from "better-sqlite3";
 
 /**
- * SQLite database for imported Yomitan dictionaries (schema + connection).
- *
- * This lives in its own database (userData/dictionary.db), separate from the
- * library: dictionaries are bulky, user-replaceable reference data, not user
- * content. Keeping them apart means a corrupt/oversized dictionary import can be
- * dropped (or the whole file deleted) without touching reading progress.
- *
- * On-disk layout (under Electron userData):
- *   userData/dictionary.db   the dictionary database
+ * SQLite schema + connection for imported Yomitan dictionaries. Kept in its own
+ * file (userData/dictionary.db), separate from the library, so a corrupt or
+ * oversized import can be dropped without touching reading progress.
  */
 
 let db: Database.Database | undefined;
@@ -47,11 +41,10 @@ export function getDb(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_terms_reading    ON terms(reading);
     CREATE INDEX IF NOT EXISTS idx_terms_dict       ON terms(dict_id);
 
-    -- Frequency ratings from term-meta banks (Yomitan "freq" mode). Pitch/IPA
-    -- modes are skipped for now. The value column is the number to display;
-    -- sort_value is normalised so ascending always means "more common"
-    -- (occurrence-based dictionaries are negated at import), keeping the lookup
-    -- sort mode-agnostic.
+    -- Frequency ratings from term-meta banks (Yomitan "freq" mode). value is
+    -- the number to display; sort_value is normalised so ascending = "more
+    -- common" (occurrence-based dicts negated at import), keeping lookup sort
+    -- mode-agnostic.
     CREATE TABLE IF NOT EXISTS term_meta (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       dict_id    TEXT NOT NULL REFERENCES dictionaries(id) ON DELETE CASCADE,
@@ -77,10 +70,9 @@ export function getDb(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_term_pitch_expr ON term_pitch(expression);
     CREATE INDEX IF NOT EXISTS idx_term_pitch_dict ON term_pitch(dict_id);
 
-    -- Kanji entries (Yomitan kanji_bank). onyomi/kunyomi/tags are space-separated
-    -- strings; meanings is a JSON array; stats is a JSON object (strokes, grade,
-    -- jlpt, freq, plus dictionary index codes). kanji_meta banks are not parsed
-    -- yet — frequency is read from stats.freq when present.
+    -- Kanji entries (Yomitan kanji_bank). onyomi/kunyomi/tags are space-separated;
+    -- meanings is a JSON array; stats a JSON object (strokes, grade, jlpt, freq,
+    -- dictionary index codes).
     CREATE TABLE IF NOT EXISTS kanji (
       id        INTEGER PRIMARY KEY AUTOINCREMENT,
       dict_id   TEXT NOT NULL REFERENCES dictionaries(id) ON DELETE CASCADE,

@@ -50,11 +50,7 @@ function MilestoneCard({ icon: Icon, label, value, format, status }: MilestoneCa
 
 const asInt = (n: number) => String(n);
 
-/**
- * Achievement milestones across four tracks. The streak track uses the all-time
- * best; the rest use lifetime totals. Each track shows reached thresholds and
- * highlights the next one.
- */
+/** Achievement milestones across four tracks: streak uses all-time best, the rest lifetime totals. */
 interface MilestonesProps {
   totalChars: number;
   activeDays: number;

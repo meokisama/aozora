@@ -3,13 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Slider } from "@/components/ui/slider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   useSettingsStore,
   FONT_SIZE_RANGE,
@@ -48,11 +42,8 @@ const segmented = {
   className: "w-full",
 } as const;
 
-/**
- * Reader display settings drawer: theme, font, writing mode, font size and
- * line height. Changes apply live (the reader subscribes to the store) and
- * persist across sessions.
- */
+/** Reader settings drawer. Changes apply live (the reader subscribes to the
+ *  store) and persist across sessions. */
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -76,8 +67,8 @@ export function ReaderSettingsPanel({ open, onOpenChange, fixedLayout = false }:
   const setMangaSpread = useSettingsStore((s) => s.setMangaSpread);
   const reset = useSettingsStore((s) => s.reset);
 
-  // ToggleGroup (single) allows clicking the active item to clear it; keep a
-  // value selected by ignoring empty updates.
+  // ToggleGroup lets you click the active item to clear it; ignore empty updates
+  // so a value stays selected.
   const guard =
     <T extends string>(setter: (next: T) => void) =>
     (next: T) =>

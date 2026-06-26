@@ -2,10 +2,8 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 /**
- * Reading-stats preferences. The daily goal is a personal target (characters
- * read per day), so — like the other UI prefs — it persists in the renderer via
- * Zustand's persist middleware (localStorage), not the main process. 0 = the
- * goal is turned off.
+ * Reading-stats prefs (daily character target), persisted in the renderer via
+ * Zustand persist, not the main process. 0 = goal off.
  */
 
 export const DAILY_GOAL_OPTIONS: { value: number; label: string }[] = [

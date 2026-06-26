@@ -17,9 +17,9 @@ import { getDb } from "./dictionary-db.js";
 import { parseYomitanZip, normalizeMediaPath, type ParsedDict } from "./dictionary-parse.js";
 
 /**
- * Store + lookup engine for imported Yomitan dictionaries. Persistence lives in
- * dictionary-db.ts (schema/connection) and parsing in dictionary-parse.ts; this
- * module owns the public API the IPC layer calls: import, list, lookup, media.
+ * Store + lookup engine for imported Yomitan dictionaries — the public API the
+ * IPC layer calls (import, list, lookup, media). Schema lives in
+ * dictionary-db.ts, parsing in dictionary-parse.ts.
  */
 
 // --- Row mapping ------------------------------------------------------------
@@ -139,8 +139,7 @@ function queryKanji(database: Database.Database, chars: string[], tagMaps: TagMa
   const order = new Map(chars.map((c, i) => [c, i]));
   rows.sort((a, b) => (order.get(a.character) ?? 0) - (order.get(b.character) ?? 0) || a.priority - b.priority);
 
-  // Frequency ratings from kanji-meta dictionaries, best (lowest sort_value) per
-  // dict, keyed by character so each kanji entry can carry them.
+  // Best (lowest sort_value) kanji-meta frequency per dict, keyed by character.
   const freqByChar = new Map<string, Map<string, { freq: DictionaryFrequency; sortValue: number }>>();
   const freqRows = database
     .prepare(
@@ -222,9 +221,8 @@ export const dictionaryStore = {
   },
 
   /**
-   * Imports a Yomitan dictionary from raw ZIP bytes. `onProgress` is called as
-   * the parse and insert proceed. Replaces any existing dictionary with the same
-   * title (re-import = upgrade) to keep things idempotent.
+   * Imports a Yomitan dictionary from raw ZIP bytes, streaming `onProgress`.
+   * Replaces any existing dictionary with the same title (re-import = upgrade).
    */
   async importDict(bytes: Uint8Array, onProgress?: (p: DictionaryImportProgress) => void): Promise<DictionaryInfo> {
     const database = getDb();
@@ -330,9 +328,8 @@ export const dictionaryStore = {
   },
 
   /**
-   * Returns a glossary image as a data URL (the convention used for book covers
-   * too), or null if the dictionary has no such media. Called lazily by the popup
-   * as it renders structured-content `img` nodes.
+   * Returns a glossary image as a data URL, or null if absent. Called lazily by
+   * the popup as it renders structured-content `img` nodes.
    */
   getMedia(dictId: string, mediaPath: string): string | null {
     const row = getDb().prepare("SELECT mime, data FROM media WHERE dict_id = ? AND path = ?").get(dictId, normalizeMediaPath(mediaPath)) as
@@ -356,13 +353,11 @@ export const dictionaryStore = {
   },
 
   /**
-   * Looks up the dictionary form(s) at the start of `text`. Scans prefixes from
-   * longest to shortest; for each it deinflects to candidate base forms and
-   * queries the enabled dictionaries. A candidate only counts when its
-   * grammatical conditions are compatible with the entry's part of speech (so
-   * e.g. a noun never matches a verb deinflection). Returns the matches for the
-   * *longest* prefix that hits anything, plus how many characters it consumed
-   * (so the reader can highlight exactly that run).
+   * Looks up dictionary form(s) at the start of `text`. Scans prefixes longest
+   * to shortest; each is deinflected to candidate base forms, gated so a
+   * candidate's grammatical conditions must match the entry's POS (a noun never
+   * matches a verb deinflection). Returns matches for the *longest* hitting
+   * prefix plus how many chars it consumed, so the reader highlights that run.
    */
   lookup(text: string): LookupResult {
     const empty: LookupResult = { matchedLength: 0, entries: [], kanji: [] };
@@ -372,7 +367,7 @@ export const dictionaryStore = {
     const enabledCount = (database.prepare("SELECT COUNT(*) AS c FROM dictionaries WHERE enabled = 1").get() as { c: number }).c;
     if (!enabledCount) return empty;
 
-    const tagMaps = loadTagMaps(database); // shared by term and kanji tag resolution
+    const tagMaps = loadTagMaps(database); // shared by term + kanji tag resolution
 
     const maxLen = Math.min(text.length, 24);
     for (let len = maxLen; len >= 1; len--) {
@@ -416,9 +411,8 @@ export const dictionaryStore = {
       // Group by headword (expression + reading), then by source dictionary.
       const groups = new Map<string, DictionaryEntry & { _priority: number; _score: number; _freqRank: number }>();
       for (const r of rows) {
-        // Part-of-speech gate: keep candidate(s) whose conditions are compatible
-        // with this entry's declared rules; prefer the most direct (fewest
-        // reasons) for the displayed inflection note.
+        // POS gate: keep candidate(s) whose conditions match this entry's rules;
+        // prefer the most direct (fewest reasons) for the inflection note.
         const definitionConditions = conditionFlagsForPartsOfSpeech((r.rules ?? "").split(" ").filter(Boolean));
         const matching = [...(candsByTerm.get(r.expression) ?? []), ...(r.reading ? (candsByTerm.get(r.reading) ?? []) : [])]
           .filter((c) => conditionsMatch(c.conditions, definitionConditions))
@@ -460,10 +454,9 @@ export const dictionaryStore = {
 
       if (!groups.size) continue;
 
-      // Attach frequency ratings (from any enabled frequency dictionaries) to the
-      // matched headwords. A reading-specific rating only applies to its reading;
-      // a reading-less rating applies to every reading of the expression. Per
-      // dictionary we keep the most-common (lowest sort_value) matching rating.
+      // Attach frequency ratings to matched headwords. A reading-specific rating
+      // applies only to its reading; a reading-less one to every reading. Per
+      // dictionary, keep the most-common (lowest sort_value) match.
       const groupVals = [...groups.values()];
       const exprs = [...new Set(groupVals.map((e) => e.expression))];
       const freqPlaceholders = exprs.map(() => "?").join(",");
@@ -508,9 +501,9 @@ export const dictionaryStore = {
         }
       }
 
-      // Attach pitch-accent patterns from any enabled pitch dictionaries. A pitch
-      // entry always carries a reading; it applies to a headword with the same
-      // reading (or, for a kana headword with no separate reading, the expression).
+      // Attach pitch-accent patterns. A pitch entry always carries a reading and
+      // applies to a headword with the same reading (or, for a kana headword with
+      // no separate reading, the expression).
       const pitchRows = database
         .prepare(
           `SELECT p.expression, p.reading, p.pitches, p.dict_id AS dictId, d.title AS dictTitle, d.priority AS priority
@@ -578,8 +571,8 @@ export const dictionaryStore = {
       return { matchedLength: len, entries, kanji: queryKanji(database, kanjiInText(text.slice(0, len)), tagMaps) };
     }
 
-    // No term matched at any prefix: fall back to a kanji-only lookup on the first
-    // character so hovering a lone kanji still surfaces its reading/meaning.
+    // No term matched: fall back to a kanji-only lookup on the first char so
+    // hovering a lone kanji still surfaces its reading/meaning.
     const firstKanji = kanjiInText(text.slice(0, 1), 1);
     if (firstKanji.length) {
       const kanji = queryKanji(database, firstKanji, tagMaps);

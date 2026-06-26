@@ -22,9 +22,7 @@ describe("normalize", () => {
 describe("buildSearchIndex", () => {
   // Two spine sections; the first paragraph carries ruby (furigana on 漢字) and a
   // trailing full-width period (counts as 0 Japanese characters).
-  const html =
-    '<div id="aoz-c1"><p>今日は<ruby>漢<rt>かん</rt>字<rt>じ</rt></ruby>。</p></div>' +
-    '<div id="aoz-c2"><p>明日</p></div>';
+  const html = '<div id="aoz-c1"><p>今日は<ruby>漢<rt>かん</rt>字<rt>じ</rt></ruby>。</p></div>' + '<div id="aoz-c2"><p>明日</p></div>';
 
   it("groups each paragraph into one block with ruby readings excluded", () => {
     const index = buildSearchIndex(html);
@@ -42,9 +40,7 @@ describe("buildSearchIndex", () => {
 });
 
 describe("searchIndex", () => {
-  const html =
-    '<div id="aoz-c1"><p>今日は<ruby>漢<rt>かん</rt>字<rt>じ</rt></ruby>。</p></div>' +
-    '<div id="aoz-c2"><p>明日も漢字</p></div>';
+  const html = '<div id="aoz-c1"><p>今日は<ruby>漢<rt>かん</rt>字<rt>じ</rt></ruby>。</p></div>' + '<div id="aoz-c2"><p>明日も漢字</p></div>';
   const index = buildSearchIndex(html);
 
   it("returns no results for an empty query", () => {

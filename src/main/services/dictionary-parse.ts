@@ -4,18 +4,14 @@ import type { GlossContent } from "@/lib/types";
 configure({ useWebWorkers: false });
 
 /**
- * Pure parsing layer for Yomitan dictionary archives (format/version 3).
- *
- * Turns raw ZIP bytes into a `ParsedDict` — term/meta/kanji/tag/media records
- * ready to insert. Nothing here touches the database or Electron, so it can be
- * unit-tested under plain Node; the store (dictionary-store.ts) owns persistence.
+ * Pure parsing layer for Yomitan dictionary archives (format 3): ZIP bytes ->
+ * `ParsedDict`. Touches neither the DB nor Electron, so it unit-tests under
+ * plain Node; dictionary-store.ts owns persistence.
  */
 
 /**
- * Whether a Yomitan glossary item carries any renderable text. Used only to drop
- * empty items at import time — unlike the old flatten step, the item itself is
- * stored verbatim (structure intact) so the popup can render it like Yomitan.
- * Image-only nodes count as empty for now (archive media is not yet extracted).
+ * Whether a glossary item carries renderable text; used to drop empty items at
+ * import (the item itself is stored verbatim). Image-only nodes count as empty.
  */
 function glossHasText(node: unknown): boolean {
   if (typeof node === "string") return node.trim().length > 0;
@@ -288,11 +284,11 @@ export async function parseYomitanZip(bytes: Uint8Array): Promise<ParsedDict> {
         const [expression, reading, defTags, rules, score, glossary, sequence, termTags] = row;
         if (!expression) continue;
         // Keep each glossary item verbatim (string or structured-content tree),
-        // dropping only the empty/image-only ones. The renderer handles structure.
+        // dropping only the empty/image-only ones; the renderer handles structure.
         const definitions = (Array.isArray(glossary) ? glossary : []).filter(glossHasText) as GlossContent[];
         if (!definitions.length) continue;
-        // Store definition tags (POS) and term tags (commonness markers like
-        // "news1k"/"ichi") together; they render as one badge row, deduped.
+        // Definition tags (POS) and term tags (commonness markers) render as one
+        // deduped badge row.
         const tags = [defTags, termTags].filter((t): t is string => typeof t === "string" && t.length > 0).join(" ");
         rows.push({
           expression,
@@ -306,9 +302,8 @@ export async function parseYomitanZip(bytes: Uint8Array): Promise<ParsedDict> {
       }
     }
 
-    // Frequency ratings (term-meta banks, "freq" mode). Other modes (pitch/ipa)
-    // are skipped for now. occurrence-based dictionaries count up (higher = more
-    // common), so their sort value is negated to keep lookups mode-agnostic.
+    // occurrence-based dicts count up (higher = more common), so their sort value
+    // is negated to keep lookups mode-agnostic.
     const occurrence = index.frequencyMode === "occurrence-based";
     const freqs: ParsedFreq[] = [];
     const pitches: ParsedPitch[] = [];
@@ -327,12 +322,11 @@ export async function parseYomitanZip(bytes: Uint8Array): Promise<ParsedDict> {
           const p = parsePitch(expression, data);
           if (p) pitches.push(p);
         }
-        // "ipa" and any other modes are skipped for now.
+        // "ipa" and other modes are skipped.
       }
     }
 
-    // Kanji entries (kanji_bank). kanji_meta banks aren't parsed yet (frequency
-    // falls back to stats.freq at display time).
+    // Kanji entries (kanji_bank).
     const kanji: ParsedKanji[] = [];
     const kanjiNames = entries
       .map((e) => e.filename)
@@ -376,8 +370,8 @@ export async function parseYomitanZip(bytes: Uint8Array): Promise<ParsedDict> {
       }
     }
 
-    // Extract image media (pitch-accent diagrams, stroke order, …) referenced by
-    // structured-content `img` nodes. Stored as blobs and later served as data URLs.
+    // Image media (pitch diagrams, stroke order, …) referenced by structured-content
+    // `img` nodes; stored as blobs, later served as data URLs.
     const media: ParsedDict["media"] = [];
     for (const entry of entries) {
       if (entry.directory || !("getData" in entry) || !entry.getData) continue;

@@ -1,18 +1,12 @@
 /**
  * Search-hit highlighting via the CSS Custom Highlight API.
  *
- * Rather than wrapping matched text in <mark> (which can't span element
- * boundaries like ruby, and would mutate the book DOM), we register a Range with
- * `CSS.highlights`; the paint comes from a `::highlight(aoz-search-hit)` rule in
- * the reader's base styles. The range points at live text nodes in the shadow
- * tree, so it disappears on its own when the paginated reader swaps a section.
- *
- * To place the range we re-walk the live content with the same block model as
- * search (`collectBlocks`), find the block containing the hit's character offset,
- * then disambiguate the exact occurrence by re-deriving each candidate's offset.
- * `baseChar` is the global character offset of the rendered region's start (0 in
- * continuous mode, the current section's start in paginated mode), since the
- * paginated reader only renders one section at a time.
+ * Uses `CSS.highlights` + `::highlight(aoz-search-hit)` rather than wrapping in
+ * <mark>: a <mark> can't span ruby boundaries and would mutate the book DOM. The
+ * range points at live shadow-tree text nodes, so it clears itself when the
+ * paginated reader swaps a section. Placement re-walks the live content with the
+ * search block model (`collectBlocks`); `baseChar` is the rendered region's
+ * global start offset (0 continuous, current section start paginated).
  */
 
 import { countJapanese } from "@/lib/epub/dom-utils";
@@ -21,19 +15,15 @@ import { collectBlocks, normalize, type Block } from "@/lib/reader/search";
 const HL_NAME = "aoz-search-hit";
 const DICT_HL_NAME = "aoz-dict-hit";
 
-const supported = (): boolean =>
-  typeof CSS !== "undefined" && !!CSS.highlights && typeof Highlight !== "undefined";
+const supported = (): boolean => typeof CSS !== "undefined" && !!CSS.highlights && typeof Highlight !== "undefined";
 
 export function clearSearchHighlight(): void {
   if (supported()) CSS.highlights.delete(HL_NAME);
 }
 
 /**
- * Paints (or clears) the run the hover dictionary matched. Unlike the search
- * highlight, the caller already holds a live Range over the matched text (built
- * by `lookup-text.ts`'s `rangeForLength`), so this just registers it under the
- * dictionary highlight name; `::highlight(aoz-dict-hit)` in the reader styles
- * supplies the paint. Pass null to clear.
+ * Paints (or clears) the run the hover dictionary matched. The caller already
+ * holds the Range (from `lookup-text.ts`'s `rangeForLength`); pass null to clear.
  */
 export function setLookupHighlight(range: Range | null): void {
   if (!supported()) return;
@@ -67,12 +57,7 @@ function rangeForBlock(block: Block, start: number, len: number): Range | null {
  * highlight was set. `baseChar` is the global offset of the rendered region's
  * start.
  */
-export function highlightSearchResult(
-  rootEl: Element | null,
-  charOffset: number,
-  query: string,
-  baseChar = 0,
-): boolean {
+export function highlightSearchResult(rootEl: Element | null, charOffset: number, query: string, baseChar = 0): boolean {
   clearSearchHighlight();
   if (!rootEl || !supported()) return false;
   const q = normalize(query ?? "");

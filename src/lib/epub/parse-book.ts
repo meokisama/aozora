@@ -26,16 +26,13 @@ export interface ParsedBook {
 }
 
 /**
- * Parses an EPUB blob into the reader payload: one flattened HTML string, the
- * book's combined stylesheet, the image blobs (keyed by path), the chapter
- * sections, and the total character count. This is the expensive step; results
- * are cached in IndexedDB by the caller.
+ * Parses an EPUB blob into the reader payload: flattened HTML, combined
+ * stylesheet, image blobs (keyed by path), chapter sections, char count. This is
+ * the expensive step; results are cached in IndexedDB by the caller.
  *
- * For fixed-layout books (manga / comics — `rendition:layout=pre-paginated`) the
- * same flattened HTML is produced (each spine page becomes an `aoz-<idref>`
- * wrapper holding the page's SVG/image), and extra fields describe how to render
- * those wrappers as spreads: the page order + `page-spread` sides (`pages`), the
- * progression direction (`ppd`), and the base viewport to scale against.
+ * Fixed-layout books (manga/comics) produce the same flattened HTML plus extra
+ * fields describing how to render the wrappers as spreads: page order +
+ * `page-spread` sides (`pages`), progression direction (`ppd`), and base viewport.
  */
 export async function parseBook(blob: Blob): Promise<ParsedBook> {
   const { contents, contentsDirectory, result } = await extractEpub(blob);
@@ -59,7 +56,7 @@ export async function parseBook(blob: Blob): Promise<ParsedBook> {
   let bookViewport: { width: number; height: number } | null = null;
   let spreadPairs: string[][] | null = null;
   if (fixedLayout) {
-    // Wholly fixed-layout (manga) → the dedicated FixedLayoutView renders it.
+    // Wholly fixed-layout (manga) → dedicated FixedLayoutView renders it.
     bookViewport = getBookViewport(contents);
     let ordinal = 0;
     pages = spine.map((p) => ({
@@ -69,10 +66,9 @@ export async function parseBook(blob: Blob): Promise<ParsedBook> {
       ordinal: ordinal++,
     }));
   } else {
-    // Reflowable book that may embed fixed-layout image pages (a light novel
-    // with manga-style colour spreads). Pre-compute which spine wrappers pair
-    // so the paginated reader can merge them into a two-page spread; text pages
-    // (reflowable) never pair.
+    // Reflowable book that may embed fixed-layout image pages (light novel with
+    // manga-style colour spreads). Pre-compute which spine wrappers pair into a
+    // two-page spread; reflowable text pages never pair.
     const packageLayout = getRenditionLayout(contents);
     const flow = spine.map((p) => ({
       idref: p.idref,

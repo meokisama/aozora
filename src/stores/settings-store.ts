@@ -2,13 +2,9 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 /**
- * Global reader display settings. These are user preferences (not canonical
- * book data), so they persist in the renderer via Zustand's persist middleware
- * (localStorage, scoped to the app's userData partition) rather than going
- * through the main process.
- *
- * The reader applies these live through CSS custom properties on the shadow
- * host; see `reader-view.jsx`.
+ * Global reader display prefs, persisted in the renderer via Zustand persist
+ * (not the main process). The reader applies them live through CSS custom
+ * properties on the shadow host; see `reader-view.jsx`.
  */
 
 export type FontFamily = "serif" | "sans";
@@ -26,10 +22,9 @@ export const FONT_STACKS: Record<FontFamily, string> = {
 };
 
 /**
- * Colour themes (page background + body text). `dark` is the app's dark mode
- * (toggles the `.dark` class on the document root); `sepia` is the default warm
- * light mode. The reader reads bg/color from here; the rest of the app follows
- * the `.dark` class via the Tailwind palette in index.css.
+ * Colour themes (page bg + body text). `dark` toggles the `.dark` class on the
+ * document root, which the rest of the app follows via the Tailwind palette in
+ * index.css; the reader reads bg/color directly from here.
  */
 export const THEMES: Record<ThemeName, { bg: string; color: string; dark: boolean }> = {
   sepia: { bg: "#faf8f4", color: "#1f1d1a", dark: false },
@@ -42,12 +37,12 @@ export const FONT_SIZE_RANGE = { min: 14, max: 40, step: 1 };
 export const LINE_HEIGHT_RANGE = { min: 1.2, max: 2.6, step: 0.1 };
 
 /**
- * Furigana display modes (mirrors ttsu's furigana handling, collapsed into one
- * setting). The reader maps every mode except "show" to a `.aoz-furigana-<value>`
- * class on the content root; see `reader-styles.js`.
- *   - show:    furigana rendered normally (the book's own styling)
- *   - hide:    remove furigana entirely (rt display:none)
- *   - partial: dim furigana; reveal on hover, or click to keep revealed
+ * Furigana display modes (mirrors ttsu, collapsed into one setting). Every mode
+ * except "show" maps to a `.aoz-furigana-<value>` class on the content root
+ * (see `reader-styles.js`).
+ *   - show:    rendered normally (the book's own styling)
+ *   - hide:    removed entirely (rt display:none)
+ *   - partial: dimmed; reveal on hover, or click to keep revealed
  *   - toggle:  hidden; click to show, click again to hide
  *   - full:    hidden; reveal on hover, or click to keep revealed
  */
@@ -60,11 +55,10 @@ export const FURIGANA_MODES: { value: FuriganaMode; label: string }[] = [
 ];
 
 /**
- * Page layout for fixed-layout books (manga / comics). Only applies to the
- * fixed-layout reader; reflowable novels ignore it.
- *   - auto:   two-page spread when the window is landscape, one page otherwise
- *   - single: always one page at a time
- *   - double: always a two-page spread
+ * Page layout for fixed-layout books (manga); reflowable novels ignore it.
+ *   - auto:   two-page spread in landscape, one page otherwise
+ *   - single: always one page
+ *   - double: always a spread
  */
 export const MANGA_SPREAD_MODES: { value: MangaSpread; label: string }[] = [
   { value: "auto", label: "Auto" },

@@ -15,14 +15,10 @@ function mimeFromKey(key: string): string {
 }
 
 /**
- * Swaps the dummy image placeholders in the flattened HTML for live object URLs
- * built from the stored blobs. Returns the rewritten HTML plus the created
- * object URLs so the caller can revoke them on unmount.
+ * Swaps dummy image placeholders for live object URLs built from the stored
+ * blobs. Returns the object URLs too so the caller can revoke them on unmount.
  */
-export function buildReaderHtml(
-  elementHtml: string,
-  blobs: Record<string, Blob>,
-): { html: string; objectUrls: string[] } {
+export function buildReaderHtml(elementHtml: string, blobs: Record<string, Blob>): { html: string; objectUrls: string[] } {
   const objectUrls: string[] = [];
   let html = elementHtml;
 

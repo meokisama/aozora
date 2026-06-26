@@ -107,10 +107,8 @@ export function LibraryView() {
     return sortBooks(filtered, sort);
   }, [books, statusFilter, authorFilter, search, sort]);
 
-  // The "Continue reading" shelf: the 10 most-recently-read in-progress books,
-  // in a horizontal strip. Capped at 10 — beyond that the sort + Reading tab
-  // cover it. Only shown on the unfiltered "All" view so it never duplicates
-  // the grid below.
+  // "Continue reading" shelf: up to 10 most-recently-read in-progress books.
+  // Only on the unfiltered "All" view so it never duplicates the grid below.
   const continueReading = useMemo(() => {
     if (statusFilter !== "all" || authorFilter || search.trim()) return [];
     return books
@@ -119,9 +117,8 @@ export function LibraryView() {
       .slice(0, 10);
   }, [books, statusFilter, authorFilter, search]);
 
-  // A single sticky toast that tracks import progress ("Importing 3/10…") and is
-  // dismissed when the run ends; the final success/error toast is shown by
-  // reportImport. Reusing one toast id keeps it updating in place.
+  // One sticky toast tracking import progress, dismissed when the run ends
+  // (final result toast comes from reportImport). Reusing the id updates it in place.
   const importToastId = useRef<string | number | null>(null);
   useEffect(() => {
     if (importing) {

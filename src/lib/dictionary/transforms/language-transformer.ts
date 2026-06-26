@@ -20,15 +20,7 @@
 // needs Japanese), so the language parameter and MultiLanguageTransformer
 // wrapper are dropped; otherwise the algorithm is unchanged.
 
-import type {
-  ConditionMapEntries,
-  InternalRule,
-  InternalTransform,
-  LanguageTransformDescriptor,
-  Trace,
-  TraceFrame,
-  TransformedText,
-} from "./types";
+import type { ConditionMapEntries, InternalRule, InternalTransform, LanguageTransformDescriptor, Trace, TraceFrame, TransformedText } from "./types";
 
 export class LanguageTransformer {
   private _nextFlagIndex = 0;

@@ -9,10 +9,9 @@ const SHARED_DISPLAY = `
 `;
 
 /**
- * Continuous (scroll) reader CSS. Display properties come from inherited CSS
- * custom properties set on the shadow host, so settings changes apply live
- * without re-parsing. Only the writing mode (which also flips the
- * horizontal-only centring) is baked in, so this is re-injected on toggle.
+ * Continuous (scroll) reader CSS. Display props come from inherited host CSS
+ * vars (settings apply live); only the writing mode is baked in, so this is
+ * re-injected on toggle.
  */
 export function continuousStyles(vertical: boolean) {
   return `
@@ -39,11 +38,9 @@ export function continuousStyles(vertical: boolean) {
     ${searchHitRule()}
     ${lookupHitRule()}
     .aozora-content a { color: inherit; }
-    /* The reader's font choice must win over fonts the book hardcodes on its
-       own elements — many 電書協-template novels set font-family directly on
-       body/p/spans, which would otherwise override the inherited container
-       font (that's why "Serif" appeared to do nothing on some volumes). Apply
-       it across the subtree; gaiji/illustrations are images and unaffected. */
+    /* Force the reader's font over fonts the book hardcodes on its own elements
+       (電書協-template novels set font-family on body/p/spans), so it must win
+       across the whole subtree. gaiji/illustrations are images and unaffected. */
     .aozora-content,
     .aozora-content * {
       font-family: var(--reader-font-family, serif) !important;
@@ -52,10 +49,9 @@ export function continuousStyles(vertical: boolean) {
 }
 
 /**
- * Paginated (page-flip) reader CSS. The `.aozora-content` element is a fixed,
- * overflow-hidden viewport; `.aoz-page-content` is the multi-column container
- * the controller sizes and scrolls. One spine section is rendered at a time, so
- * each chapter begins on a fresh page.
+ * Paginated (page-flip) reader CSS. `.aozora-content` is a fixed overflow-hidden
+ * viewport; `.aoz-page-content` is the multi-column container the controller
+ * sizes and scrolls. One spine section at a time, so each chapter starts fresh.
  */
 export function paginatedStyles(vertical: boolean) {
   return `
@@ -83,12 +79,10 @@ export function paginatedStyles(vertical: boolean) {
 }
 
 /**
- * Fixed-layout (manga / comic) reader CSS. The stage centres the current spread;
- * each page is a box sized in JS to the authored viewport × a fit scale, with
- * the page content laid out at native viewport pixels and uniformly scaled via
- * `transform` (so any positioned text layers scale with the image). The
- * flex-direction (set inline per page-progression direction) makes RTL spreads
- * read right-to-left.
+ * Fixed-layout (manga) reader CSS. The stage centres the current spread; each
+ * page is sized in JS to the authored viewport × fit scale, content laid out at
+ * native pixels and uniformly scaled via `transform` (so positioned text layers
+ * scale with the image). flex-direction (set inline per PPD) drives RTL order.
  */
 export function fixedLayoutStyles() {
   return `
@@ -127,29 +121,23 @@ export function fixedLayoutStyles() {
 }
 
 /**
- * Illustration sizing, shared by both modes. Capped against the measured reader
- * size (the reader exposes its pixel dimensions as --reader-w/--reader-h;
- * 5rem/6rem account for the content padding) since the percentage max-* the book
- * would otherwise use can't resolve through the auto-height/inline wrappers.
+ * Illustration sizing, shared by both modes. Capped against the reader's pixel
+ * size (--reader-w/--reader-h; padV/padH budget the content padding) since the
+ * book's percentage max-* can't resolve through the auto-height/inline wrappers.
  *
- * Full-page illustrations are wrapped in an <svg> that carries percentage
- * width/height + a viewBox. With both CSS dimensions auto such an SVG has no
- * intrinsic pixel size — only an aspect ratio — so it collapses to 0 width
- * (the "blank illustration page" bug). Anchoring the height to the reader
- * viewport and leaving the width auto lets the viewBox ratio derive the width,
- * and works in both writing modes because it doesn't depend on a
- * definite-width ancestor. Raster <img> keep the standard responsive cap
- * (they have intrinsic dimensions, so width/height auto + max-* is safe).
+ * Full-page SVGs carry percentage width/height + a viewBox: with both CSS dims
+ * auto they have no intrinsic pixel size, only a ratio, so they collapse to 0
+ * width (the "blank illustration page" bug). Anchoring height to the viewport
+ * (width auto) lets the viewBox derive width, and works in both writing modes
+ * since it needs no definite-width ancestor. Raster <img> keep the standard cap.
  */
 export function imageRules(scope: string, padV = "5rem", padH = "6rem") {
   const maxW = `calc(var(--reader-w, 100vw) - ${padH})`;
   const maxH = `calc(var(--reader-h, 100vh) - ${padV})`;
   return `
-    /* Centre image-only pages on both axes. margin:auto can't do it (the SVG is
-       inline, and in vertical-rl the block flow starts at the right edge, which
-       is why these pages sat flush right); a flex box centres regardless of the
-       writing mode. Applied to the text-free wrappers we emit, so each
-       illustration shrink-wraps and sits in the middle of the page. */
+    /* Centre image-only pages on both axes via flex. margin:auto can't (inline
+       SVG, and vertical-rl block flow starts at the right edge — why these once
+       sat flush right); flex centres regardless of writing mode. */
     ${scope} .aoz-no-text {
       display: flex;
       align-items: center;
@@ -178,25 +166,22 @@ export function imageRules(scope: string, padV = "5rem", padH = "6rem") {
 }
 
 /**
- * Two-page spread layout for mixed books (a reflowable novel with embedded
+ * Two-page spread layout for mixed books (reflowable novel with embedded
  * fixed-layout image pages). `merge-spreads` groups a paired opener+closer into
- * one `.aoz-spread` text-free section, which the paginated controller centres as
- * a single page; here the two halves are laid side by side, right-to-left for
- * RTL books. Each half letterboxes its image (object-fit) so portrait pages sit
- * centred in their half without distortion.
+ * one `.aoz-spread` section; here the halves lay side by side (RTL for RTL
+ * books), each letterboxing its image so portrait pages stay centred.
  */
 export function spreadRules(scope: string) {
-  // Each half is capped to half the reader width and the full reader height
-  // (matching imageRules' padding budget). The SVG height is anchored to a
-  // definite value — `div.main` between the wrapper and the SVG has no size, so
-  // a `height: 100%` chain would collapse (the "blank illustration" bug).
+  // Each half: capped to half the reader width and full height. SVG height is a
+  // definite value — `div.main` between wrapper and SVG has no size, so a
+  // `height: 100%` chain would collapse (the "blank illustration" bug).
   const maxH = `calc(var(--reader-h, 100vh) - 6rem)`;
   const halfW = `calc((var(--reader-w, 100vw) - 8rem) / 2)`;
   return `
     ${scope} .aoz-spread {
-      /* The reflowable reader sets vertical-rl on RTL books; without resetting
-         it here, the inline axis is vertical and flex-direction:row would stack
-         the two pages top-to-bottom instead of side by side. */
+      /* Reset vertical-rl (set by the reflowable reader on RTL books): otherwise
+         the inline axis is vertical and flex-direction:row stacks the pages
+         top-to-bottom instead of side by side. */
       writing-mode: horizontal-tb;
       display: flex;
       flex-wrap: nowrap;
@@ -236,12 +221,11 @@ export function spreadRules(scope: string) {
 }
 
 /**
- * Furigana display rules, shared by both modes. Inactive until the content root
- * carries a `.aoz-furigana-<mode>` class (added only when the user picks a mode
- * other than "show"; see `reader-view.jsx`). Mirrors ttsu's furigana styles:
- * "hide" drops the readings, "partial" dims them (hover/click reveals), and
- * "toggle"/"full" hide them until hover or a click (which adds `.reveal-rt`).
- * Colours come from theme-driven vars set in `applyReaderVars`.
+ * Furigana rules, shared by both modes. Inactive until the content root carries
+ * a `.aoz-furigana-<mode>` class (added for any mode but "show"). Mirrors ttsu:
+ * "hide" drops readings, "partial" dims them (hover/click reveals),
+ * "toggle"/"full" hide until hover or a click (adds `.reveal-rt`). Colours from
+ * `applyReaderVars`.
  */
 export function furiganaRules(scope: string) {
   return `
@@ -273,19 +257,17 @@ export function furiganaRules(scope: string) {
 }
 
 /**
- * Paints the active search hit. The match is registered as a Range with the CSS
+ * Paints the active search hit. The match is a Range registered via the CSS
  * Custom Highlight API (see `lib/reader/highlight.js`), so this `::highlight()`
- * pseudo styles it without touching the book DOM. A translucent wash keeps the
- * text legible on any theme background.
+ * pseudo styles it without touching the book DOM.
  */
 export function searchHitRule() {
   return `::highlight(aoz-search-hit) { background-color: rgba(250, 204, 21, 0.45); color: inherit; }`;
 }
 
 /**
- * Paints the run the hover dictionary matched (registered as a Range under the
- * `aoz-dict-hit` highlight; see `lib/reader/highlight.ts`). A cooler, lighter
- * wash than the search hit so the two are distinguishable when both are active.
+ * Paints the run the hover dictionary matched (`aoz-dict-hit` highlight Range).
+ * A cooler wash than the search hit so the two stay distinguishable.
  */
 export function lookupHitRule() {
   return `::highlight(aoz-dict-hit) { background-color: rgba(56, 189, 248, 0.35); color: inherit; }`;
@@ -294,12 +276,7 @@ export function lookupHitRule() {
 /** Writes the reader display settings onto the host as inherited CSS vars. */
 export function applyReaderVars(
   host: HTMLElement | null,
-  {
-    fontSize,
-    lineHeight,
-    fontFamily,
-    theme,
-  }: { fontSize: number; lineHeight: number; fontFamily: FontFamily; theme: ThemeName },
+  { fontSize, lineHeight, fontFamily, theme }: { fontSize: number; lineHeight: number; fontFamily: FontFamily; theme: ThemeName },
 ) {
   if (!host) return;
   const t = THEMES[theme] || THEMES.sepia;
@@ -308,11 +285,11 @@ export function applyReaderVars(
   host.style.setProperty("--reader-font-family", FONT_STACKS[fontFamily] || FONT_STACKS.serif);
   host.style.setProperty("--reader-color", t.color);
   host.style.setProperty("--reader-bg", t.bg);
-  // Furigana "dimmed" hint colour and the glow behind hidden readings, tuned per
-  // theme so dimmed kana stay legible-but-muted and the glow blends into the page.
+  // Furigana dim-hint colour and the glow behind hidden readings, tuned per theme
+  // so dimmed kana stay legible-but-muted and the glow blends into the page.
   host.style.setProperty("--reader-furigana-hint", t.dark ? "#6f6a60" : "#b3ada1");
   host.style.setProperty("--reader-furigana-glow", t.bg);
-  // Paint the host itself so the page-flip mode's outer padding (applied on the
-  // host element, outside the shadow scroller) shares the page colour.
+  // Paint the host so page-flip mode's outer padding (on the host, outside the
+  // shadow scroller) shares the page colour.
   host.style.backgroundColor = t.bg;
 }

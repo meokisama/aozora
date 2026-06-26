@@ -33,9 +33,8 @@ interface LibraryState {
 type LibrarySet = (partial: Partial<LibraryState>) => void;
 
 /**
- * Imports a list of { path, name, size } files: extracts metadata per file and
- * persists each via IPC. Shared by the native picker and drag-and-drop paths.
- * Toggles the `importing` flag and refreshes the book list when done.
+ * Extracts metadata per file and persists each via IPC, then refreshes the list.
+ * Shared by the native picker and drag-and-drop paths; toggles the `importing` flag.
  */
 async function importPaths(files: PickedFile[], set: LibrarySet): Promise<ImportSummary> {
   set({ importing: true, importProgress: { current: 0, total: files.length } });
@@ -75,16 +74,15 @@ async function importPaths(files: PickedFile[], set: LibrarySet): Promise<Import
 }
 
 /**
- * Mirrors the main-process library (source of truth). Parsing of EPUB metadata
- * happens here in the renderer; the resulting record is persisted via IPC.
- * Cover thumbnailing (and the one-off shrink of older oversized covers) is done
- * in the main process; see src/main/library.js.
+ * Mirrors the main-process library (source of truth). EPUB metadata is parsed
+ * here in the renderer; the record is persisted via IPC. Cover thumbnailing is
+ * done in the main process (src/main/library.js).
  */
 export const useLibraryStore = create<LibraryState>((set, get) => ({
   books: [],
   loading: true,
   importing: false,
-  importProgress: null, // { current, total } while importing, else null
+  importProgress: null,
 
   /** Loads the full library from the main process. */
   loadBooks: async () => {
@@ -98,21 +96,14 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     }
   },
 
-  /**
-   * Opens the native picker, extracts metadata for each chosen file, and
-   * persists it. Returns a summary for the caller to surface to the user.
-   */
+  /** Opens the native picker and imports the chosen files; returns a summary for the caller. */
   importBooks: async () => {
     const files = await api().pickFiles();
     if (!files.length) return { added: 0, failed: [] };
     return importPaths(files, set);
   },
 
-  /**
-   * Imports books dropped onto the library. Takes a drop event's FileList,
-   * keeps only .epub files, and resolves each to a { path, name, size } record
-   * before importing. Returns the same summary shape as importBooks.
-   */
+  /** Imports dropped files, keeping only .epub entries. */
   importDroppedFiles: async (fileList) => {
     const files = Array.from(fileList)
       .filter((f) => f.name.toLowerCase().endsWith(".epub"))
@@ -121,10 +112,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     return importPaths(files, set);
   },
 
-  /**
-   * Toggles a book's favorite flag. Updates the in-memory list optimistically
-   * and persists through IPC; reverts on failure.
-   */
+  /** Toggles a book's favorite flag optimistically; reverts on IPC failure. */
   toggleFavorite: async (id) => {
     const book = get().books.find((b) => b.id === id);
     if (!book) return;
@@ -145,10 +133,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     set({ books: get().books.filter((b) => b.id !== id) });
   },
 
-  /**
-   * Updates a book's editable metadata (title/author/cover) via IPC and merges
-   * the returned record (with a fresh coverDataUrl) into the in-memory list.
-   */
+  /** Updates editable metadata (title/author/cover) via IPC; merges the returned record back in. */
   updateBook: async (id, patch) => {
     const updated = await api().updateBook({ id, ...patch });
     if (updated) {
@@ -158,10 +143,9 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   },
 
   /**
-   * Manually marks a book finished or unread. Reading status is derived from
-   * `progress`, so this just writes progress (and the matching char offset)
-   * through the existing save-progress path — no extra schema or IPC. Marking
-   * finished sets progress to 1; unread resets it to 0.
+   * Marks a book finished/unread. Status is derived from `progress`, so this
+   * just writes progress (1 = finished, 0 = unread) plus the matching char
+   * offset through the normal save-progress path — no extra schema or IPC.
    */
   setFinished: async (id, finished) => {
     const book = get().books.find((b) => b.id === id);
@@ -175,9 +159,9 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   },
 
   /**
-   * Merges reading-progress fields into the in-memory record so the library
-   * grid (progress bar) reflects the latest position without a full reload.
-   * The reader persists the same fields to the main process via IPC.
+   * Merges progress fields into the in-memory record so the library grid
+   * reflects the latest position without a reload; the reader persists the
+   * same fields to the main process via IPC.
    */
   applyProgress: (id, fields) => {
     set({

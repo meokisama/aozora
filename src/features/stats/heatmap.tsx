@@ -12,8 +12,8 @@ const LEVEL_CLASS = ["bg-muted/60", "bg-primary/25", "bg-primary/45", "bg-primar
 
 /**
  * GitHub-style contribution calendar for one year. Each column is a week
- * (Sun→Sat top to bottom); cell shade reflects the chosen metric relative to
- * the busiest day. Clicking a day selects it (the parent shows the detail).
+ * (Sun→Sat top to bottom); cell shade is the chosen metric relative to the
+ * busiest day. Clicking a day selects it.
  */
 interface HeatmapProps {
   year: number;

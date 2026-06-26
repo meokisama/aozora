@@ -9,9 +9,9 @@ const COVER_MAX_WIDTH = 300;
 const COVER_JPEG_QUALITY = 90;
 
 /**
- * Downscales a cover image buffer to COVER_MAX_WIDTH, preserving aspect ratio.
- * Returns a JPEG Buffer, or null when the image is already small enough or can't
- * be decoded (SVG, corrupt data) — the caller then keeps the original bytes.
+ * Downscales a cover to COVER_MAX_WIDTH (aspect preserved) as a JPEG. Returns
+ * null when already small enough or undecodable (SVG, corrupt) — caller keeps
+ * the original bytes.
  */
 function downscaleCover(buf: Buffer): Buffer | null {
   try {
@@ -49,9 +49,8 @@ const EXT_TO_MIME: Record<string, string> = {
 };
 
 /**
- * Reads a cover file and returns it as a data URL so the renderer can show it
- * without a custom protocol or file:// access. Covers are stored pre-downscaled
- * (see downscaleCover), so the data URL stays small.
+ * Reads a cover file as a data URL so the renderer needs no custom protocol or
+ * file:// access. Covers are stored pre-downscaled, so the URL stays small.
  */
 function readCoverDataUrl(coverPath: string | null): string | null {
   if (!coverPath) return null;
@@ -65,14 +64,13 @@ function readCoverDataUrl(coverPath: string | null): string | null {
   }
 }
 
-/** Attaches a renderer-friendly coverDataUrl to a book record. */
+/** Attaches a coverDataUrl to a book record for the renderer. */
 function withCover(book: Book | null): Book | null {
   if (!book) return null;
   return { ...book, coverDataUrl: readCoverDataUrl(book.coverPath) };
 }
 
 export const registerLibraryIpc = (): void => {
-  // Native file picker → list of selected .epub paths.
   ipcMain.handle("library:pick-files", async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     const result = await dialog.showOpenDialog(win!, {
@@ -88,13 +86,12 @@ export const registerLibraryIpc = (): void => {
     }));
   });
 
-  // Raw bytes of an arbitrary file path (used by the renderer to extract
-  // metadata before the book is added to the library).
+  // Raw bytes of an arbitrary path; renderer reads metadata before add-book.
   ipcMain.handle("library:read-file", (_event, filePath: string) => {
     return fs.readFileSync(filePath);
   });
 
-  // Copy the original .epub into the managed library, persist metadata + cover.
+  // Copies the original .epub into the managed library, persists metadata + cover.
   ipcMain.handle("library:add-book", (_event, payload: AddBookPayload) => {
     const { sourcePath, title, author, language, coverBytes, coverMime, fileSize } = payload;
     const id = randomUUID();
@@ -128,8 +125,7 @@ export const registerLibraryIpc = (): void => {
 
   ipcMain.handle("library:list", () => libraryStore.listBooks().map(withCover));
 
-  // Edit a book's metadata. Title/author are optional; a new cover (raw bytes
-  // from a renderer-side file picker) is downscaled and written like at import.
+  // A new cover (raw bytes from the renderer) is downscaled and written as at import.
   ipcMain.handle("library:update-book", (_event, payload: UpdateBookPayload) => {
     const { id, title, author, coverBytes, coverMime } = payload;
     const existing = libraryStore.getBook(id);
@@ -170,7 +166,7 @@ export const registerLibraryIpc = (): void => {
     return true;
   });
 
-  // Raw bytes of an imported book (used by the reader to parse content).
+  // Raw bytes of an imported book; the reader parses its content.
   ipcMain.handle("library:read-book", (_event, id: string) => {
     const book = libraryStore.getBook(id);
     if (!book) throw new Error(`book ${id} not found`);
@@ -181,7 +177,7 @@ export const registerLibraryIpc = (): void => {
 
   ipcMain.handle("library:set-favorite", (_event, id: string, favorite: boolean) => withCover(libraryStore.setFavorite(id, favorite)));
 
-  // --- Bookmarks. -----------------------------------------------------------
+  // --- Bookmarks ---
   ipcMain.handle("library:list-bookmarks", (_event, bookId: string) => libraryStore.listBookmarks(bookId));
 
   ipcMain.handle("library:add-bookmark", (_event, payload: AddBookmarkPayload) => {

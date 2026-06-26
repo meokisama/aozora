@@ -15,21 +15,19 @@ interface CoverState {
 }
 
 /**
- * Edit a book's title, author and cover. The cover is chosen with a plain file
- * input and read to an ArrayBuffer here in the renderer; the bytes are handed to
- * the main process (same path covers take at import) which downscales and stores
- * them.
+ * Edit a book's title, author and cover. The cover is read to an ArrayBuffer in
+ * the renderer and handed to the main process (same path as import) to downscale
+ * and store.
  */
 export function BookEditDialog({ book, open, onOpenChange }: { book: Book; open: boolean; onOpenChange: (open: boolean) => void }) {
   const updateBook = useLibraryStore((s) => s.updateBook);
   const [title, setTitle] = useState(book.title);
   const [author, setAuthor] = useState(book.author ?? "");
-  const [cover, setCover] = useState<CoverState | null>(null); // { bytes, mime, previewUrl } | null
+  const [cover, setCover] = useState<CoverState | null>(null);
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Reset the form each time the dialog opens (the same component instance is
-  // reused across edits of the same card).
+  // Reset the form each time the dialog opens — the instance is reused across edits.
   useEffect(() => {
     if (open) {
       setTitle(book.title);

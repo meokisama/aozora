@@ -1,12 +1,10 @@
 import { getKanaMorae, isMoraPitchHigh } from "@/lib/dictionary/pitch";
 
 /**
- * OJAD-style pitch-accent graph: the reading's morae as dots (high/low) joined by
- * a line, with an open circle for the following particle so the listener can see
- * whether the pitch stays up or drops after the word. Self-contained inline SVG
- * (uses currentColor) so it renders correctly in the popup, outside the reader's
- * shadow root. Derives the morae and high/low pattern with the ported helpers in
- * lib/dictionary/pitch.ts (Yomitan's getKanaMorae / isMoraPitchHigh).
+ * OJAD-style pitch-accent graph: morae as high/low dots joined by a line, plus
+ * an open circle for the following particle (shows whether pitch drops after the
+ * word). Self-contained inline SVG using currentColor so it renders outside the
+ * reader's shadow root. High/low pattern from lib/dictionary/pitch.ts.
  */
 
 const MARGIN = 11; // px from the edge to the first/last dot

@@ -52,36 +52,33 @@ const selfClosingContentTags = [
 ];
 
 /**
- * Flattens the whole EPUB spine into a single detached <div> tree (one wrapper
- * per spine item, id `aoz-<idref>`), replaces image references with dummy
- * data-URIs that carry the original path, and derives the chapter sections +
- * total character count. Import-fix handling is always applied at its most
- * thorough ("extended") behavior.
+ * Flattens the EPUB spine into one detached <div> tree (a wrapper per spine
+ * item, id `aoz-<idref>`), replaces image references with dummy data-URIs
+ * carrying the original path, and derives the chapter sections + total char count.
  */
-export function generateHtml(
-  data: Record<string, string | Blob>,
-  contents: OpfContents,
-  _contentsDirectory: string,
-): GeneratedHtml {
+export function generateHtml(data: Record<string, string | Blob>, contents: OpfContents, _contentsDirectory: string): GeneratedHtml {
   const manifestItems = getManifestItems(contents);
   const fallbackData = new Map<string, string>();
   let navKey = "";
 
-  // Spine items are usually XHTML documents, but Open Manga Format (OMF) books
-  // reference images directly from the spine. Track both so the flattener can
-  // synthesize a wrapper for an image-in-spine page.
+  // Spine items are usually XHTML, but Open Manga Format (OMF) books reference
+  // images directly from the spine. Track both so the flattener can synthesize a
+  // wrapper for an image-in-spine page.
   const itemIdToImageRef: Record<string, string> = {};
-  const itemIdToHtmlRef = manifestItems.reduce((acc, item) => {
-    if (item["@_fallback"]) fallbackData.set(item["@_id"], item["@_fallback"]);
-    const mt = item["@_media-type"];
-    if (mt === "application/xhtml+xml" || mt === "text/html") {
-      acc[item["@_id"]] = item["@_href"];
-      if (item["@_properties"] === "nav") navKey = item["@_href"];
-    } else if (mt?.startsWith("image/")) {
-      itemIdToImageRef[item["@_id"]] = item["@_href"];
-    }
-    return acc;
-  }, {} as Record<string, string>);
+  const itemIdToHtmlRef = manifestItems.reduce(
+    (acc, item) => {
+      if (item["@_fallback"]) fallbackData.set(item["@_id"], item["@_fallback"]);
+      const mt = item["@_media-type"];
+      if (mt === "application/xhtml+xml" || mt === "text/html") {
+        acc[item["@_id"]] = item["@_href"];
+        if (item["@_properties"] === "nav") navKey = item["@_href"];
+      } else if (mt?.startsWith("image/")) {
+        itemIdToImageRef[item["@_id"]] = item["@_href"];
+      }
+      return acc;
+    },
+    {} as Record<string, string>,
+  );
 
   let tocData: { type: number; content: string } = { type: 3, content: "" };
   const blobLocations = Object.entries(data).reduce((acc, [key, value]) => {
@@ -101,7 +98,7 @@ export function generateHtml(
   let mainChapters: Section[] = [];
   const selfClosingContentTagsToFix = [...selfClosingContentTags, "a"];
 
-  // --- Table of contents → main chapters ---------------------------------
+  // Table of contents → main chapters
   if (tocData.type && tocData.content) {
     let parsedToc = parser.parseFromString(tocData.content, "text/html");
     if (tocData.type === 3) {
@@ -129,7 +126,9 @@ export function generateHtml(
   }
 
   if (mainChapters.length) {
-    const firstChapterMatchIndex = itemRefs.findIndex((ref) => mainChapters[0].reference.includes(itemIdToHtmlRef[ref["@_idref"].split("/").pop() || ""]));
+    const firstChapterMatchIndex = itemRefs.findIndex((ref) =>
+      mainChapters[0].reference.includes(itemIdToHtmlRef[ref["@_idref"].split("/").pop() || ""]),
+    );
     if (firstChapterMatchIndex !== 0) {
       const firstRef = itemRefs[0]["@_idref"];
       const firstHTMLRef = itemIdToHtmlRef[firstRef];
@@ -151,11 +150,10 @@ export function generateHtml(
   let currentCharCount = 0;
 
   // Maps a spine item's href (full path and basename) to its wrapper id, so
-  // in-content links that point at a whole file — e.g. an embedded TOC page —
-  // can be resolved to a scroll target.
+  // whole-file in-content links (e.g. an embedded TOC page) resolve to a target.
   const hrefToWrapperId = new Map<string, string>();
 
-  // --- Flatten each spine item -------------------------------------------
+  // Flatten each spine item
   itemRefs.forEach((item) => {
     let itemIdRef = item["@_idref"];
     let htmlHref = itemIdToHtmlRef[itemIdRef];
@@ -173,8 +171,8 @@ export function generateHtml(
 
     if (imageHref) {
       // Synthesize a body holding just the image. The dummy placeholder carries
-      // the manifest href (which is also the blob key), so buildReaderHtml swaps
-      // it for an object URL at render time — same path as embedded images.
+      // the manifest href (also the blob key), so buildReaderHtml swaps it for an
+      // object URL at render time — same path as embedded images.
       htmlHref = imageHref; // let TOC / href resolution match the image item
       innerHtml = `<img class="aoz-spine-item-image" alt="" src="${buildDummyImage(imageHref)}" />`;
     } else {
@@ -222,12 +220,10 @@ export function generateHtml(
       }
 
       innerHtml = body.innerHTML || "";
-      // Both sides are normalized relative to the OPF directory: the image
-      // href above is `path.join(dirname(htmlHref), value)` and the blob key is
-      // the manifest href. So match the blob key directly — the old
+      // Match the blob key (manifest href) directly: the old
       // `relative(contentsDirectory, …)` indirection mis-resolved to a `../`
-      // prefix whenever the OPF sat two or more directories deep (e.g.
-      // `OPS/content/`), leaving full-page illustrations unswapped → blank pages.
+      // prefix when the OPF sat two+ directories deep (e.g. `OPS/content/`),
+      // leaving full-page illustrations unswapped → blank pages.
       blobLocations.forEach((blobLocation) => {
         innerHtml = innerHtml.replaceAll(blobLocation, buildDummyImage(blobLocation));
       });
@@ -273,7 +269,9 @@ export function generateHtml(
         reference: currentMainChapterId,
         charactersWeight: characters || 1,
         label: currentMainChapter.label,
-        startCharacter: currentMainChapterIndex ? (sectionData[oldMainChapterIndex].startCharacter || 0) + (sectionData[oldMainChapterIndex].characters || 0) : 0,
+        startCharacter: currentMainChapterIndex
+          ? (sectionData[oldMainChapterIndex].startCharacter || 0) + (sectionData[oldMainChapterIndex].characters || 0)
+          : 0,
         characters,
       });
     } else if (currentMainChapter) {
@@ -300,11 +298,10 @@ export function generateHtml(
 }
 
 /**
- * Rewrites every internal <a> href to a single in-document fragment so the
- * reader can resolve it against the flattened tree. Links with a fragment keep
- * the fragment (the original element id is preserved in the flattened HTML);
- * whole-file links resolve to the target spine item's wrapper id. External
- * (protocol) links are left untouched.
+ * Rewrites internal <a> hrefs to in-document fragments resolvable against the
+ * flattened tree: fragment links keep their fragment (original element ids are
+ * preserved in the flattened HTML), whole-file links map to the target spine
+ * item's wrapper id. External (protocol) links are left untouched.
  */
 function flattenAnchorHref(el: Element, hrefToWrapperId: Map<string, string>): void {
   Array.from(el.getElementsByTagName("a")).forEach((tag) => {

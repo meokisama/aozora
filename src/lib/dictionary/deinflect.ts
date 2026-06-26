@@ -1,17 +1,9 @@
 /**
  * Japanese deinflection — thin wrapper over the ported Yomitan language
- * transformer.
- *
- * The hover dictionary takes the text run at the cursor and, for each prefix,
- * walks it back to candidate dictionary forms (no tokenizer/MeCab — same
- * substring-scan + rule approach Yomitan uses). This module owns a single
- * configured transformer instance and exposes the two things the lookup needs:
- * the candidate forms (with grammatical conditions, for part-of-speech
- * validation against each dictionary entry) and the human-readable inflection
- * reason for each candidate.
- *
- * The engine, rules and condition system are GPL-3.0 code ported from Yomitan
- * (see src/lib/dictionary/transforms/). Pure, layout-independent logic.
+ * transformer (substring-scan + rule approach, no tokenizer/MeCab). Owns one
+ * configured transformer and exposes the candidate dictionary forms (with
+ * grammatical conditions for POS validation) plus a readable inflection reason
+ * per candidate. GPL-3.0 engine/rules from Yomitan (see transforms/).
  */
 
 import { LanguageTransformer } from "./transforms/language-transformer";
@@ -22,9 +14,7 @@ const transformer = new LanguageTransformer();
 transformer.addDescriptor(japaneseTransforms);
 
 /** Maps each transform id to its display name (e.g. "-te" → "-て"). */
-const transformNames = new Map<string, string>(
-  Object.entries(japaneseTransforms.transforms).map(([id, t]) => [id, t.name]),
-);
+const transformNames = new Map<string, string>(Object.entries(japaneseTransforms.transforms).map(([id, t]) => [id, t.name]));
 
 export interface Deinflection {
   /** Candidate dictionary form to look up. */

@@ -120,7 +120,12 @@ describe("removeBook", () => {
 
 describe("applyProgress", () => {
   it("merges progress fields into the matching book only", () => {
-    useLibraryStore.setState({ books: [{ id: "b1", progress: 0 }, { id: "b2", progress: 0 }] as unknown as Book[] });
+    useLibraryStore.setState({
+      books: [
+        { id: "b1", progress: 0 },
+        { id: "b2", progress: 0 },
+      ] as unknown as Book[],
+    });
     useLibraryStore.getState().applyProgress("b1", { progress: 0.5, exploredCharCount: 100 });
     const books = useLibraryStore.getState().books;
     expect(books[0]).toMatchObject({ id: "b1", progress: 0.5, exploredCharCount: 100 });

@@ -13,11 +13,9 @@ interface UiState {
 }
 
 /**
- * Top-level app navigation + the library's filter state. The reader is driven
- * separately by reader-store (an open book takes over the whole window); this
- * store decides which non-reader page shows — the library grid or the reading
- * stats page — and holds the sidebar's status/author filters so they survive
- * navigating to stats and back.
+ * Top-level navigation + library filter state. The reader is driven separately
+ * by reader-store; this store picks the non-reader page and holds the sidebar's
+ * status/author filters so they survive navigating away and back.
  */
 export const useUiStore = create<UiState>((set) => ({
   view: "library",

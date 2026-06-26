@@ -31,7 +31,7 @@ export interface Bar {
   tip?: string;
 }
 
-/** A compact vertical bar chart (dependency-free). bars: [{ key, value, tip }]. */
+/** A compact dependency-free vertical bar chart. */
 export function BarChart({ bars, height = 96 }: { bars: Bar[]; height?: number }) {
   const max = bars.reduce((m, b) => Math.max(m, b.value), 0);
   return (
@@ -47,4 +47,3 @@ export function BarChart({ bars, height = 96 }: { bars: Bar[]; height?: number }
     </div>
   );
 }
-

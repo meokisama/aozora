@@ -14,9 +14,9 @@ import type {
 } from "@/lib/types";
 
 /**
- * The curated API the preload layer exposes on `window.electronAPI`
- * (see `src/preload.js` and `src/preload/*.js`). Keep this in lockstep with
- * those modules — it is the renderer's only contract with the main process.
+ * The `window.electronAPI` surface exposed by the preload layer and the
+ * renderer's only contract with the main process. Keep in lockstep with
+ * `src/preload/*`.
  */
 export interface WindowApi {
   minimize(): void;

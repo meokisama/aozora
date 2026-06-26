@@ -14,14 +14,14 @@ export function BookCard({ book, onOpen }: { book: Book; onOpen?: (book: Book) =
   const pct = Math.round((book.progress ?? 0) * 100);
   const lastRead = relativeTime(book.lastOpenedAt);
 
-  // Fall back to the template placeholder when there's no cover, or when the
-  // stored cover fails to decode. Reset the error when the cover changes.
+  // Fall back to the placeholder when the cover is missing or fails to decode;
+  // reset the error when the cover changes.
   const [coverError, setCoverError] = useState(false);
   useEffect(() => setCoverError(false), [book.coverDataUrl]);
   const useFallback = !book.coverDataUrl || coverError;
 
-  // A single compact metric pinned to the right of the author line: percent
-  // while reading, "Finished" when done, else the last-read time if we have one.
+  // Compact metric beside the author: percent while reading, "Finished" when
+  // done, else the last-read time.
   const meta = status === "reading" ? `${pct}%` : status === "finished" ? "Finished" : lastRead;
 
   return (

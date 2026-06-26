@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { toDayKey, shiftDay, computeStreaks, buildHeatmapWeeks, intensityLevel, tierStatus, formatDuration, formatCompact } from "@/lib/stats/aggregate";
+import {
+  toDayKey,
+  shiftDay,
+  computeStreaks,
+  buildHeatmapWeeks,
+  intensityLevel,
+  tierStatus,
+  formatDuration,
+  formatCompact,
+} from "@/lib/stats/aggregate";
 
 describe("toDayKey / shiftDay", () => {
   it("formats a local date as YYYY-MM-DD", () => {

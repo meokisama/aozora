@@ -2,10 +2,9 @@ import type { KanjiEntry } from "@/lib/types";
 import { TagBadges } from "./dictionary-tags";
 
 /**
- * One kanji's breakdown in the popup: the character, its on'yomi / kun'yomi
- * readings, English meanings, and a few high-signal stats (stroke count, grade,
- * JLPT level, frequency) pulled from the kanji_bank `stats` object. The many
- * dictionary index codes in `stats` are intentionally not shown.
+ * One kanji's breakdown in the popup: character, on'yomi / kun'yomi, meanings,
+ * and a few high-signal stats. The many dictionary index codes in kanji_bank
+ * `stats` are intentionally not shown — only SHOWN_STATS below.
  */
 
 // Stat keys worth surfacing, in display order, with their labels.

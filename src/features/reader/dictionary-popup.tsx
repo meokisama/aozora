@@ -7,9 +7,9 @@ import { PitchAccent } from "./pitch-accent";
 import { KanjiCard } from "./kanji-card";
 import { TagBadges } from "./dictionary-tags";
 
-// Tailwind child selectors that give structured-content glosses sensible defaults
-// (list markers, table borders) outside the reader's shadow root. Inline styles
-// carried by the dictionary still apply on top of these.
+// Child selectors giving structured-content glosses sensible defaults (list
+// markers, table borders) outside the reader's shadow root; the dictionary's
+// own inline styles still apply on top.
 const GLOSS_CLASS =
   "text-xs leading-snug [&_ul]:ml-4 [&_ul]:list-disc [&_ol]:ml-4 [&_ol]:list-decimal " +
   "[&_li]:my-0.5 [&_table]:my-1 [&_table]:border-collapse [&_td]:border [&_td]:border-border " +
@@ -17,16 +17,9 @@ const GLOSS_CLASS =
   "marker:text-muted-foreground/60";
 
 /**
- * Floating dictionary popup, anchored to the matched run under the cursor
- * (Yomitan-style — not a click-triggered modal). The reader hands it the lookup
- * result and the matched run's bounding box; the popup positions itself just
- * below that box, flipping above and clamping to the viewport when it would
- * overflow. The cursor may enter it to scroll long content: the reader keeps it
- * alive while hovered (onMouseEnter/onMouseLeave) instead of dismissing on the
- * first move off the matched word.
- *
- * Rendered nothing when there is no result, so the reader can keep it mounted
- * and just feed it state.
+ * Floating Yomitan-style dictionary popup, anchored below the matched run's box
+ * (flipping above / clamping to the viewport on overflow). Renders null with no
+ * result, so the reader can keep it mounted and just feed it state.
  */
 
 const GAP = 6; // px between the matched word and the popup
@@ -45,15 +38,11 @@ interface Props {
 }
 
 /**
- * The headword with its reading rendered as furigana above the kanji (Yomitan
- * style). The reading is distributed per-segment so only kanji runs carry
- * furigana; kana/okurigana stay bare. Kana-only headwords render as plain text.
+ * Headword with its reading as furigana, distributed per-segment so only kanji
+ * runs carry furigana; kana/okurigana (and kana-only headwords) stay bare.
  */
 function Furigana({ expression, reading }: { expression: string; reading: string }) {
-  const segments = useMemo(
-    () => distributeFurigana(expression, reading || expression),
-    [expression, reading],
-  );
+  const segments = useMemo(() => distributeFurigana(expression, reading || expression), [expression, reading]);
   return (
     <span className="text-base leading-tight font-medium">
       {segments.map((seg, i) =>

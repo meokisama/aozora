@@ -4,14 +4,11 @@ import { libraryStore } from "./services/library-store.js";
 import type { ReadingSession } from "@/lib/types";
 
 /**
- * Reading-stats IPC. The renderer's reader records sessions as the user reads;
- * the stats page reads the aggregates back. All heavy grouping happens in
- * SQLite (see library-store.js); the renderer only derives streaks/heatmap
- * geometry from the returned arrays.
+ * Reading-stats IPC. Heavy grouping happens in SQLite (library-store.js); the
+ * renderer only derives streaks/heatmap geometry from the returned arrays.
  */
 export const registerStatsIpc = (): void => {
-  // Persist one completed reading session. Skips no-op sessions (a book opened
-  // and closed immediately) so they don't pollute the heatmap / session count.
+  // Skips no-op sessions (open-and-close) so they don't pollute the heatmap / count.
   ipcMain.handle("stats:record-session", (_event, session: ReadingSession) => {
     const durationMs = Math.round(session?.durationMs ?? 0);
     const charsRead = Math.round(session?.charsRead ?? 0);

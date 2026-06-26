@@ -29,8 +29,8 @@ const api = () => window.electronAPI.library;
 
 const FURIGANA_CLASSES = ["aoz-furigana-hide", "aoz-furigana-partial", "aoz-furigana-toggle", "aoz-furigana-full"];
 
-/** Reflects the current furigana mode as a class on the content root. "show"
- *  clears the class so the book's own furigana styling applies untouched. */
+/** Reflects the furigana mode as a class on the content root; "show" clears it
+ *  so the book's own furigana styling applies untouched. */
 function applyFuriganaClass(root: Element | null | undefined) {
   if (!root) return;
   root.classList.remove(...FURIGANA_CLASSES);
@@ -39,8 +39,7 @@ function applyFuriganaClass(root: Element | null | undefined) {
 }
 
 /** Click-to-reveal for the toggle/full/partial furigana modes. Delegated on the
- *  persistent content root so it survives paginated section swaps (which replace
- *  the inner HTML). Reads the live mode on each click. */
+ *  persistent content root so it survives paginated section swaps. */
 function bindRubyReveal(root: Element | null | undefined) {
   if (!root) return;
   root.addEventListener("click", (e) => {
@@ -54,25 +53,19 @@ function bindRubyReveal(root: Element | null | undefined) {
 }
 
 /**
- * Reader shell. The book is parsed once (or loaded from the IndexedDB cache),
- * its image references swapped for object URLs, and the flattened HTML rendered
- * inside a shadow root so the book's own CSS stays isolated from the app.
- *
- * Two layouts share that parsed content without re-parsing:
- *   - continuous: the whole HTML scrolls (tategaki scrolls horizontally);
- *   - paginated: one spine section at a time, flipped page by page.
+ * Reader shell. The book is parsed once (or loaded from the IndexedDB cache) and
+ * rendered inside a shadow root so the book's own CSS stays isolated. Continuous
+ * and paginated layouts share that parsed content without re-parsing.
  *
  * Reading position is a character offset (exploredCharCount), so it survives
- * re-flow (font/size changes) and switching between the two modes. It is
- * persisted (debounced) to the main process and restored on the next open.
+ * re-flow and mode switches; persisted (debounced) and restored on next open.
  */
 export function ReaderView() {
   const book = useReaderStore((s) => s.currentBook);
   const close = useReaderStore((s) => s.close);
   const applyProgress = useLibraryStore((s) => s.applyProgress);
 
-  // Records reading time / characters for the stats page. `mark` is called on
-  // every position change; the session is flushed on book change / unmount.
+  // Records reading time / characters for the stats page.
   const { mark: markSession } = useReadingSession(book?.id);
 
   const fontSize = useSettingsStore((s) => s.fontSize);
@@ -88,8 +81,8 @@ export function ReaderView() {
   const objectUrlsRef = useRef<string[]>([]);
   const anchorsRef = useRef<{ anchors: Anchor[]; total: number }>({ anchors: [], total: 0 });
   const controllerRef = useRef<PaginatedController | null>(null);
-  const fixedRef = useRef<FixedLayoutHandle | null>(null); // imperative handle of the fixed-layout viewer
-  const fixedDataRef = useRef<{ pages: FixedLayoutPage[]; ppd: string; bookViewport: { width: number; height: number } | null } | null>(null); // for the viewer
+  const fixedRef = useRef<FixedLayoutHandle | null>(null);
+  const fixedDataRef = useRef<{ pages: FixedLayoutPage[]; ppd: string; bookViewport: { width: number; height: number } | null } | null>(null);
   const totalRef = useRef(0);
   const verticalRef = useRef(false);
   const modeRef = useRef<"continuous" | "paginated" | "fixed">(readingMode);
@@ -100,23 +93,20 @@ export function ReaderView() {
   const readyRef = useRef(false);
   const searchIndexRef = useRef<SearchIndexEntry[] | null>(null); // lazily built on first search
 
-  // Hover-dictionary state: the last cursor position (so a modifier keydown can
-  // trigger a lookup without moving the mouse), a sequence guard so a stale async
-  // lookup can't overwrite a newer one, a rAF gate to coalesce mousemoves, and
-  // the text of the last run we queried (to skip re-querying the same word).
+  // Hover-dictionary state: last cursor position (so a modifier keydown can look
+  // up without moving the mouse), a sequence guard against stale async results, a
+  // rAF gate to coalesce mousemoves, and the last queried run text (skip re-query).
   const lastMouseRef = useRef<{ x: number; y: number } | null>(null);
   const lookupSeqRef = useRef(0);
   const lookupRafRef = useRef(0);
   const lastQueryRef = useRef("");
-  // Dismissal is deferred so the cursor can travel from the matched word into the
-  // popup (to scroll it) without it vanishing: a timer clears the popup unless the
-  // cursor has settled inside it by the time it fires.
+  // Dismissal is deferred via a timer so the cursor can travel from the matched
+  // word into the popup (to scroll it) without it vanishing mid-travel.
   const clearTimerRef = useRef(0);
   const popupHoveredRef = useRef(false);
-  // Sticky-zone state: once a popup is open it's pinned to the matched run, and
-  // re-scanning is frozen while the cursor stays inside the corridor connecting
-  // the word to the popup (matched-run rect ∪ popup rect, padded). This lets the
-  // cursor travel into the popup without crossing words re-triggering a lookup.
+  // Sticky-zone: while a popup is open, re-scanning is frozen inside the corridor
+  // joining word and popup (matched-run rect ∪ popup rect, padded), so crossing
+  // words while reaching for the popup don't re-trigger a lookup.
   const lookupAnchorRef = useRef<DOMRect | null>(null); // matched-run box of the open popup
   const popupRectRef = useRef<{ left: number; top: number; right: number; bottom: number } | null>(null);
   const dictEnabled = useDictionaryStore((s) => s.enabled);
@@ -129,8 +119,7 @@ export function ReaderView() {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [parseToken, setParseToken] = useState(0); // bumped when parsed content is ready
   const [fixedLayout, setFixedLayout] = useState(false); // manga / fixed-layout book
-  // Writing direction comes from the EPUB itself (page-progression-direction /
-  // the book's CSS); there is no manual override.
+  // Writing direction comes from the EPUB (PPD / CSS); no manual override.
   const [vertical, setVertical] = useState(true);
   const [sections, setSections] = useState<Section[]>([]);
   const [currentChar, setCurrentChar] = useState(0);
@@ -150,8 +139,8 @@ export function ReaderView() {
   const [lookup, setLookup] = useState<{ result: LookupResult; anchor: DOMRect | null } | null>(null);
 
   const total = totalRef.current;
-  // Fixed-layout position is a page ordinal, so the last page (ordinal total-1)
-  // is 100%; reflowable position is a character offset out of the total.
+  // Fixed-layout position is a page ordinal, so the last page (total-1) is 100%;
+  // reflowable position is a character offset out of the total.
   const progressPct = total ? Math.round((fixedLayout && total > 1 ? currentChar / (total - 1) : currentChar / total) * 100) : 0;
 
   // Chapters that carry a TOC label (sub-sections fold into their parent).
@@ -197,15 +186,14 @@ export function ReaderView() {
     setLookup(null);
   }, []);
 
-  // The popup reports its placed box here so the frozen zone can span the gap
-  // between the matched word and the popup itself.
+  // The popup reports its placed box here so the frozen zone can span the gap to
+  // the matched word.
   const handlePopupLayout = useCallback((rect: { left: number; top: number; right: number; bottom: number }) => {
     popupRectRef.current = rect;
   }, []);
 
-  // Is the cursor inside the open popup's frozen zone — the padded bounding box
-  // spanning the matched word and the popup (and the gap between them)? While
-  // inside, scanning is suppressed so the popup stays pinned and reachable.
+  // Is the cursor inside the open popup's frozen zone (padded box spanning word,
+  // popup, and the gap)? While inside, scanning is suppressed.
   const inFrozenZone = useCallback((x: number, y: number) => {
     const a = lookupAnchorRef.current;
     if (!a) return false; // no popup open
@@ -218,9 +206,9 @@ export function ReaderView() {
     return x >= left && x <= right && y >= top && y <= bottom;
   }, []);
 
-  // Schedules dismissal after a short grace window, so the cursor can cross the
-  // gap from the matched word into the popup without it disappearing. Cancelled
-  // when the cursor reaches the popup (popupHoveredRef) or a fresh lookup runs.
+  // Dismiss after a short grace window so the cursor can cross from word to popup
+  // without it vanishing. Cancelled when the cursor reaches the popup or a fresh
+  // lookup runs.
   const scheduleClear = useCallback(() => {
     if (clearTimerRef.current) return;
     clearTimerRef.current = window.setTimeout(() => {
@@ -259,9 +247,8 @@ export function ReaderView() {
     [persist, markSession, clearLookup],
   );
 
-  // Receives position updates from the fixed-layout (manga) viewer. Position is
-  // a page ordinal (0-based, orientation-independent); progress reaches 1 on the
-  // last page so finished manga read as complete.
+  // Position updates from the fixed-layout viewer. Position is a 0-based page
+  // ordinal; progress reaches 1 on the last page so finished manga read complete.
   const onFixedChange = useCallback(
     (ordinal: number, totalPages: number) => {
       charRef.current = ordinal;
@@ -283,10 +270,8 @@ export function ReaderView() {
     [book, applyProgress, markSession],
   );
 
-  // The bookmark name suggested for the current position: the current TOC
-  // chapter's title + the reading-progress percentage (e.g. "第四章 · 45%").
-  // The user can edit it before saving. Falls back to just the percentage when
-  // the book has no TOC chapter covering this position.
+  // Suggested bookmark name: current TOC chapter title + progress percentage
+  // (editable before saving). Falls back to just the percentage with no chapter.
   const computeDefaultName = useCallback(() => {
     const totalChars = totalRef.current || 0;
     const char = charRef.current;
@@ -299,7 +284,7 @@ export function ReaderView() {
     return label ? `${label}  (${pct}%)` : `${pct}%`;
   }, [chapters]);
 
-  // Jumps the reader to a saved character offset, in whichever mode is active.
+  // Jumps to a character offset, in whichever mode is active.
   const jumpToChar = useCallback(
     (char: number) => {
       setBookmarksOpen(false);
@@ -351,8 +336,7 @@ export function ReaderView() {
     }
   }, []);
 
-  // Runs a query against the (lazily built) in-book index. The index is derived
-  // from the already-parsed HTML once and reused for every keystroke.
+  // Queries the in-book index, built lazily from the parsed HTML once and reused.
   const runSearch = useCallback((query: string) => {
     setSearchQuery(query);
     if (!query.trim()) {
@@ -365,9 +349,8 @@ export function ReaderView() {
     setSearchResults(searchIndex(searchIndexRef.current || [], query));
   }, []);
 
-  // Jumps to a search hit and highlights it in whichever mode is active. The
-  // highlight is placed after the target paragraph is on screen (the paginated
-  // controller renders its section asynchronously).
+  // Jumps to a search hit and highlights it. The highlight waits until the target
+  // is on screen (the paginated controller renders its section asynchronously).
   const jumpToSearchResult = useCallback(
     async (result: SearchResult) => {
       setSearchOpen(false);
@@ -408,11 +391,10 @@ export function ReaderView() {
     });
   }, [searchResults, chapters, total]);
 
-  // Runs a dictionary lookup for the text under a viewport point. Resolves the
-  // run starting at the cursor (furigana excluded), queries the main process for
-  // the longest match, then highlights exactly that run and shows the popup
-  // anchored to it. A sequence guard drops stale async results, and identical
-  // runs are skipped so jiggling the mouse over one word doesn't re-query.
+  // Dictionary lookup for the text under a viewport point: resolves the run at
+  // the cursor (furigana excluded), queries for the longest match, highlights it
+  // and anchors the popup. A sequence guard drops stale async results; identical
+  // runs are skipped so jiggling over one word doesn't re-query.
   const runLookupAt = useCallback(
     (x: number, y: number) => {
       const shadow = hostRef.current?.shadowRoot;
@@ -423,9 +405,8 @@ export function ReaderView() {
 
       const source = cursorTextFromPoint(x, y, contentRoot);
       if (!source) {
-        // No text under the cursor (e.g. the line-gap between the word and the
-        // popup): dismiss through the grace window so reaching for the popup to
-        // scroll it doesn't kill it mid-travel.
+        // No text under the cursor (e.g. the gap between word and popup): dismiss
+        // through the grace window so reaching for the popup doesn't kill it.
         scheduleClear();
         return;
       }
@@ -482,8 +463,8 @@ export function ReaderView() {
       clearLookup();
       return;
     }
-    // Popup open and cursor still in the word→popup corridor: keep it pinned,
-    // don't re-scan the text being crossed, and cancel any pending dismissal.
+    // Cursor still in the word→popup corridor: keep the popup pinned, don't
+    // re-scan, and cancel any pending dismissal.
     if (inFrozenZone(e.clientX, e.clientY)) {
       if (clearTimerRef.current) {
         clearTimeout(clearTimerRef.current);
@@ -495,9 +476,8 @@ export function ReaderView() {
   };
 
   // Pressing/releasing the lookup modifier triggers (or dismisses) a lookup at
-  // the last cursor position — so holding Shift over a word that the pointer is
-  // already resting on works without a wiggle. Inactive when the trigger is
-  // "hover only" (no modifier) or for fixed-layout books.
+  // the last cursor position, so holding the modifier over a resting pointer works
+  // without a wiggle. Inactive for "hover only" (no modifier) or fixed-layout.
   useEffect(() => {
     if (!dictEnabled || dictModifier === "none" || fixedLayout) return;
     const keyName = dictModifier === "shift" ? "Shift" : dictModifier === "alt" ? "Alt" : "Control";
@@ -507,8 +487,8 @@ export function ReaderView() {
       if (m) runLookupAt(m.x, m.y);
     };
     const onUp = (e: KeyboardEvent) => {
-      // Grace window: releasing the modifier to reach for the popup (to scroll it)
-      // shouldn't dismiss it if the cursor lands inside in time.
+      // Grace window: releasing the modifier to reach for the popup shouldn't
+      // dismiss it if the cursor lands inside in time.
       if (e.key === keyName) scheduleClear();
     };
     window.addEventListener("keydown", onDown);
@@ -626,8 +606,8 @@ export function ReaderView() {
     const parsed = parsedRef.current;
     if (!parsed) return;
 
-    // Fixed-layout (manga) renders through <FixedLayoutView>, which owns its own
-    // shadow DOM and navigation. Nothing to build here — just mark it ready.
+    // Fixed-layout renders through <FixedLayoutView>, which owns its own shadow
+    // DOM and navigation. Nothing to build here — just mark it ready.
     if (parsed.fixedLayout) {
       modeRef.current = "fixed";
       readyRef.current = true;
@@ -711,8 +691,8 @@ export function ReaderView() {
       controllerRef.current = null;
       if (shadow) shadow.innerHTML = "";
     };
-    // persist/restoreContinuous/onPagedChange are stable; book content arrives
-    // via parseToken and the refs above. Re-running here would re-layout only.
+    // Content arrives via parseToken + the refs above; the omitted callbacks are
+    // stable, so re-running on them would only re-layout.
   }, [parseToken, readingMode]);
 
   // Apply font/theme settings live, and re-flow to keep the reading position.
@@ -836,9 +816,8 @@ export function ReaderView() {
     }
   };
 
-  // Click handling: follow internal links in either mode. (Page flipping is via
-  // the mouse wheel and arrow keys only — no click-to-flip — so text stays
-  // freely selectable.)
+  // Follow internal links in either mode. No click-to-flip (wheel/arrows only),
+  // so text stays freely selectable.
   const handleContentClick = (e: React.MouseEvent) => {
     const path = (e.nativeEvent.composedPath?.() || []) as Element[];
     const anchor = path.find((n) => n?.tagName === "A");
@@ -938,10 +917,9 @@ export function ReaderView() {
             onMouseLeave={scheduleClear}
             className={
               paged
-                ? // Outer padding lives here (on the host, outside the shadow
-                  // scroller) so it never disturbs the page-flip arithmetic. The
-                  // scroller measures its own client box, so columns inset to
-                  // match. Tune freely: py-* = top/bottom, px-* = sides.
+                ? // Padding lives on the host (outside the shadow scroller) so it
+                  // never disturbs the page-flip arithmetic; the scroller measures
+                  // its own client box, so columns inset to match.
                   "h-full w-full overflow-hidden py-8 px-8"
                 : vertical
                   ? "h-full w-full overflow-x-auto overflow-y-hidden"

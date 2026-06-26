@@ -1,23 +1,18 @@
 /**
- * Paginated (page-flip) reading controller.
+ * Paginated (page-flip) reading controller on top of CSS multi-column layout.
  *
- * Models a paper-book style reader on top of CSS multi-column layout, using a
- * per-section approach as a plain, synchronous controller (no RxJS) that drives
- * a Shadow-DOM viewport.
- *
- * Layout: exactly one spine section (an `aoz-<idref>` wrapper) is rendered at a
- * time into a multi-column container, so each chapter starts on a fresh page.
+ * Exactly one spine section (`aoz-<idref>` wrapper) is rendered at a time into a
+ * multi-column container, so each chapter starts on a fresh page:
  *   - vertical-rl (tategaki): `column-width = viewport height`, `width: 100%`,
- *     `height: auto` — content overflows along the block axis and is paged with
- *     `scrollTop` (stride = viewport height + gap).
- *   - horizontal-tb: `column-width = viewport width`, fixed `height` — content
- *     overflows horizontally and is paged with `scrollLeft` (stride = width +
- *     gap); the trailing partial page is pulled in with `translateX`.
+ *     `height: auto` — paged via `scrollTop` (stride = viewport height + gap).
+ *   - horizontal-tb: `column-width = viewport width`, fixed `height` — paged via
+ *     `scrollLeft` (stride = width + gap); trailing partial page pulled in with
+ *     `translateX`.
  *
- * Position is character-based (`exploredCharCount`), identical in meaning to the
- * continuous reader, so switching modes preserves the reading place. Per section
- * we record each paragraph's leading-edge offset along the scroll axis, snap it
- * to a page, and keep a `page → first character` map for save/restore.
+ * Position is character-based (`exploredCharCount`), identical to the continuous
+ * reader so mode switches preserve the place. Per section we record each
+ * paragraph's leading-edge scroll-axis offset, snap to a page, and keep a
+ * `page → first character` map for save/restore.
  */
 
 import { getParagraphNodes, getCharacterCount, countCharacters } from "@/lib/epub/dom-utils";
@@ -161,11 +156,9 @@ export class PaginatedController {
     el.style.columnGap = `${this.gap}px`;
     el.style.columnFill = "auto";
 
-    // Image-only sections (cover, full-page illustrations) have no text to flow,
-    // so they produce a single column that lands at the block-start edge — the
-    // right side in vertical-rl — leaving the illustration flush against it.
-    // Lay them out as a centred flex box filling the viewport instead, so the
-    // image sits in the middle of the page regardless of writing direction.
+    // Image-only sections (cover, full-page illustrations) would otherwise sit
+    // flush against the block-start edge (right side in vertical-rl). Centre them
+    // in a flex box filling the viewport, regardless of writing direction.
     if (this._isImageSection(this.sectionIndex)) {
       this._clearTransform();
       el.style.columnWidth = "auto";
@@ -230,18 +223,12 @@ export class PaginatedController {
       const node = nodes[i];
       const r = nodeRect(node);
       const size = this.vertical ? r.height : r.width;
-      const pos =
-        size <= 0
-          ? this.paragraphPos[i - 1] || 0
-          : this.vertical
-            ? r.top - contentRect.top
-            : r.left - contentRect.left;
+      const pos = size <= 0 ? this.paragraphPos[i - 1] || 0 : this.vertical ? r.top - contentRect.top : r.left - contentRect.left;
       this.paragraphPos[i] = pos;
 
-      // floor, not round: a paragraph whose leading edge falls in the latter
-      // half of a column still *begins* on that column's page. Rounding would
-      // assign it to the next page, so its char offset becomes that next page's
-      // start — and a search hit inside it would jump one page too far.
+      // floor, not round: a paragraph whose leading edge is in the latter half
+      // of a column still *begins* on that column's page. Rounding it forward
+      // would make a search hit inside it jump one page too far.
       const pg = clamp(Math.floor(pos / screen), 0, this.totalPages - 1);
       if (pageFirstChar[pg] === undefined) pageFirstChar[pg] = acc;
 
@@ -343,10 +330,9 @@ export class PaginatedController {
 
   /** Restores the reader to a global character offset. */
   async restoreToChar(char: number): Promise<void> {
-    // The start of the book is section 0, page 0. Don't run the search below:
-    // the cover (and any front illustrations) are image-only sections with 0
-    // characters, so their cumulative count is also 0 — `sectionAccChar <= 0`
-    // would skip every one of them and land on the first section with text.
+    // Start of book = section 0, page 0. Skip the search below: cover/front
+    // illustrations are 0-char image sections, so `sectionAccChar <= 0` would
+    // skip past all of them to the first section with text.
     if (char <= 0) {
       await this.setSection(0, "start");
       return;
@@ -360,9 +346,7 @@ export class PaginatedController {
 
   /** Jumps to the section containing a TOC reference (its id or a descendant). */
   jumpToSectionId(id: string): boolean {
-    const index = this.sections.findIndex(
-      (s) => s.id === id || s.querySelector(`[id="${CSS.escape(id)}"]`)
-    );
+    const index = this.sections.findIndex((s) => s.id === id || s.querySelector(`[id="${CSS.escape(id)}"]`));
     if (index < 0) return false;
     this.setSection(index, "start");
     return true;

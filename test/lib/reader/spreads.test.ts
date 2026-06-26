@@ -3,8 +3,7 @@ import { buildSpreads, type Spread, type SpreadPage } from "@/lib/reader/spreads
 import { xmlParser, getSpinePageSpreads, getPageProgressionDirection } from "@/lib/epub/opf";
 
 /** Compact helper: build pages from a list of page-spread sides. */
-const pages = (...sides: (string | null)[]) =>
-  sides.map((pageSpread, i) => ({ id: `p${i}`, pageSpread }));
+const pages = (...sides: (string | null)[]) => sides.map((pageSpread, i) => ({ id: `p${i}`, pageSpread }));
 /** Render a spread as the page ids it contains, in DOM order. */
 const ids = (spread: Spread) => spread.items.map((p: SpreadPage) => p.id);
 

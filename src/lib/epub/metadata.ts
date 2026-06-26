@@ -11,8 +11,8 @@ import {
   type XmlNode,
 } from "./opf";
 
-// Disable web workers: simpler/more robust under the Electron renderer + Vite
-// bundler. Metadata reads only touch a few small entries, so it's plenty fast.
+// No web workers: simpler/more robust under the Electron renderer + Vite, and
+// metadata reads only touch a few small entries.
 configure({ useWebWorkers: false });
 
 export function resolveCoverHref(
@@ -33,8 +33,8 @@ export function resolveCoverHref(
     if (item?.["@_href"]) return item["@_href"];
   }
 
-  // Fallback for fixed-layout / manga (e.g. Open Manga Format) that declare no
-  // cover metadata: the first spine item is the cover. Use it when it's an image.
+  // Fallback for fixed-layout/manga (e.g. OMF) with no cover metadata: the first
+  // spine item is the cover, when it's an image.
   const firstIdref = spineRefs[0]?.["@_idref"];
   if (firstIdref) {
     const item = manifestItems.find((it) => it["@_id"] === firstIdref);
@@ -52,10 +52,8 @@ export interface EpubMetadata {
   coverMime: string | null;
 }
 
-/**
- * Extracts display metadata + cover image from an EPUB blob, reading only the
- * few entries needed (container.xml, the OPF, and the cover image).
- */
+/** Extracts display metadata + cover from an EPUB blob, reading only the entries
+ *  needed (container.xml, the OPF, and the cover image). */
 export async function extractEpubMetadata(blob: Blob): Promise<EpubMetadata> {
   const reader = new ZipReader(new BlobReader(blob));
   try {

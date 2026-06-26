@@ -1,13 +1,9 @@
 /*
- * Furigana distribution ported from Yomitan (references/yomitan/ext/js/language/
- * ja/japanese.js — distributeFurigana / segmentizeFurigana / getFuriganaKanaSegments
- * and the kana helpers it needs: isCodePointKana / convertKatakanaToHiragana).
- * Layout-independent (no DOM) so it can be unit-tested; the popup renders the
- * returned segments as <ruby>. Copyright (C) Yomitan Authors, GPL-3.0-or-later.
- *
- * Aligns a reading to its term so only the kanji segments carry furigana
+ * Furigana distribution ported from Yomitan (ja/japanese.js). Aligns a reading
+ * to its term so only the kanji segments carry furigana
  * (e.g. 食べる → [{食, た}, {べる, ""}]); falls back to one whole-word segment
- * when the reading can't be split unambiguously.
+ * when the reading can't be split unambiguously. Layout-independent (no DOM).
+ * Copyright (C) Yomitan Authors, GPL-3.0-or-later.
  */
 
 /** One run of the term with the reading that floats above it ("" = no furigana). */
@@ -50,7 +46,7 @@ function isCodePointKana(codePoint: number): boolean {
   return isCodePointInRanges(codePoint, KANA_RANGES);
 }
 
-// Vowel a long-vowel mark (ー) lengthens, keyed by the preceding kana.
+// Vowel that a long-vowel mark (ー) lengthens, keyed by the preceding kana.
 const VOWEL_TO_KANA_MAPPING = new Map<string, string>([
   ["a", "ぁあかがさざただなはばぱまゃやらゎわヵァアカガサザタダナハバパマャヤラヮワヵヷ"],
   ["i", "ぃいきぎしじちぢにひびぴみりゐィイキギシジチヂニヒビピミリヰヸ"],
@@ -131,12 +127,7 @@ function getFuriganaKanaSegments(text: string, reading: string): FuriganaSegment
 }
 
 /** Recursively assigns slices of `reading` to each kana/kanji group; null if ambiguous. */
-function segmentizeFurigana(
-  reading: string,
-  readingNormalized: string,
-  groups: FuriganaGroup[],
-  groupsStart: number,
-): FuriganaSegment[] | null {
+function segmentizeFurigana(reading: string, readingNormalized: string, groups: FuriganaGroup[], groupsStart: number): FuriganaSegment[] | null {
   const groupCount = groups.length - groupsStart;
   if (groupCount <= 0) {
     return reading.length === 0 ? [] : null;
@@ -148,12 +139,7 @@ function segmentizeFurigana(
   if (isKana) {
     const { textNormalized } = group;
     if (textNormalized !== null && readingNormalized.startsWith(textNormalized)) {
-      const segments = segmentizeFurigana(
-        reading.substring(textLength),
-        readingNormalized.substring(textLength),
-        groups,
-        groupsStart + 1,
-      );
+      const segments = segmentizeFurigana(reading.substring(textLength), readingNormalized.substring(textLength), groups, groupsStart + 1);
       if (segments !== null) {
         if (reading.startsWith(text)) {
           segments.unshift(createFuriganaSegment(text, ""));
@@ -167,12 +153,7 @@ function segmentizeFurigana(
   } else {
     let result: FuriganaSegment[] | null = null;
     for (let i = reading.length; i >= textLength; --i) {
-      const segments = segmentizeFurigana(
-        reading.substring(i),
-        readingNormalized.substring(i),
-        groups,
-        groupsStart + 1,
-      );
+      const segments = segmentizeFurigana(reading.substring(i), readingNormalized.substring(i), groups, groupsStart + 1);
       if (segments !== null) {
         if (result !== null) {
           return null; // more than one way to split the tail; ambiguous

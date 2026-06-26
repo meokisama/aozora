@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { formatCompact } from "@/lib/stats/aggregate";
 import { DAILY_GOAL_OPTIONS } from "@/stores/stats-prefs-store";
 
-/** A circular progress ring (SVG) for today's goal completion. */
+/** A circular progress ring for today's goal completion. */
 function GoalRing({ pct, label, sub }: { pct: number; label: React.ReactNode; sub?: React.ReactNode }) {
   const r = 34;
   const c = 2 * Math.PI * r;
@@ -34,11 +34,7 @@ function GoalRing({ pct, label, sub }: { pct: number; label: React.ReactNode; su
   );
 }
 
-/**
- * The "Daily goal" column: a progress ring for today against the target, the
- * current goal-meeting streak, and the target picker. Stretches to fill its
- * grid column so it sits flush with the Activity card beside it.
- */
+/** The "Daily goal" column: progress ring, goal-meeting streak, and target picker. */
 interface GoalCardProps {
   dailyGoal: number;
   setDailyGoal: (goal: number) => void;

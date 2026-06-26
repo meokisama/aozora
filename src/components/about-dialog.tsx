@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import aozoraLogo from "@/assets/aozora-logo.png";
 import pkg from "../../package.json";
 
-/** GitHub mark — lucide no longer ships brand icons, so inline the SVG. */
 function GithubIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden {...props}>
@@ -14,11 +13,7 @@ function GithubIcon(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
-/**
- * "About" dialog reached from the title bar's info button: the app logo, name +
- * version, a one-line description, the author, and a link to the GitHub repo
- * (opened in the user's default browser via the window IPC).
- */
+/** "About" dialog: app logo, version, description, author, and a GitHub repo link. */
 interface AboutDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;

@@ -38,10 +38,8 @@ interface BookActionsState {
 }
 
 /**
- * Shared state + handlers for the book actions, surfaced both as a right-click
- * context menu (BookContextMenu) and a click-to-open dropdown (BookActionsMenu).
- * Owning the edit dialog and remove confirmation here keeps the two menus in
- * sync and lets a card/row drop either one in without duplicating logic.
+ * Shared state + handlers for the book actions, surfaced as both a right-click
+ * context menu and a dropdown. Owning the dialogs here keeps the two menus in sync.
  */
 function useBookActions(book: Book): BookActionsState {
   const removeBook = useLibraryStore((s) => s.removeBook);
@@ -70,8 +68,8 @@ function useBookActions(book: Book): BookActionsState {
       .catch(() => toast.error("Failed to update favorite"));
   };
 
-  // Descriptors shared by both menus; the falsy entries are filtered out so the
-  // mark items only show when they'd actually change state.
+  // Descriptors shared by both menus; falsy entries are filtered so the mark
+  // items only show when they'd actually change state.
   const items = [
     { key: "edit", label: "Edit details", icon: Pencil, onSelect: () => setEditOpen(true) },
     book.favorite
@@ -110,17 +108,14 @@ function BookActionDialogs({ book, state }: { book: Book; state: BookActionsStat
   );
 }
 
-/**
- * Wraps a book card/row so right-clicking it opens the action menu (edit, mark
- * finished/unread, remove).
- */
+/** Wraps a book card/row so right-clicking opens the action menu. */
 export function BookContextMenu({ book, children }: { book: Book; children: React.ReactNode }) {
   const state = useBookActions(book);
 
   return (
     <>
-      {/* modal={false}: opening the edit/remove dialog from a menu item would
-          otherwise collide with the menu's body pointer-events lock. */}
+      {/* modal={false}: opening a dialog from a menu item otherwise collides
+          with the menu's body pointer-events lock. */}
       <ContextMenu modal={false}>
         <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
         <ContextMenuContent className="w-44">
@@ -143,9 +138,8 @@ export function BookContextMenu({ book, children }: { book: Book; children: Reac
 }
 
 /**
- * The same actions as a click-to-open dropdown — used for the hover "⋯" button
- * on cards/rows so the actions are discoverable without a right-click. `trigger`
- * is the element that opens it (rendered via asChild).
+ * The same actions as a dropdown, for the hover "⋯" button on cards/rows.
+ * `trigger` is the element that opens it (rendered via asChild).
  */
 export function BookActionsMenu({ book, trigger }: { book: Book; trigger: React.ReactNode }) {
   const state = useBookActions(book);

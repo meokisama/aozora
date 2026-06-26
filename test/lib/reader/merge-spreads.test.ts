@@ -4,9 +4,7 @@ import { mergeSpreadSections } from "@/lib/reader/merge-spreads";
 
 function container(ids: string[]) {
   const el = document.createElement("div");
-  el.innerHTML = ids
-    .map((id: string) => `<div id="${id}"><span id="inner-${id}">x</span></div>`)
-    .join("");
+  el.innerHTML = ids.map((id: string) => `<div id="${id}"><span id="inner-${id}">x</span></div>`).join("");
   return el;
 }
 

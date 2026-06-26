@@ -148,11 +148,7 @@ describe("paginated-tracker", () => {
   });
 
   it("treats a far teleport (TOC/search/bookmark) as navigation, not reading", () => {
-    const acc = advancePaginated(
-      createPaginatedAccumulator(0),
-      DEFAULT_PAGINATED_CONFIG.jumpThreshold + 10,
-      9999,
-    );
+    const acc = advancePaginated(createPaginatedAccumulator(0), DEFAULT_PAGINATED_CONFIG.jumpThreshold + 10, 9999);
     expect(acc.charsAccum).toBe(0);
   });
 

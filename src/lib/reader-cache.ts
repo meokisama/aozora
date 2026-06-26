@@ -1,8 +1,6 @@
 /**
- * IndexedDB cache for parsed EPUB content (flattened HTML + image blobs +
- * sections). This is derived, re-creatable data, so it lives in the renderer
- * rather than the main-process source of truth. Hand-rolled over a thin
- * IndexedDB wrapper to avoid an extra dependency.
+ * IndexedDB cache for parsed EPUB content. Derived, re-creatable data, so it
+ * lives in the renderer rather than the main-process source of truth.
  */
 
 import type { ParsedBook } from "@/lib/epub/parse-book";

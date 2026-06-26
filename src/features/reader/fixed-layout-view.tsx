@@ -27,11 +27,8 @@ interface FixedLayoutViewProps {
   onChange?: (firstOrdinal: number, totalPages: number) => void;
 }
 
-/**
- * Aspect ratio (width / height) at or above which the reader shows a two-page
- * spread in "auto" mode. A single manga page is portrait (~0.7), so two side by
- * side (~1.4) only make sense once the window is at least roughly square.
- */
+// Aspect ratio (w/h) at/above which "auto" mode shows a two-page spread: a
+// portrait page (~0.7) only pairs sensibly once the window is roughly square.
 const LANDSCAPE_RATIO = 1.0;
 /** Gap between the two halves of a spread, in CSS px (0 = pages touch, like paper). */
 const SPREAD_GAP = 0;
@@ -52,21 +49,9 @@ function parseViewBox(value: string | null | undefined): Viewport | null {
 
 /**
  * Fixed-layout (manga / comic) viewer. Renders one spread at a time into its own
- * shadow root, scaling each page to fit. Navigation is by spread; the reported
- * position is the leading page's ordinal (orientation-independent, so it
- * survives switching between single- and two-page layouts).
- *
- * Imperative API (via ref): `jumpToOrdinal(n)`, `jumpToId(wrapperId)`,
- * `flip(dir)`, `refresh()`.
- *
- * @param {object} props
- * @param {string} props.html         flattened HTML, image refs already swapped for object URLs
- * @param {string} props.styleSheet   the book's own stylesheet
- * @param {object[]} props.pages       [{ idref, wrapperId, pageSpread, ordinal }]
- * @param {"ltr"|"rtl"} props.ppd
- * @param {{width:number,height:number}|null} props.bookViewport
- * @param {number} props.initialOrdinal
- * @param {(firstOrdinal:number, totalPages:number) => void} props.onChange
+ * shadow root, scaling each page to fit. The reported position is the leading
+ * page's ordinal — orientation-independent, so it survives switching between
+ * single- and two-page layouts. Imperative API via ref (see FixedLayoutHandle).
  */
 export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProps>(function FixedLayoutView(
   { html, styleSheet, pages, ppd, bookViewport, initialOrdinal, onChange },
@@ -112,7 +97,7 @@ export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProp
     onChange?.(first, pages.length);
   }, [onChange, pages.length]);
 
-  // Builds the DOM for the current view and scales each page to fit the stage.
+  // Build the current view's DOM and scale each page to fit the stage.
   const layout = useCallback(() => {
     const stage = stageRef.current;
     if (!stage) return;

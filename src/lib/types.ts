@@ -1,10 +1,7 @@
 /**
- * Shared data shapes that cross the main ↔ preload ↔ renderer boundary.
- *
- * These mirror the camelCase records the main process hands back (see
- * `src/main/services/library-store.js` rowToBook / rowToBookmark and the stats
- * aggregate queries). The main process is the source of truth; the renderer and
- * Zustand stores consume exactly these shapes.
+ * Shared data shapes crossing the main ↔ preload ↔ renderer boundary. Mirror the
+ * camelCase records the main process hands back (library-store.js rowToBook /
+ * rowToBookmark and the stats queries); main is the source of truth.
  */
 
 /** A library book as returned to the renderer (camelCase, cover inlined). */
@@ -129,10 +126,9 @@ export interface Stats {
 
 // --- Dictionary (Yomitan-format term dictionaries). -------------------------
 //
-// The hover dictionary stores imported Yomitan dictionaries in their own SQLite
-// database (userData/dictionary.db), separate from the library. Lookups run in
-// the main process: the renderer hands over the text run starting at the cursor
-// and gets back the matched headwords with their glosses.
+// Stored in their own SQLite db (userData/dictionary.db), separate from the
+// library. Lookups run in the main process: renderer sends the text run at the
+// cursor, gets back matched headwords with glosses.
 
 /** An imported dictionary, as listed in the management UI. */
 export interface DictionaryInfo {
@@ -143,11 +139,11 @@ export interface DictionaryInfo {
   enabled: boolean;
   priority: number; // lower = consulted first
   termCount: number;
-  /** Number of frequency ratings (term-meta "freq"). Non-zero for frequency dictionaries. */
+  /** Frequency ratings (term-meta "freq"); non-zero ⇒ frequency dictionary. */
   freqCount: number;
-  /** Number of pitch-accent entries (term-meta "pitch"). Non-zero for pitch dictionaries. */
+  /** Pitch-accent entries (term-meta "pitch"); non-zero ⇒ pitch dictionary. */
   pitchCount: number;
-  /** Number of kanji entries (kanji_bank). Non-zero for kanji dictionaries. */
+  /** Kanji entries (kanji_bank); non-zero ⇒ kanji dictionary. */
   kanjiCount: number;
 }
 

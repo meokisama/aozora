@@ -1,19 +1,16 @@
 /**
  * Text-under-cursor extraction for the hover dictionary.
  *
- * Given a viewport point (where the cursor is, with the lookup modifier held),
- * resolves the text node under it and reads the run of text that *starts* there
- * — forward only, furigana excluded, bounded to the cursor's block — so the main
- * process can scan it for the longest dictionary match. The returned source also
- * knows how to rebuild a live DOM Range over the matched prefix, which the popup
- * layer uses to highlight exactly the run the dictionary consumed.
+ * Given a viewport point, resolves the text node under it and reads the run that
+ * *starts* there — forward only, furigana excluded, bounded to the cursor's block
+ * — for the main process to scan for the longest dictionary match. The result can
+ * rebuild a live Range over the matched prefix for highlighting.
  *
  * Adapted from Yomitan's `dom-text-scanner.js` / `text-source-generator.js`
- * (GPL-3.0-or-later — see `yomitan/` and NOTICE.md). The full Yomitan scanner
- * normalizes whitespace, walks arbitrary layouts, and handles user-select:all;
- * here the content is our own flattened EPUB markup inside one shadow root, so
- * we lean on the same furigana-skipping node walk the search index uses
- * (`getParagraphNodes` + `blockAncestor`) and keep the scan deliberately small.
+ * (GPL-3.0-or-later — see `yomitan/` and NOTICE.md). Our content is flattened
+ * EPUB markup in one shadow root, so we reuse the search index's
+ * furigana-skipping walk (`getParagraphNodes` + `blockAncestor`) and keep the
+ * scan small rather than handling arbitrary layouts / user-select:all.
  */
 
 import { getParagraphNodes } from "@/lib/epub/dom-utils";
@@ -72,12 +69,7 @@ function buildRange(segments: Segment[], length: number): Range | null {
  *
  * Exported for unit testing: it needs no layout, unlike `cursorTextFromPoint`.
  */
-export function extractRunAt(
-  startNode: Text,
-  startOffset: number,
-  contentRoot: Element,
-  maxLength = MAX_SCAN_LENGTH,
-): CursorText | null {
+export function extractRunAt(startNode: Text, startOffset: number, contentRoot: Element, maxLength = MAX_SCAN_LENGTH): CursorText | null {
   const block = blockAncestor(startNode, contentRoot);
   const nodes = getParagraphNodes(block);
   const startIdx = nodes.indexOf(startNode);
@@ -109,9 +101,7 @@ export function extractRunAt(
  */
 function caretFromPoint(x: number, y: number, shadowRoot: ShadowRoot | null): { node: Node; offset: number } | null {
   if (typeof document.caretPositionFromPoint === "function") {
-    const pos = shadowRoot
-      ? document.caretPositionFromPoint(x, y, { shadowRoots: [shadowRoot] })
-      : document.caretPositionFromPoint(x, y);
+    const pos = shadowRoot ? document.caretPositionFromPoint(x, y, { shadowRoots: [shadowRoot] }) : document.caretPositionFromPoint(x, y);
     if (pos && pos.offsetNode) return { node: pos.offsetNode, offset: pos.offset };
   }
   if (typeof document.caretRangeFromPoint === "function") {
@@ -128,12 +118,7 @@ function caretFromPoint(x: number, y: number, shadowRoot: ShadowRoot | null): { 
  * block and locates the shadow root to descend into. Returns null when the point
  * isn't over readable text (furigana, whitespace, images, or outside the root).
  */
-export function cursorTextFromPoint(
-  x: number,
-  y: number,
-  contentRoot: Element,
-  maxLength = MAX_SCAN_LENGTH,
-): CursorText | null {
+export function cursorTextFromPoint(x: number, y: number, contentRoot: Element, maxLength = MAX_SCAN_LENGTH): CursorText | null {
   const rootNode = contentRoot.getRootNode();
   const shadowRoot = rootNode instanceof ShadowRoot ? rootNode : null;
   const caret = caretFromPoint(x, y, shadowRoot);

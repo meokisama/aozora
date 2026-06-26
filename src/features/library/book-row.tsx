@@ -13,9 +13,8 @@ const STATUS_VARIANT: Record<ReadingStatus, "outline" | "secondary" | "default">
 };
 
 /**
- * A single book as a list row: small cover, title/author, status, progress and
- * last-read time. Hovering reveals a "⋯" actions menu; right-clicking opens the
- * same actions as the grid card.
+ * A single book as a list row: cover, title/author, status, progress, last-read.
+ * Hovering reveals a "⋯" actions menu; right-clicking opens the same actions.
  */
 export function BookRow({ book, onOpen }: { book: Book; onOpen?: (book: Book) => void }) {
   const status = readingStatus(book);

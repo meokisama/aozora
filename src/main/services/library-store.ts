@@ -5,9 +5,9 @@ import Database from "better-sqlite3";
 import type { Book, Bookmark, ProgressUpdate, StatsOverview, DailyActivity, HourlyActivity, PerBookStats } from "@/lib/types";
 
 /**
- * SQLite-backed library store. Source of truth for book metadata and reading
- * progress. The parsed EPUB content itself is NOT stored here — that lives in
- * the renderer's IndexedDB cache and is re-derivable from the original file.
+ * SQLite-backed library store: source of truth for book metadata and reading
+ * progress. Parsed EPUB content is NOT stored here — it lives in the renderer's
+ * IndexedDB cache, re-derivable from the original file.
  *
  * On-disk layout (under Electron userData):
  *   userData/aozora.db                  the SQLite database
@@ -57,10 +57,9 @@ function getDb(): Database.Database {
     );
     CREATE INDEX IF NOT EXISTS idx_bookmarks_book ON bookmarks(book_id);
 
-    -- One row per reading session (a continuous stretch of active reading).
-    -- This is the time-series backing the reading-stats page; the books table
-    -- only keeps the latest position, not history. book_id is SET NULL (not
-    -- cascade) on book removal so totals/streaks survive a deleted book.
+    -- One row per reading session; the time-series behind the stats page (books
+    -- keeps only the latest position). book_id is SET NULL (not cascade) on book
+    -- removal so totals/streaks survive a deleted book.
     CREATE TABLE IF NOT EXISTS reading_sessions (
       id          TEXT PRIMARY KEY,
       book_id     TEXT REFERENCES books(id) ON DELETE SET NULL,

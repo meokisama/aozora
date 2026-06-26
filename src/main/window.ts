@@ -1,8 +1,8 @@
 import { ipcMain, BrowserWindow, shell } from "electron";
 
 /**
- * IPC handlers for the custom title bar's window controls.
- * The window is resolved from the sender so it always targets the right one.
+ * IPC for the custom title bar's window controls. The window is resolved from
+ * the sender so it always targets the right one.
  */
 export const registerWindowIpc = (): void => {
   ipcMain.on("window:minimize", (event) => {
@@ -27,8 +27,7 @@ export const registerWindowIpc = (): void => {
     return BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false;
   });
 
-  // Open a URL in the user's default browser. Restricted to http(s) so a
-  // renderer can never coax the main process into launching other protocols.
+  // Restricted to http(s) so the renderer can't launch other protocols.
   ipcMain.handle("window:open-external", (_event, url) => {
     if (typeof url === "string" && /^https?:\/\//i.test(url)) {
       return shell.openExternal(url);

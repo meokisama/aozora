@@ -16,11 +16,7 @@ function section(html: string) {
 
 function makeController({ vertical = false } = {}) {
   // counts: 3, 2, 4  ->  cumulative 3, 5, 9
-  const sections = [
-    section("<p>あいう</p>"),
-    section("<p>えお</p>"),
-    section("<p>かきくけ</p>"),
-  ];
+  const sections = [section("<p>あいう</p>"), section("<p>えお</p>"), section("<p>かきくけ</p>")];
   return new PaginatedController({
     scrollEl: document.createElement("div"),
     contentEl: document.createElement("div"),

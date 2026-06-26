@@ -1,12 +1,7 @@
 /**
- * Pure helpers for the reading-stats page. The main process does the SQL
- * grouping (per-day / per-hour / per-book sums); everything here is
- * layout-independent derivation over those arrays — streaks, the GitHub-style
- * heatmap grid, intensity bucketing and display formatting — so it is all
- * unit-tested (see test/lib/stats/aggregate.test.js).
- *
- * Days are local-calendar keys in 'YYYY-MM-DD' form, matching what SQLite's
- * date(..., 'localtime') returns.
+ * Pure derivation over the main process's per-day/-hour/-book SQL sums:
+ * streaks, the GitHub-style heatmap grid, intensity bucketing and formatting.
+ * Day keys are local-calendar 'YYYY-MM-DD', matching SQLite date(…,'localtime').
  */
 
 export interface DayValue {
@@ -71,15 +66,11 @@ export function computeStreaks(activeDays: Iterable<string>, todayKey: string): 
 }
 
 /**
- * Builds the GitHub-style calendar grid for a year: an array of week columns,
- * each a 7-element array indexed by weekday (0 = Sunday … 6 = Saturday). Cells
- * outside the year (leading/trailing pad) are `null`; in-year cells carry the
- * day key merged with that day's values from `valueByDay` (or zeros).
+ * GitHub-style calendar grid: week columns, each 7 cells indexed by weekday
+ * (0 = Sunday … 6 = Saturday). Out-of-year pad cells are `null`; in-year cells
+ * carry the day key merged with `valueByDay` (or zeros).
  */
-export function buildHeatmapWeeks(
-  year: number,
-  valueByDay: Map<string, DayValue> | Record<string, DayValue>,
-): (HeatmapCell | null)[][] {
+export function buildHeatmapWeeks(year: number, valueByDay: Map<string, DayValue> | Record<string, DayValue>): (HeatmapCell | null)[][] {
   const map = valueByDay instanceof Map ? valueByDay : new Map(Object.entries(valueByDay || {}));
   const weeks: (HeatmapCell | null)[][] = [];
   // Back up to the Sunday on/before Jan 1 so column 0 starts on a Sunday.

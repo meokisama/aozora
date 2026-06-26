@@ -3,16 +3,11 @@
  * honouring each page's `page-spread` side and the book's page-progression
  * direction. Ported from bibi's spine-walking logic (bibi.heart.js).
  *
- * Page-progression direction decides which side opens a pair:
- *   - rtl (Japanese manga): a `right` page opens, the following `left` page
- *     closes the pair → they share one spread (read right-to-left).
- *   - ltr: a `left` page opens, the following `right` page closes it.
- *
- * Two adjacent pages pair only when both are fixed-layout (pre-paginated), the
- * first is the "opening" side and is still alone in its spread; everything else
- * (cover, `center`, lone openers/closers, odd pages, reflowable text pages in a
- * mixed book) stays a single-page spread. The single-page `pageSpread` is kept
- * so the viewer can align it (a lone `left` sits where the left half would be).
+ * Direction decides which side opens a pair: rtl (manga) → a `right` page opens
+ * and the following `left` closes it (read right-to-left); ltr is mirrored. Two
+ * pages pair only when both are fixed-layout and the first is an opener still
+ * alone in its spread; everything else stays a single-page spread, keeping its
+ * `pageSpread` so the viewer can align it (a lone `left` sits at the left half).
  */
 
 export interface SpreadPage {

@@ -1,9 +1,8 @@
 import type { DictionaryTag } from "@/lib/types";
 
 /**
- * Renders resolved dictionary tags (part-of-speech, frequency, kanji grade, …)
- * as small badges, coloured by tag-bank category and carrying the tag's note as
- * a tooltip. Used for both term definition tags and kanji classification tags.
+ * Renders dictionary tags (part-of-speech, frequency, kanji grade, …) as badges
+ * coloured by tag-bank category, with the tag's note as a tooltip.
  */
 
 // A subset of Yomitan tag-bank categories mapped to a badge colour. Anything

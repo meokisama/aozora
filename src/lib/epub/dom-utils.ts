@@ -1,7 +1,5 @@
-/**
- * DOM helpers for character counting (used to weight chapters for the
- * reading-position model) and for cleaning up image references.
- */
+/** DOM helpers for character counting (weights chapters for the reading-position
+ *  model) and for cleaning up image references. */
 
 export function isElementGaiji(el: Element): boolean {
   return Array.from(el.classList).some((c) => c.includes("gaiji"));
@@ -15,9 +13,8 @@ export function isNodeGaiji(node: Node): node is HTMLImageElement {
 // Japanese codepoints (kana, kanji, fullwidth alnum, iteration marks).
 const isNotJapaneseRegex = /[^0-9A-Z○◯々-〇〻ぁ-ゖゝ-ゞァ-ヺー０-９Ａ-Ｚｦ-ﾝ\p{Radical}\p{Unified_Ideograph}]+/gimu;
 
-/** Counts the Japanese codepoints in a string, matching the reading-position
- *  model (so a character offset derived from a substring lines up with the
- *  offsets the reader navigates by). */
+/** Counts Japanese codepoints, matching the reading-position model so a substring
+ *  offset lines up with the offsets the reader navigates by. */
 export function countJapanese(str: string | null | undefined): number {
   if (!str) return 0;
   return Array.from(str.replace(isNotJapaneseRegex, "")).length;
@@ -56,10 +53,7 @@ export function countCharacters(containerEl: Node): number {
   return getParagraphNodes(containerEl).reduce((sum, node) => sum + getCharacterCount(node), 0);
 }
 
-/**
- * Drops image references that weren't packed into the book (bad input file /
- * unexpected extension) so they don't render as broken images.
- */
+/** Drops image references not packed into the book so they don't render broken. */
 export function clearAllBadImageRef(el: Element): void {
   const clear = (tag: Element, attr: string) => {
     const value = tag.getAttribute(attr);

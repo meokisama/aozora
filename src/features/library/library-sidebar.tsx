@@ -51,11 +51,9 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * The app's left rail: brand, status navigation, a Statistics link and an
- * author browser (derived from the books themselves — no stored taxonomy).
- * Self-contained — it reads the library from its store and owns navigation /
- * filter state via the UI store, so both the library and stats pages can render
- * it unchanged.
+ * The app's left rail: brand, status nav, links, and an author browser derived
+ * from the books (no stored taxonomy). Reads the library and owns nav/filter
+ * state via the stores, so every page can render it unchanged.
  */
 export function LibrarySidebar() {
   const books = useLibraryStore((s) => s.books);
@@ -68,7 +66,7 @@ export function LibrarySidebar() {
 
   const inLibrary = view === "library";
 
-  // Status counts for the nav labels (over the whole library). Derived with
+  // Status counts for the nav labels, over the whole library. Derived with
   // useMemo (never returned straight from a store selector).
   const counts = useMemo(() => {
     const c = { all: books.length, favorites: 0, reading: 0, finished: 0, unread: 0 };
@@ -130,8 +128,8 @@ export function LibrarySidebar() {
                 count={a.count}
                 active={inLibrary && authorFilter === a.name}
                 onClick={() => {
-                  // Picking an author shows all of their works — clear any
-                  // reading/unread status filter so it isn't applied on top.
+                  // Picking an author shows all their works — clear the status
+                  // filter so it isn't applied on top.
                   setView("library");
                   setStatusFilter("all");
                   setAuthorFilter(authorFilter === a.name ? null : a.name);

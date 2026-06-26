@@ -2,19 +2,13 @@ import { createElement, Fragment, useEffect, useState, type CSSProperties, type 
 import type { GlossContent, GlossElement, GlossStyle } from "@/lib/types";
 
 /**
- * Renders one Yomitan glossary item as React nodes, preserving its structure.
+ * Renders one Yomitan glossary item (a JSON tree of an HTML subset) as React
+ * nodes, preserving structure. Port of Yomitan's `StructuredContentGenerator`
+ * (references/yomitan/ext/js/display/structured-content-generator.js).
  *
- * This is a port of Yomitan's `StructuredContentGenerator`
- * (references/yomitan/ext/js/display/structured-content-generator.js): glossary
- * items are a small subset of HTML expressed as a JSON tree, and Yomitan builds
- * real DOM from them — lists, tables, ruby, line breaks, inline styles. Aozora
- * previously flattened the tree to a single string, which mashed senses together
- * and dropped all structure; this renders it faithfully instead.
- *
- * Differences from Yomitan: images (`img`) are loaded lazily as data URLs from
- * the dictionary's stored media (Aozora keeps it simpler than Yomitan's canvas/
- * OffscreenCanvas pipeline). Links (`a`) render as inert text (there is no
- * in-popup dictionary navigation to follow).
+ * Differences: `img` loads lazily as a data URL from the dictionary's stored
+ * media (no canvas/OffscreenCanvas pipeline); `a` renders as inert text (no
+ * in-popup navigation).
  */
 
 // Structured-content element tags Yomitan emits that map 1:1 to HTML elements we

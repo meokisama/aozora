@@ -1,8 +1,7 @@
 /*
- * Pitch-accent helpers ported from Yomitan (references/yomitan/ext/js/language/
- * ja/japanese.js — getKanaMorae / isMoraPitchHigh / getDownstepPositions).
- * Layout-independent so the pitch graph can be derived (and unit-tested) without
- * a DOM. Copyright (C) Yomitan Authors, GPL-3.0-or-later.
+ * Pitch-accent helpers ported from Yomitan (ja/japanese.js). Layout-independent
+ * (no DOM) so the pitch graph can be derived and unit-tested.
+ * Copyright (C) Yomitan Authors, GPL-3.0-or-later.
  */
 
 // Small kana attach to the preceding mora (e.g. きょ is one mora, not two).

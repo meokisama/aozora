@@ -2,11 +2,9 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 /**
- * Library view preferences (sort order + grid/list layout). These are non-
- * critical UI prefs, so — like the reader settings — they persist in the
- * renderer via Zustand's persist middleware (localStorage) rather than going
- * through the main process. Search text and the status tab are ephemeral and
- * stay as local component state in the library view.
+ * Library view prefs (sort + grid/list layout), persisted in the renderer via
+ * Zustand persist, not the main process. Search text and the status tab are
+ * ephemeral local component state in the library view.
  */
 
 export type SortKey = "lastOpened" | "added" | "title" | "author" | "progress";

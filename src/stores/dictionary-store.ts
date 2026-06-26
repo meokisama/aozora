@@ -2,14 +2,9 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 /**
- * Renderer-side preferences for the hover dictionary. The dictionaries
- * themselves and the lookup engine live in the main process (see
- * `src/main/services/dictionary-store.ts`); this store only holds the reader's
- * lookup behaviour, persisted like the other reader settings.
- *
- * The locked decision is "hover + hold a modifier" (not click-to-look-up), so a
- * lookup fires while the pointer is over text *and* the chosen modifier key is
- * held. "none" means hover alone triggers it.
+ * Persisted renderer prefs for the hover dictionary; dictionaries and the lookup
+ * engine live in the main process (src/main/services/dictionary-store.ts).
+ * Lookup model is "hover + hold a modifier"; "none" means hover alone triggers it.
  */
 
 export type LookupModifier = "shift" | "alt" | "ctrl" | "none";

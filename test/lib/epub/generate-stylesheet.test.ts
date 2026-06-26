@@ -3,12 +3,8 @@ import { xmlParser } from "@/lib/epub/opf";
 import { generateStyleSheet } from "@/lib/epub/generate-stylesheet";
 
 function opfWithCss(hrefs: string[]) {
-  const items = hrefs
-    .map((h: string, i: number) => `<item id="c${i}" href="${h}" media-type="text/css"/>`)
-    .join("");
-  return xmlParser.parse(
-    `<package><manifest>${items}<item id="x" href="ch1.xhtml" media-type="application/xhtml+xml"/></manifest></package>`,
-  );
+  const items = hrefs.map((h: string, i: number) => `<item id="c${i}" href="${h}" media-type="text/css"/>`).join("");
+  return xmlParser.parse(`<package><manifest>${items}<item id="x" href="ch1.xhtml" media-type="application/xhtml+xml"/></manifest></package>`);
 }
 
 describe("generateStyleSheet", () => {

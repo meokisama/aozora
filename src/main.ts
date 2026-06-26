@@ -7,11 +7,10 @@ import { registerLibraryIpc } from "./main/library.js";
 import { registerStatsIpc } from "./main/stats.js";
 import { registerDictionaryIpc } from "./main/dictionary.js";
 
-// Handle creating/removing shortcuts on Windows when installing/uninstalling.
+// Quit early during Squirrel.Windows install/uninstall (shortcut creation/removal).
 if (started) {
   app.quit();
 }
-// Auto update
 updateElectronApp();
 
 Menu.setApplicationMenu(null);
@@ -35,7 +34,6 @@ const createWindow = () => {
     mainWindow.webContents.send("window:maximized-changed", false);
   });
 
-  // and load the index.html of the app.
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
     mainWindow.webContents.openDevTools();
@@ -44,8 +42,7 @@ const createWindow = () => {
   }
 };
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
+// Register IPC handlers before the first window can invoke them.
 app.whenReady().then(() => {
   registerWindowIpc();
   registerLibraryIpc();
@@ -53,8 +50,7 @@ app.whenReady().then(() => {
   registerDictionaryIpc();
   createWindow();
 
-  // On OS X it's common to re-create a window in the app when the
-  // dock icon is clicked and there are no other windows open.
+  // macOS: re-create a window when the dock icon is clicked with none open.
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();

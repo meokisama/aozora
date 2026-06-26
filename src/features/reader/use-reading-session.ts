@@ -9,33 +9,18 @@ import {
 } from "@/lib/stats/session-tracker";
 
 /**
- * The reader's three layout modes feed position differently, so character
- * accounting branches on this: `continuous` is sampled per tick by `advance`,
- * `paginated` is credited per flip by `advancePaginated`, and `fixed` (manga)
- * records time only (positions are page ordinals, not characters).
+ * How character accounting branches per layout mode: `continuous` is sampled per
+ * tick by `advance`, `paginated` is credited per flip by `advancePaginated`, and
+ * `fixed` (manga) records time only (positions are page ordinals).
  */
 export type SessionMode = "continuous" | "paginated" | "fixed";
 
 /**
- * Tracks reading sessions for the stats page. The position/character accounting
- * is SAMPLED on a fixed 1-second tick (rather than accumulated on every scroll/
- * flip event) and fed to the reading-vs-scrolling state machine in
- * lib/stats/session-tracker — see that file for the character-crediting rules
- * (READ_CAP, scroll detection, dwell-to-resume). This hook owns the parts that
- * need the DOM/timers:
- *
- *   - time: each tick adds the elapsed second, but only while the reader is
- *     active — the window is visible and there has been input within IDLE_MS.
- *     Idle / hidden time is not counted (and the char accumulator is not
- *     advanced on those ticks either, so its baseline resumes cleanly).
- *   - characters: how they're credited depends on the mode (see SessionMode) —
- *     `continuous` hands the latest position to `advance()` each active tick;
- *     `paginated` credits a finished page's span on the flip via
- *     `advancePaginated()`, gated on having dwelled on it long enough; `fixed`
- *     records no characters at all.
- *
- * The reader feeds the latest position via `mark(pos, mode)`; the tick does the
- * time accounting (and, for continuous, the character sampling).
+ * Tracks reading sessions for the stats page. Time is accrued on a 1-second tick
+ * and only while active (window visible + input within IDLE_MS); idle/hidden
+ * ticks count no time and don't advance the char baseline, so it resumes
+ * cleanly. Character crediting per mode: see SessionMode. The reading-vs-
+ * scrolling state machine and crediting rules live in lib/stats/session-tracker.
  */
 
 interface Session {
@@ -93,8 +78,7 @@ export function useReadingSession(bookId?: string | null) {
   };
 
   // Characters read come from whichever accumulator the mode uses.
-  const charsReadOf = (s: Session) =>
-    s.mode === "paginated" ? s.pacc.charsAccum : s.mode === "continuous" ? s.acc.charsAccum : 0;
+  const charsReadOf = (s: Session) => (s.mode === "paginated" ? s.pacc.charsAccum : s.mode === "continuous" ? s.acc.charsAccum : 0);
 
   const flush = useCallback(() => {
     const s = ref.current;

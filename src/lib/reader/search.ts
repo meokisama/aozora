@@ -1,21 +1,17 @@
 /**
  * In-book full-text search.
  *
- * The reader has no separate text store: the flattened book HTML (produced once
- * by `parseBook`, cached in IndexedDB) is the only source of text. We walk it the
- * same way the reading-position model does (`getParagraphNodes` +
- * `getCharacterCount`), grouping text into block-level units ("paragraphs") and
- * recording the cumulative Japanese-character offset before each block. That
- * offset is the exact same `exploredCharCount` the reader navigates by, so a
- * search hit's `charOffset` can be handed straight to `jumpToChar` /
- * `restoreToChar` in either reading mode.
+ * No separate text store: the flattened book HTML (cached in IndexedDB) is the
+ * only text source. We walk it like the reading-position model
+ * (`getParagraphNodes` + `getCharacterCount`), grouping into block units and
+ * recording each block's cumulative char offset — the same `exploredCharCount`
+ * the reader navigates by, so a hit's `charOffset` feeds `jumpToChar` /
+ * `restoreToChar` directly in either mode.
  *
- * Matching is normalized (full-width↔half-width folding, lower-casing,
- * whitespace unified) but length-preserving — every transform is 1:1 — so an
- * index into the normalized string is also a valid index into the raw text. That
- * keeps snippet extraction and highlight ranges aligned with the original
- * characters. Ruby readings (`<rt>`) are excluded by `getParagraphNodes`, so a
- * query matches the base text across furigana.
+ * Matching normalization is length-preserving (every transform is 1:1), so a
+ * normalized-string index is also a valid raw-text index — keeping snippets and
+ * highlight ranges aligned. `<rt>` readings are excluded by `getParagraphNodes`,
+ * so queries match base text across furigana.
  */
 
 import { getParagraphNodes, getCharacterCount, isNodeGaiji, countJapanese } from "@/lib/epub/dom-utils";
@@ -47,9 +43,35 @@ export interface SearchResult {
 // Inline tags that don't break a paragraph: text on either side belongs to the
 // same searchable block (so a query spanning e.g. a ruby base still matches).
 const INLINE_TAGS = new Set([
-  "RUBY", "RT", "RP", "RB", "SPAN", "A", "EM", "STRONG", "B", "I", "U", "S",
-  "SUP", "SUB", "SMALL", "MARK", "CODE", "WBR", "BR", "FONT", "Q", "CITE",
-  "ABBR", "BDI", "BDO", "TIME", "VAR", "KBD", "SAMP",
+  "RUBY",
+  "RT",
+  "RP",
+  "RB",
+  "SPAN",
+  "A",
+  "EM",
+  "STRONG",
+  "B",
+  "I",
+  "U",
+  "S",
+  "SUP",
+  "SUB",
+  "SMALL",
+  "MARK",
+  "CODE",
+  "WBR",
+  "BR",
+  "FONT",
+  "Q",
+  "CITE",
+  "ABBR",
+  "BDI",
+  "BDO",
+  "TIME",
+  "VAR",
+  "KBD",
+  "SAMP",
 ]);
 
 /** The nearest non-inline ancestor of a node (its "paragraph"), bounded by root. */

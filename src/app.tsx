@@ -14,8 +14,8 @@ export function App() {
   const view = useUiStore((s) => s.view);
   const theme = useSettingsStore((s) => s.theme);
 
-  // Drive the whole-app colour scheme from the selected theme: toggling the
-  // `.dark` class on the document root swaps the Tailwind palette in index.css.
+  // Toggle the `.dark` class on the document root to swap the Tailwind palette
+  // in index.css per the selected theme.
   useEffect(() => {
     const isDark = (THEMES[theme] || THEMES.sepia).dark;
     document.documentElement.classList.toggle("dark", isDark);
@@ -37,15 +37,7 @@ export function App() {
     <div className="flex h-screen flex-col">
       <TitleBar />
       <main className="flex-1 overflow-hidden">
-        {reading ? (
-          <ReaderView />
-        ) : view === "stats" ? (
-          <StatsView />
-        ) : view === "dictionaries" ? (
-          <DictionariesView />
-        ) : (
-          <LibraryView />
-        )}
+        {reading ? <ReaderView /> : view === "stats" ? <StatsView /> : view === "dictionaries" ? <DictionariesView /> : <LibraryView />}
       </main>
       <Toaster />
     </div>
