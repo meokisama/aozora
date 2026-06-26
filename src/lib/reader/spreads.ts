@@ -20,6 +20,11 @@ export interface SpreadPage {
   prePaginated?: boolean;
   linear?: boolean;
   idref?: string;
+  // Loose index signature so callers can pass their own page shapes
+  // (FixedLayoutPage, SpinePageSpread) without restructuring; `any` (not
+  // `unknown`) is required here — an `unknown` index makes the type a strict
+  // supertype that those interfaces no longer structurally satisfy.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any;
 }
 

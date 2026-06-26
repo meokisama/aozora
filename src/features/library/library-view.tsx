@@ -25,8 +25,7 @@ const STATUS_TABS = [
 /**
  * Normalizes a string for search matching: NFKC-folds half/full-width forms
  * (so 半角ｶﾅ ↔ 全角カナ and ＡＢＣ ↔ ABC match) and strips ALL whitespace,
- * including the full-width ideographic space U+3000 — JS `\s` covers it. This
- * makes "かずきふみ" and "かずき　ふみ" compare equal. Returns lowercase.
+ * including the full-width ideographic space U+3000 — JS `\s` covers it.
  */
 function normalizeSearch(str: string | null | undefined) {
   return (str ?? "").normalize("NFKC").replace(/\s+/g, "").toLowerCase();
@@ -181,7 +180,6 @@ export function LibraryView() {
     }
   };
 
-  // "Importing 3/10…" when batch-importing, plain "Importing…" for a single file.
   const importLabel = importing
     ? importProgress && importProgress.total > 1
       ? `Importing ${importProgress.current}/${importProgress.total}…`
@@ -294,11 +292,6 @@ export function LibraryView() {
             {continueReading.length > 0 && (
               <section>
                 <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Continue reading</h2>
-                {/* Horizontal strip (no wrap): fixed-width cards scroll sideways.
-                    overflow-x-auto forces overflow-y to auto too, which would clip
-                    a card's hover-lift/shadow. -my-3/py-3 carves out room for it
-                    while the negative margin cancels the gap, so the strip lines up
-                    with the grid below exactly as if it had no padding. */}
                 <div className="flex gap-5 overflow-x-auto -my-3 py-3">
                   {continueReading.map((book) => (
                     <div key={book.id} className="w-35 shrink-0">

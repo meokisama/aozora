@@ -63,18 +63,18 @@ export async function extractEpubMetadata(blob: Blob): Promise<EpubMetadata> {
     const fileMap = new Map(entries.map((e) => [e.filename, e]));
 
     const containerEntry = fileMap.get("META-INF/container.xml");
-    if (!containerEntry) throw new Error("Invalid EPUB: missing container.xml");
+    if (!containerEntry || containerEntry.directory) throw new Error("Invalid EPUB: missing container.xml");
 
-    const containerXml = await (containerEntry as any).getData(new TextWriter());
+    const containerXml = await containerEntry.getData(new TextWriter());
     const container = xmlParser.parse(containerXml);
     const rootFiles = container.container.rootfiles.rootfile;
     const rootFile = Array.isArray(rootFiles) ? rootFiles[0] : rootFiles;
     const opfPath = rootFile["@_full-path"];
 
     const opfEntry = fileMap.get(opfPath);
-    if (!opfEntry) throw new Error(`Invalid EPUB: missing OPF at ${opfPath}`);
+    if (!opfEntry || opfEntry.directory) throw new Error(`Invalid EPUB: missing OPF at ${opfPath}`);
 
-    const contents = xmlParser.parse(await (opfEntry as any).getData(new TextWriter()));
+    const contents = xmlParser.parse(await opfEntry.getData(new TextWriter()));
     const manifestItems = getManifestItems(contents);
     const spineRefs = getSpineItemRefs(contents);
     const metadata = getMetadata(contents);
@@ -93,8 +93,8 @@ export async function extractEpubMetadata(blob: Blob): Promise<EpubMetadata> {
       const coverEntry = fileMap.get(coverPath) || fileMap.get(coverHref);
       const coverItem = manifestItems.find((it) => it["@_href"] === coverHref);
       coverMime = coverItem?.["@_media-type"] || "image/jpeg";
-      if (coverEntry) {
-        const coverBlob = await (coverEntry as any).getData(new BlobWriter(coverMime ?? undefined));
+      if (coverEntry && !coverEntry.directory) {
+        const coverBlob = await coverEntry.getData<Blob>(new BlobWriter(coverMime ?? undefined));
         coverBytes = await coverBlob.arrayBuffer();
       }
     }

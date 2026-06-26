@@ -11,8 +11,10 @@ import { XMLParser } from "fast-xml-parser";
  * text (`#text`) keys. We don't model the full OPF schema — a loose record is
  * the pragmatic shape for these accessors.
  */
+/* eslint-disable @typescript-eslint/no-explicit-any -- fast-xml-parser nodes are dynamically keyed; `any` keeps `node["@_…"]` accessors ergonomic across callers. */
 export type XmlNode = Record<string, any>;
 export type OpfContents = Record<string, any>;
+/* eslint-enable @typescript-eslint/no-explicit-any */
 export type PageSpread = "left" | "right" | "center";
 export type ItemLayout = "pre-paginated" | "reflowable";
 
@@ -168,17 +170,18 @@ export function getSpinePageSpreads(contents: OpfContents): SpinePageSpread[] {
   }));
 }
 
-export function asArray<T = any>(value: T | T[] | null | undefined): T[] {
+export function asArray<T = unknown>(value: T | T[] | null | undefined): T[] {
   if (value === undefined || value === null) return [];
   return Array.isArray(value) ? value : [value];
 }
 
 /** dc:* fields may be a string, an object with `#text`, or an array of either. */
 export function firstText(value: unknown): string {
-  for (const entry of asArray(value as any)) {
+  for (const entry of asArray(value)) {
     if (typeof entry === "string" && entry.trim()) return entry.trim();
-    if (entry && typeof entry === "object" && entry["#text"]) {
-      return String(entry["#text"]).trim();
+    if (entry && typeof entry === "object") {
+      const text = (entry as Record<string, unknown>)["#text"];
+      if (text) return String(text).trim();
     }
   }
   return "";

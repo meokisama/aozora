@@ -213,7 +213,6 @@ export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProp
       stageRef.current = null;
     };
     // initialOrdinal is the entry position; later moves go through the ref API.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [html, styleSheet, pages]);
 
   // Re-layout when the spread mode toggles (single↔double↔auto).

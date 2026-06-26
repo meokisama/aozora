@@ -61,7 +61,7 @@ const selfClosingContentTags = [
 export function generateHtml(
   data: Record<string, string | Blob>,
   contents: OpfContents,
-  contentsDirectory: string,
+  _contentsDirectory: string,
 ): GeneratedHtml {
   const manifestItems = getManifestItems(contents);
   const fallbackData = new Map<string, string>();
@@ -99,7 +99,6 @@ export function generateHtml(
   const result = document.createElement("div");
 
   let mainChapters: Section[] = [];
-  let firstChapterMatchIndex = -1;
   const selfClosingContentTagsToFix = [...selfClosingContentTags, "a"];
 
   // --- Table of contents → main chapters ---------------------------------
@@ -130,7 +129,7 @@ export function generateHtml(
   }
 
   if (mainChapters.length) {
-    firstChapterMatchIndex = itemRefs.findIndex((ref) => mainChapters[0].reference.includes(itemIdToHtmlRef[ref["@_idref"].split("/").pop() || ""]));
+    const firstChapterMatchIndex = itemRefs.findIndex((ref) => mainChapters[0].reference.includes(itemIdToHtmlRef[ref["@_idref"].split("/").pop() || ""]));
     if (firstChapterMatchIndex !== 0) {
       const firstRef = itemRefs[0]["@_idref"];
       const firstHTMLRef = itemIdToHtmlRef[firstRef];

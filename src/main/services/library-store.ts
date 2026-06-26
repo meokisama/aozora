@@ -75,8 +75,37 @@ function getDb(): Database.Database {
   return db;
 }
 
+/** Raw DB rows (snake_case columns) as returned by better-sqlite3. */
+interface BookRow {
+  id: string;
+  title: string;
+  author: string | null;
+  language: string | null;
+  file_path: string;
+  cover_path: string | null;
+  file_size: number | null;
+  added_at: number;
+  last_opened_at: number | null;
+  progress: number;
+  explored_char_count: number;
+  char_count: number;
+  favorite: number;
+}
+
+interface BookmarkRow {
+  id: string;
+  book_id: string;
+  char_offset: number;
+  progress: number;
+  snippet: string | null;
+  created_at: number;
+}
+
+/** Named-parameter bag for prepared statements. */
+type SqlParams = Record<string, string | number | null>;
+
 /** Maps a DB row (snake_case) to the camelCase shape the renderer consumes. */
-function rowToBook(row: any): Book | null {
+function rowToBook(row: BookRow | undefined): Book | null {
   if (!row) return null;
   return {
     id: row.id,
@@ -96,7 +125,7 @@ function rowToBook(row: any): Book | null {
 }
 
 /** Maps a bookmark DB row to the camelCase shape the renderer consumes. */
-function rowToBookmark(row: any): Bookmark | null {
+function rowToBookmark(row: BookmarkRow | undefined): Bookmark | null {
   if (!row) return null;
   return {
     id: row.id,
@@ -141,12 +170,12 @@ export const libraryStore = {
   getBooksDir,
 
   listBooks(): Book[] {
-    const rows = getDb().prepare("SELECT * FROM books ORDER BY added_at DESC").all();
+    const rows = getDb().prepare("SELECT * FROM books ORDER BY added_at DESC").all() as BookRow[];
     return rows.map(rowToBook) as Book[];
   },
 
   getBook(id: string): Book | null {
-    const row = getDb().prepare("SELECT * FROM books WHERE id = ?").get(id);
+    const row = getDb().prepare("SELECT * FROM books WHERE id = ?").get(id) as BookRow | undefined;
     return rowToBook(row);
   },
 
@@ -178,7 +207,7 @@ export const libraryStore = {
   /** Updates editable book metadata; only the provided fields are written. */
   updateBook(id: string, { title, author, coverPath }: { title?: string; author?: string | null; coverPath?: string }): Book | null {
     const sets: string[] = [];
-    const params: Record<string, any> = { id };
+    const params: SqlParams = { id };
     if (title !== undefined) {
       sets.push("title = @title");
       params.title = title;
@@ -201,7 +230,7 @@ export const libraryStore = {
   /** Updates reading progress; only the provided fields are written. */
   updateProgress(id: string, { progress, exploredCharCount, charCount, lastOpenedAt }: ProgressUpdate): Book | null {
     const sets: string[] = [];
-    const params: Record<string, any> = { id };
+    const params: SqlParams = { id };
     if (progress !== undefined) {
       sets.push("progress = @progress");
       params.progress = progress;
@@ -236,12 +265,12 @@ export const libraryStore = {
   // --- Bookmarks (per book, ordered by reading position). ------------------
 
   listBookmarks(bookId: string): Bookmark[] {
-    const rows = getDb().prepare("SELECT * FROM bookmarks WHERE book_id = ? ORDER BY char_offset ASC, created_at ASC").all(bookId);
+    const rows = getDb().prepare("SELECT * FROM bookmarks WHERE book_id = ? ORDER BY char_offset ASC, created_at ASC").all(bookId) as BookmarkRow[];
     return rows.map(rowToBookmark) as Bookmark[];
   },
 
   getBookmark(id: string): Bookmark | null {
-    return rowToBookmark(getDb().prepare("SELECT * FROM bookmarks WHERE id = ?").get(id));
+    return rowToBookmark(getDb().prepare("SELECT * FROM bookmarks WHERE id = ?").get(id) as BookmarkRow | undefined);
   },
 
   addBookmark({ id, bookId, charOffset, progress, snippet, createdAt }: AddBookmarkInput): Bookmark | null {

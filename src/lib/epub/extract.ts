@@ -23,15 +23,15 @@ export async function extractEpub(blob: Blob): Promise<ExtractedEpub> {
     const fileMap = new Map(entries.map((e) => [e.filename, e]));
 
     const containerEntry = fileMap.get("META-INF/container.xml");
-    if (!containerEntry) throw new Error("Invalid EPUB: missing container.xml");
-    const container = xmlParser.parse(await (containerEntry as any).getData(new TextWriter()));
+    if (!containerEntry || containerEntry.directory) throw new Error("Invalid EPUB: missing container.xml");
+    const container = xmlParser.parse(await containerEntry.getData(new TextWriter()));
     const rootFiles = container.container.rootfiles.rootfile;
     const rootFile = Array.isArray(rootFiles) ? rootFiles[0] : rootFiles;
     const opfPath = rootFile["@_full-path"];
 
     const opfEntry = fileMap.get(opfPath);
-    if (!opfEntry) throw new Error(`Invalid EPUB: missing OPF at ${opfPath}`);
-    const opfXml = await (opfEntry as any).getData(new TextWriter());
+    if (!opfEntry || opfEntry.directory) throw new Error(`Invalid EPUB: missing OPF at ${opfPath}`);
+    const opfXml = await opfEntry.getData(new TextWriter());
     const contents = xmlParser.parse(opfXml);
 
     const contentsDirectory = path.dirname(opfPath);
@@ -41,11 +41,10 @@ export async function extractEpub(blob: Blob): Promise<ExtractedEpub> {
       getManifestItems(contents).map(async (item) => {
         const href = item["@_href"];
         const entry = fileMap.get(path.join(contentsDirectory, href)) || fileMap.get(href);
-        if (!entry || entry.directory || !(entry as any).getData) return;
+        if (!entry || entry.directory) return;
 
         const mediaType = item["@_media-type"] || "";
-        const getData = (entry as any).getData.bind(entry);
-        result[href] = mediaType.startsWith("image/") ? await getData(new BlobWriter(mediaType)) : await getData(new TextWriter());
+        result[href] = mediaType.startsWith("image/") ? await entry.getData<Blob>(new BlobWriter(mediaType)) : await entry.getData(new TextWriter());
       }),
     );
 

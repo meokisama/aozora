@@ -142,15 +142,17 @@ export function ReaderView() {
   const [nameInput, setNameInput] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<{ results: SearchResult[]; total: number; capped: boolean }>({ results: [], total: 0, capped: false });
+  const [searchResults, setSearchResults] = useState<{ results: SearchResult[]; total: number; capped: boolean }>({
+    results: [],
+    total: 0,
+    capped: false,
+  });
   const [lookup, setLookup] = useState<{ result: LookupResult; anchor: DOMRect | null } | null>(null);
 
   const total = totalRef.current;
   // Fixed-layout position is a page ordinal, so the last page (ordinal total-1)
   // is 100%; reflowable position is a character offset out of the total.
-  const progressPct = total
-    ? Math.round((fixedLayout && total > 1 ? currentChar / (total - 1) : currentChar / total) * 100)
-    : 0;
+  const progressPct = total ? Math.round((fixedLayout && total > 1 ? currentChar / (total - 1) : currentChar / total) * 100) : 0;
 
   // Chapters that carry a TOC label (sub-sections fold into their parent).
   const chapters = useMemo(() => sections.filter((s) => s.label), [sections]);
@@ -197,12 +199,9 @@ export function ReaderView() {
 
   // The popup reports its placed box here so the frozen zone can span the gap
   // between the matched word and the popup itself.
-  const handlePopupLayout = useCallback(
-    (rect: { left: number; top: number; right: number; bottom: number }) => {
-      popupRectRef.current = rect;
-    },
-    [],
-  );
+  const handlePopupLayout = useCallback((rect: { left: number; top: number; right: number; bottom: number }) => {
+    popupRectRef.current = rect;
+  }, []);
 
   // Is the cursor inside the open popup's frozen zone — the padded bounding box
   // spanning the matched word and the popup (and the gap between them)? While
@@ -714,7 +713,6 @@ export function ReaderView() {
     };
     // persist/restoreContinuous/onPagedChange are stable; book content arrives
     // via parseToken and the refs above. Re-running here would re-layout only.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parseToken, readingMode]);
 
   // Apply font/theme settings live, and re-flow to keep the reading position.

@@ -30,8 +30,10 @@ if (!libraryStore) {
   console.warn(`Skipping main library-store tests: ${(loadError as Error)?.message}`);
 }
 
+type InsertBookInput = Parameters<NonNullable<typeof libraryStore>["insertBook"]>[0];
+
 suite("libraryStore (SQLite)", () => {
-  const sample = (over: any = {}) => ({
+  const sample = (over: Partial<InsertBookInput> = {}) => ({
     id: over.id ?? "id-1",
     title: over.title ?? "Title",
     author: over.author,

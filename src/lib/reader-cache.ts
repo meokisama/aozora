@@ -27,7 +27,7 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
-function runTx<T = any>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => IDBRequest | void): Promise<T | undefined> {
+function runTx<T = unknown>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => IDBRequest | void): Promise<T | undefined> {
   return openDb().then(
     (db) =>
       new Promise<T | undefined>((resolve, reject) => {

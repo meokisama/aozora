@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, vi, type Mock } from "vitest";
+import type { Book } from "@/lib/types";
 
 // The store extracts metadata in the renderer and clears the IndexedDB cache on
 // remove; both are external to the store's own logic, so mock them.
@@ -10,7 +11,7 @@ import { useLibraryStore } from "@/stores/library-store";
 import { extractEpubMetadata } from "@/lib/epub/metadata";
 import { deleteCachedBook } from "@/lib/reader-cache";
 
-let api: any;
+let api: Record<string, Mock>;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -30,7 +31,7 @@ beforeEach(() => {
     remove: vi.fn(() => Promise.resolve(true)),
     getPathForFile: vi.fn((f) => `/drop/${f.name}`),
   };
-  window.electronAPI = { library: api } as typeof window.electronAPI;
+  window.electronAPI = { library: api } as unknown as typeof window.electronAPI;
 
   useLibraryStore.setState({ books: [], loading: true, importing: false });
 });
@@ -109,7 +110,7 @@ describe("importDroppedFiles", () => {
 
 describe("removeBook", () => {
   it("removes via IPC, clears the cache, and drops it from the list", async () => {
-    useLibraryStore.setState({ books: [{ id: "b1" }, { id: "b2" }] as any });
+    useLibraryStore.setState({ books: [{ id: "b1" }, { id: "b2" }] as unknown as Book[] });
     await useLibraryStore.getState().removeBook("b1");
     expect(api.remove).toHaveBeenCalledWith("b1");
     expect(deleteCachedBook).toHaveBeenCalledWith("b1");
@@ -119,7 +120,7 @@ describe("removeBook", () => {
 
 describe("applyProgress", () => {
   it("merges progress fields into the matching book only", () => {
-    useLibraryStore.setState({ books: [{ id: "b1", progress: 0 }, { id: "b2", progress: 0 }] as any });
+    useLibraryStore.setState({ books: [{ id: "b1", progress: 0 }, { id: "b2", progress: 0 }] as unknown as Book[] });
     useLibraryStore.getState().applyProgress("b1", { progress: 0.5, exploredCharCount: 100 });
     const books = useLibraryStore.getState().books;
     expect(books[0]).toMatchObject({ id: "b1", progress: 0.5, exploredCharCount: 100 });

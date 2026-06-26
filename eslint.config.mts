@@ -10,6 +10,14 @@ export default defineConfig([
   { files: ["**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}"], plugins: { js }, extends: ["js/recommended"] },
   tseslint.configs.recommended,
 
+  // Allow intentionally-unused identifiers when prefixed with `_`
+  // (e.g. positional params kept for signature compatibility).
+  {
+    rules: {
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" }],
+    },
+  },
+
   // Node: main + preload + root config files
   {
     files: ["src/main/**", "src/preload/**", "*.{ts,mts,cts}", "vite*.config.ts"],
