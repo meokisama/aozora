@@ -33,7 +33,7 @@ export function BookRow({ book, onOpen }: { book: Book; onOpen?: (book: Book) =>
           type="button"
           onClick={() => onOpen?.(book)}
           title={book.title}
-          className="relative h-14 w-10 shrink-0 overflow-hidden rounded-[3px] border bg-muted transform-gpu transition-transform duration-200 ease-out will-change-transform backface-hidden group-hover/row:-translate-y-1 group-hover/row:-rotate-6"
+          className="relative h-14 w-10 shrink-0 overflow-hidden bg-muted transform-gpu transition-transform duration-200 ease-out will-change-transform backface-hidden group-hover/row:-translate-y-1 group-hover/row:-rotate-6"
         >
           <img src={coverSrc} alt="" onError={() => setCoverError(true)} className="h-full w-full rounded-[3px] object-cover" draggable={false} />
         </button>

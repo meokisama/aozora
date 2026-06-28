@@ -3,6 +3,37 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@font-face {
+  font-family: "EPGyosho";
+  src: url("./assets/EPGYOSHO.TTF") format("truetype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Noto Serif JP";
+  font-weight: 400;
+  font-display: swap;
+  src: url("../node_modules/@fontsource/noto-serif-jp/files/noto-serif-jp-japanese-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Noto Serif JP";
+  font-weight: 700;
+  font-display: swap;
+  src: url("../node_modules/@fontsource/noto-serif-jp/files/noto-serif-jp-japanese-700-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Noto Sans JP";
+  font-weight: 400;
+  font-display: swap;
+  src: url("../node_modules/@fontsource/noto-sans-jp/files/noto-sans-jp-japanese-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Noto Sans JP";
+  font-weight: 700;
+  font-display: swap;
+  src: url("../node_modules/@fontsource/noto-sans-jp/files/noto-sans-jp-japanese-700-normal.woff2") format("woff2");
+}
+
 :root {
   --background: oklch(0.978 0.011 91);
   --foreground: oklch(0.24 0.008 75);
@@ -38,9 +69,6 @@
   --sidebar-ring: oklch(0.66 0.02 80);
 }
 
-/* Soft warm-neutral dark mode tuned for eye comfort: a lifted (never pure
-   black) background, dimmed off-white text instead of #fff to avoid halation,
-   and gentle low-chroma surfaces with reduced contrast. */
 .dark {
   --background: oklch(0.205 0.007 75);
   --foreground: oklch(0.885 0.012 84);
@@ -77,7 +105,9 @@
 
 @theme inline {
   --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-mincho: "Shippori Mincho", "Yu Mincho", "Hiragino Mincho ProN", serif;
+  --font-mincho: "Yu Mincho", YuMincho, "Hiragino Mincho ProN", serif;
+  --font-epson: "EPGyosho", ui-sans-serif, system-ui, sans-serif;
+  --font-noto-serif: "Noto Serif JP", ui-sans-serif, system-ui, sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -128,8 +158,6 @@
     @apply bg-background text-foreground font-sans overflow-hidden;
   }
 
-  /* Global thin scrollbars. In @layer base so per-element utility overrides
-     (e.g. hover-reveal in the sidebar) win without needing !important. */
   ::-webkit-scrollbar {
     width: 3px;
     height: 3px;

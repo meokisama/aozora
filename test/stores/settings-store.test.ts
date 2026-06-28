@@ -5,7 +5,7 @@ import { useSettingsStore, FONT_STACKS, THEMES, FONT_SIZE_RANGE, LINE_HEIGHT_RAN
 const DEFAULTS = {
   fontSize: 20,
   lineHeight: 1.8,
-  fontFamily: "serif",
+  fontFamily: "mincho",
   theme: "sepia",
   readingMode: "paginated",
   furiganaMode: "show",
@@ -36,11 +36,11 @@ describe("settings-store setters", () => {
   });
 
   it("setFontFamily / setTheme / setReadingMode update their fields", () => {
-    useSettingsStore.getState().setFontFamily("sans");
+    useSettingsStore.getState().setFontFamily("noto-sans");
     useSettingsStore.getState().setTheme("dark");
     useSettingsStore.getState().setReadingMode("continuous");
     const s = useSettingsStore.getState();
-    expect(s.fontFamily).toBe("sans");
+    expect(s.fontFamily).toBe("noto-sans");
     expect(s.theme).toBe("dark");
     expect(s.readingMode).toBe("continuous");
   });
@@ -69,10 +69,12 @@ describe("settings-store setters", () => {
 });
 
 describe("settings-store constants", () => {
-  it("font stacks exist for both families", () => {
-    expect(FONT_STACKS.serif).toContain("Mincho");
-    expect(FONT_STACKS.sans).toContain("Gothic");
-    expect(Object.keys(FONT_STACKS)).toEqual(["serif", "sans"]);
+  it("font stacks exist for every built-in family", () => {
+    expect(FONT_STACKS.mincho).toContain("Mincho");
+    expect(FONT_STACKS["noto-serif"]).toContain("Noto Serif JP");
+    expect(FONT_STACKS["noto-sans"]).toContain("Noto Sans JP");
+    expect(FONT_STACKS.gyosho).toContain("EPGyosho");
+    expect(Object.keys(FONT_STACKS)).toEqual(["mincho", "noto-serif", "noto-sans", "gyosho"]);
   });
 
   it("themes carry bg/color and a dark flag", () => {

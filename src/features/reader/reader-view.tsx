@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useReaderStore } from "@/stores/reader-store";
 import { useLibraryStore } from "@/stores/library-store";
 import { useSettingsStore } from "@/stores/settings-store";
+import { useFontsStore } from "@/stores/fonts-store";
 import { ReaderSettingsPanel } from "./settings-panel";
 import { ReaderToc } from "./reader-toc";
 import { ReaderBookmarks } from "./reader-bookmarks";
@@ -74,6 +75,7 @@ export function ReaderView() {
   const theme = useSettingsStore((s) => s.theme);
   const readingMode = useSettingsStore((s) => s.readingMode);
   const furiganaMode = useSettingsStore((s) => s.furiganaMode);
+  const customFonts = useFontsStore((s) => s.customFonts);
 
   const hostRef = useRef<HTMLDivElement>(null);
   const parsedRef = useRef<ParsedBook | null>(null);
@@ -627,7 +629,7 @@ export function ReaderView() {
     setStatus("loading");
 
     const shadow = host.shadowRoot || host.attachShadow({ mode: "open" });
-    applyReaderVars(host, useSettingsStore.getState());
+    applyReaderVars(host, useSettingsStore.getState(), useFontsStore.getState().customFonts);
 
     if (mode === "paginated") {
       shadow.innerHTML = `<style data-aoz-base>${paginatedStyles(vert)}</style><style>${parsed.styleSheet}</style><div class="aozora-content"><div class="aoz-page-content"></div></div>`;
@@ -699,7 +701,7 @@ export function ReaderView() {
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
-    applyReaderVars(host, { fontSize, lineHeight, fontFamily, theme });
+    applyReaderVars(host, { fontSize, lineHeight, fontFamily, theme }, customFonts);
     applyFuriganaClass(host.shadowRoot?.querySelector(".aozora-content"));
     if (!readyRef.current) return;
     if (modeRef.current === "paginated") {
@@ -708,7 +710,7 @@ export function ReaderView() {
     }
     const id = requestAnimationFrame(() => restoreContinuous(verticalRef.current));
     return () => cancelAnimationFrame(id);
-  }, [fontSize, lineHeight, fontFamily, theme, furiganaMode, restoreContinuous]);
+  }, [fontSize, lineHeight, fontFamily, theme, furiganaMode, customFonts, restoreContinuous]);
 
   // Page-flip helpers (forward = toward the end of the book, regardless of mode).
   const flipNext = useCallback(() => controllerRef.current?.flipPage(1), []);

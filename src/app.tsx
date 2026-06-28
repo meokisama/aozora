@@ -8,11 +8,17 @@ import { DictionariesView } from "@/features/dictionaries/dictionaries-view";
 import { useReaderStore } from "@/stores/reader-store";
 import { useUiStore } from "@/stores/ui-store";
 import { useSettingsStore, THEMES } from "@/stores/settings-store";
+import { useFontsStore } from "@/stores/fonts-store";
 
 export function App() {
   const reading = useReaderStore((s) => s.currentBook !== null);
   const view = useUiStore((s) => s.view);
   const theme = useSettingsStore((s) => s.theme);
+
+  // Load user-imported fonts (IndexedDB) and register their FontFaces once.
+  useEffect(() => {
+    useFontsStore.getState().init();
+  }, []);
 
   // Toggle the `.dark` class on the document root to swap the Tailwind palette
   // in index.css per the selected theme.

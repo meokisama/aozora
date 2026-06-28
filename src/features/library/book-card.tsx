@@ -28,7 +28,7 @@ export function BookCard({ book, onOpen }: { book: Book; onOpen?: (book: Book) =
     <BookContextMenu book={book}>
       <div className="flex flex-col">
         <div className="group/cover">
-          <div className="relative aspect-2/3 w-full overflow-hidden rounded-[5px] border bg-muted transition-all transform-gpu will-change-transform duration-300 ease-out group-hover/cover:-translate-y-1 group-hover/cover:shadow-xl">
+          <div className="relative aspect-2/3 w-full overflow-hidden bg-muted transition-all transform-gpu will-change-transform duration-300 ease-out group-hover/cover:-translate-y-1 group-hover/cover:shadow-xl">
             <button type="button" onClick={() => onOpen?.(book)} title={book.title} className="block h-full w-full cursor-pointer text-left">
               <img
                 src={useFallback ? bookTemplate : (book.coverDataUrl ?? bookTemplate)}
@@ -55,11 +55,11 @@ export function BookCard({ book, onOpen }: { book: Book; onOpen?: (book: Book) =
           </div>
         </div>
 
-        <div className="mt-2 space-y-0.5">
-          <p className="line-clamp-2 select-text text-xs font-medium leading-snug">{book.title}</p>
+        <div className="mt-2 space-y-0.5 hidden">
+          <p className="line-clamp-2 select-text text-xs font-bold leading-snug font-mincho">{book.title}</p>
           <div className="flex items-baseline justify-between gap-2">
             {book.author ? (
-              <p className="truncate select-text text-[11px] text-muted-foreground">{book.author}</p>
+              <p className="truncate select-text text-[11px] text-muted-foreground font-mincho">{book.author}</p>
             ) : (
               <span className="text-[11px] text-transparent">·</span>
             )}

@@ -7,19 +7,33 @@ import { persist } from "zustand/middleware";
  * properties on the shadow host; see `reader-view.jsx`.
  */
 
-export type FontFamily = "serif" | "sans";
+/** Built-in reader fonts. The active font (`SettingsState.fontFamily`) is a
+ *  `BuiltinFont` key or a user-imported font's id, so the field is typed `string`. */
+export type BuiltinFont = "mincho" | "noto-serif" | "noto-sans" | "gyosho";
+export type FontFamily = string;
 export type ThemeName = "sepia" | "dark";
 export type ReadingMode = "continuous" | "paginated";
 export type FuriganaMode = "show" | "hide" | "partial" | "toggle" | "full";
 export type MangaSpread = "auto" | "single" | "double";
 
-/** Font stacks favouring common system Japanese faces, with generic fallback. */
-export const FONT_STACKS: Record<FontFamily, string> = {
-  serif:
-    "'Shippori Mincho', 'Hiragino Mincho ProN', 'Yu Mincho', YuMincho, 'Noto Serif JP', 'Noto Serif CJK JP', 'MS Mincho', serif",
-  sans:
-    "'Hiragino Kaku Gothic ProN', 'Yu Gothic', YuGothic, 'Noto Sans JP', 'Noto Sans CJK JP', 'Meiryo', sans-serif",
+/** CSS font-family stacks per built-in font. `mincho` rides on system faces (Yu
+ *  Mincho lead); `noto-serif`/`noto-sans` use the bundled Noto JP faces and
+ *  `gyosho` the bundled EPGyosho face (all `@font-face` in index.css). */
+export const FONT_STACKS: Record<BuiltinFont, string> = {
+  mincho: "'Yu Mincho', YuMincho, 'Hiragino Mincho ProN', 'Noto Serif JP', 'MS Mincho', serif",
+  "noto-serif": "'Noto Serif JP', serif",
+  "noto-sans": "'Noto Sans JP', sans-serif",
+  gyosho: "'EPGyosho', 'Noto Serif JP', 'Yu Mincho', YuMincho, serif",
 };
+
+/** Built-in options for the settings-panel Font dropdown (user-imported fonts
+ *  are appended at render time from the fonts store). */
+export const FONT_FAMILIES: { value: BuiltinFont; label: string }[] = [
+  { value: "noto-serif", label: "Noto Serif JP" },
+  { value: "noto-sans", label: "Noto Sans JP" },
+  { value: "mincho", label: "Yu Mincho" },
+  { value: "gyosho", label: "Epson" },
+];
 
 /**
  * Colour themes (page bg + body text). `dark` toggles the `.dark` class on the
@@ -84,15 +98,12 @@ interface SettingsState {
   reset: () => void;
 }
 
-type SettingsData = Pick<
-  SettingsState,
-  "fontSize" | "lineHeight" | "fontFamily" | "theme" | "readingMode" | "furiganaMode" | "mangaSpread"
->;
+type SettingsData = Pick<SettingsState, "fontSize" | "lineHeight" | "fontFamily" | "theme" | "readingMode" | "furiganaMode" | "mangaSpread">;
 
 const DEFAULTS: SettingsData = {
-  fontSize: 20, // px
+  fontSize: 21, // px
   lineHeight: 1.8,
-  fontFamily: "serif",
+  fontFamily: "mincho",
   theme: "sepia",
   readingMode: "paginated",
   furiganaMode: "show",
@@ -114,6 +125,6 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: "aozora-reader-settings",
-    }
-  )
+    },
+  ),
 );

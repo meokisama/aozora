@@ -1,19 +1,23 @@
-import { RotateCcw } from "lucide-react";
+import { useRef } from "react";
+import { RotateCcw, Upload, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Slider } from "@/components/ui/slider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   useSettingsStore,
   FONT_SIZE_RANGE,
   LINE_HEIGHT_RANGE,
+  FONT_FAMILIES,
   FURIGANA_MODES,
   MANGA_SPREAD_MODES,
   type FontFamily,
   type ReadingMode,
   type FuriganaMode,
 } from "@/stores/settings-store";
+import { useFontsStore } from "@/stores/fonts-store";
 
 interface FieldProps {
   label: string;
@@ -125,7 +129,7 @@ export function ReaderSettingsPanel({ open, onOpenChange, fixedLayout = false }:
         </div>
 
         <div className="border-t p-4">
-          <Button variant="outline" size="sm" className="w-full" onClick={reset}>
+          <Button variant="outline" className="w-full" onClick={reset}>
             <RotateCcw className="size-3.5" />
             Reset to defaults
           </Button>
@@ -163,33 +167,90 @@ function ReflowableFields({
   setLineHeight,
   guard,
 }: ReflowableFieldsProps) {
+  const customFonts = useFontsStore((s) => s.customFonts);
+  const importFont = useFontsStore((s) => s.importFromFile);
+  const removeFont = useFontsStore((s) => s.remove);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const onPickFont = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-importing the same file
+    if (!file) return;
+    try {
+      await importFont(file);
+    } catch {
+      toast.error("Couldn't load that font. Use a .ttf, .otf, .woff or .woff2 file.");
+    }
+  };
+
   return (
     <>
       <Field label="Reading Mode">
         <ToggleGroup {...segmented} value={readingMode} onValueChange={guard(setReadingMode)}>
-          <ToggleGroupItem value="continuous" className="flex-1">
-            Continuous
-          </ToggleGroupItem>
           <ToggleGroupItem value="paginated" className="flex-1">
             Paginated
+          </ToggleGroupItem>
+          <ToggleGroupItem value="continuous" className="flex-1">
+            Continuous
           </ToggleGroupItem>
         </ToggleGroup>
       </Field>
 
       <Field label="Font">
-        <ToggleGroup {...segmented} value={fontFamily} onValueChange={guard(setFontFamily)}>
-          <ToggleGroupItem value="serif" className="flex-1">
-            Serif
-          </ToggleGroupItem>
-          <ToggleGroupItem value="sans" className="flex-1">
-            Sans
-          </ToggleGroupItem>
-        </ToggleGroup>
+        <Select value={fontFamily} onValueChange={guard(setFontFamily)}>
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {FONT_FAMILIES.map((f) => (
+              <SelectItem key={f.value} value={f.value}>
+                {f.label}
+              </SelectItem>
+            ))}
+            {customFonts.length > 0 && (
+              <SelectGroup>
+                {customFonts.map((f) => (
+                  <SelectItem key={f.id} value={f.id}>
+                    {f.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            )}
+          </SelectContent>
+        </Select>
+
+        <input ref={fileRef} type="file" accept=".ttf,.otf,.woff,.woff2" className="hidden" onChange={onPickFont} />
+        <div className="mt-2 divide-y border">
+          {customFonts.map((f) => (
+            <div key={f.id} className="flex items-center gap-2 py-1.5 pr-1.5 pl-2.5">
+              <span className="min-w-0 flex-1 truncate text-xs leading-tight" title={f.label}>
+                {f.label}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                className="shrink-0 text-muted-foreground hover:text-destructive"
+                onClick={() => removeFont(f.id)}
+                aria-label={`Remove ${f.label}`}
+              >
+                <Trash2 className="size-3.5" />
+              </Button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className="flex w-full cursor-pointer items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors bg-muted/50 hover:bg-muted"
+          >
+            <Upload className="size-3.5" />
+            Import font
+          </button>
+        </div>
       </Field>
 
       <Field label="Furigana">
         <Select value={furiganaMode} onValueChange={guard(setFuriganaMode)}>
-          <SelectTrigger size="sm" className="w-full">
+          <SelectTrigger className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

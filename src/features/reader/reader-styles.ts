@@ -1,4 +1,5 @@
-import { FONT_STACKS, THEMES, type FontFamily, type ThemeName } from "@/stores/settings-store";
+import { THEMES, type FontFamily, type ThemeName } from "@/stores/settings-store";
+import { resolveFontStack, type CustomFont } from "@/stores/fonts-store";
 
 /** Display rules shared by both reading modes (driven by inherited CSS vars). */
 const SHARED_DISPLAY = `
@@ -277,12 +278,13 @@ export function lookupHitRule() {
 export function applyReaderVars(
   host: HTMLElement | null,
   { fontSize, lineHeight, fontFamily, theme }: { fontSize: number; lineHeight: number; fontFamily: FontFamily; theme: ThemeName },
+  customFonts: CustomFont[] = [],
 ) {
   if (!host) return;
   const t = THEMES[theme] || THEMES.sepia;
   host.style.setProperty("--reader-font-size", `${fontSize}px`);
   host.style.setProperty("--reader-line-height", String(lineHeight));
-  host.style.setProperty("--reader-font-family", FONT_STACKS[fontFamily] || FONT_STACKS.serif);
+  host.style.setProperty("--reader-font-family", resolveFontStack(fontFamily, customFonts));
   host.style.setProperty("--reader-color", t.color);
   host.style.setProperty("--reader-bg", t.bg);
   // Furigana dim-hint colour and the glow behind hidden readings, tuned per theme
