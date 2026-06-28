@@ -38,9 +38,9 @@ export function BookRow({ book, onOpen }: { book: Book; onOpen?: (book: Book) =>
           <img src={coverSrc} alt="" onError={() => setCoverError(true)} className="h-full w-full rounded-[3px] object-cover" draggable={false} />
         </button>
 
-        <button type="button" onClick={() => onOpen?.(book)} className="min-w-0 flex-1 text-left">
-          <p className="truncate text font-medium">{book.title}</p>
-          {book.author && <p className="truncate text-xs text-muted-foreground">{book.author}</p>}
+        <button type="button" onClick={() => onOpen?.(book)} className="min-w-0 flex-1 text-left space-y-1">
+          <p className="truncate text-[14px] font-semibold font-noto-serif">{book.title}</p>
+          {book.author && <p className="truncate text-xs font-noto-serif text-muted-foreground">{book.author}</p>}
         </button>
 
         <Badge variant={STATUS_VARIANT[status]} className="hidden shrink-0 sm:inline-flex">

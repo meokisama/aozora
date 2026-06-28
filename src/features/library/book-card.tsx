@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Check } from "lucide-react";
 import { BookContextMenu } from "./book-actions";
 import { readingStatus, relativeTime } from "@/lib/format";
+import { useLibraryPrefs } from "@/stores/library-prefs-store";
 import bookTemplate from "@/assets/book-template.png";
 import type { Book } from "@/lib/types";
 
@@ -13,6 +14,7 @@ export function BookCard({ book, onOpen }: { book: Book; onOpen?: (book: Book) =
   const status = readingStatus(book);
   const pct = Math.round((book.progress ?? 0) * 100);
   const lastRead = relativeTime(book.lastOpenedAt);
+  const showMetadata = useLibraryPrefs((s) => s.showCardMetadata);
 
   // Fall back to the placeholder when the cover is missing or fails to decode;
   // reset the error when the cover changes.
@@ -55,17 +57,19 @@ export function BookCard({ book, onOpen }: { book: Book; onOpen?: (book: Book) =
           </div>
         </div>
 
-        <div className="mt-2 space-y-0.5 hidden">
-          <p className="line-clamp-2 select-text text-xs font-bold leading-snug font-mincho">{book.title}</p>
-          <div className="flex items-baseline justify-between gap-2">
-            {book.author ? (
-              <p className="truncate select-text text-[11px] text-muted-foreground font-mincho">{book.author}</p>
-            ) : (
-              <span className="text-[11px] text-transparent">·</span>
-            )}
-            {meta && <span className="shrink-0 text-[11px] text-muted-foreground/80 tabular-nums">{meta}</span>}
+        {showMetadata && (
+          <div className="mt-2 space-y-0.5">
+            <p className="line-clamp-2 select-text text-xs font-semibold leading-snug font-noto-serif">{book.title}</p>
+            <div className="flex items-baseline justify-between gap-2">
+              {book.author ? (
+                <p className="truncate select-text text-[11px] text-muted-foreground font-noto-serif">{book.author}</p>
+              ) : (
+                <span className="text-[11px] text-transparent">·</span>
+              )}
+              {meta && <span className="shrink-0 text-[11px] text-muted-foreground/80 tabular-nums">{meta}</span>}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </BookContextMenu>
   );

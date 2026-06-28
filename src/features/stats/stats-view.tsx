@@ -267,9 +267,10 @@ export function StatsView() {
                   {topBooks.map(({ stat, book }) => (
                     <div key={stat.bookId} className="space-y-1">
                       <BookCard book={book} onOpen={openReader} />
-                      <p className="text-[10px] text-muted-foreground/80 tabular-nums">
-                        {formatDuration(stat.ms || 0)} · {formatCompact(stat.chars || 0)} chars
-                      </p>
+                      <div className="flex justify-between text-[10px] text-muted-foreground/80 tabular-nums">
+                        <p>{formatDuration(stat.ms || 0)}</p>
+                        <p>{formatCompact(stat.chars || 0)} chars</p>
+                      </div>
                     </div>
                   ))}
                 </div>

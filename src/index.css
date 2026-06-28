@@ -17,6 +17,12 @@
 }
 @font-face {
   font-family: "Noto Serif JP";
+  font-weight: 600;
+  font-display: swap;
+  src: url("../node_modules/@fontsource/noto-serif-jp/files/noto-serif-jp-japanese-600-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Noto Serif JP";
   font-weight: 700;
   font-display: swap;
   src: url("../node_modules/@fontsource/noto-serif-jp/files/noto-serif-jp-japanese-700-normal.woff2") format("woff2");

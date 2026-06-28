@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { BarChart3, BookA, BookOpen, CheckCircle2, Circle, Heart, Library } from "lucide-react";
+import { BarChart3, BookA, BookOpen, CheckCircle2, Circle, Heart, Library, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { readingStatus } from "@/lib/format";
 import { useLibraryStore } from "@/stores/library-store";
@@ -115,6 +115,7 @@ export function LibrarySidebar() {
       <nav className="shrink-0 space-y-0.5 border-t px-2 py-3">
         <NavItem icon={BarChart3} label="Statistics" active={view === "stats"} onClick={() => setView("stats")} />
         <NavItem icon={BookA} label="Dictionaries" active={view === "dictionaries"} onClick={() => setView("dictionaries")} />
+        <NavItem icon={Settings} label="Settings" active={view === "settings"} onClick={() => setView("settings")} />
       </nav>
 
       {authors.length > 0 && (

@@ -11,7 +11,7 @@ import { LibrarySidebar } from "./library-sidebar";
 import { useLibraryStore } from "@/stores/library-store";
 import { useReaderStore } from "@/stores/reader-store";
 import { useUiStore } from "@/stores/ui-store";
-import { useLibraryPrefs, SORT_OPTIONS, type SortKey, type ViewMode } from "@/stores/library-prefs-store";
+import { useLibraryPrefs, SORT_OPTIONS, type SortKey, type ViewMode, type CardSize } from "@/stores/library-prefs-store";
 import { readingStatus } from "@/lib/format";
 import type { Book } from "@/lib/types";
 
@@ -21,6 +21,19 @@ const STATUS_TABS = [
   { value: "finished", label: "Finished" },
   { value: "unread", label: "Unread" },
 ];
+
+// Cover size → grid column min-width and "Continue reading" shelf card width.
+// Full literal class strings so Tailwind's JIT picks them up (no interpolation).
+const GRID_COLS: Record<CardSize, string> = {
+  small: "grid-cols-[repeat(auto-fill,minmax(110px,1fr))]",
+  medium: "grid-cols-[repeat(auto-fill,minmax(140px,1fr))]",
+  large: "grid-cols-[repeat(auto-fill,minmax(180px,1fr))]",
+};
+const SHELF_W: Record<CardSize, string> = {
+  small: "w-28",
+  medium: "w-35",
+  large: "w-44",
+};
 
 /**
  * Normalizes a string for search matching: NFKC-folds half/full-width forms
@@ -74,6 +87,7 @@ export function LibraryView() {
   const setSort = useLibraryPrefs((s) => s.setSort);
   const view = useLibraryPrefs((s) => s.view);
   const setView = useLibraryPrefs((s) => s.setView);
+  const cardSize = useLibraryPrefs((s) => s.cardSize);
 
   const statusFilter = useUiStore((s) => s.statusFilter);
   const setStatusFilter = useUiStore((s) => s.setStatusFilter);
@@ -198,7 +212,7 @@ export function LibraryView() {
         ))}
       </div>
     ) : (
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-x-5 gap-y-6">
+      <div className={`grid ${GRID_COLS[cardSize]} gap-x-5 gap-y-6`}>
         {list.map((book) => (
           <BookCard key={book.id} book={book} onOpen={openReader} />
         ))}
@@ -291,7 +305,7 @@ export function LibraryView() {
                 <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Continue reading</h2>
                 <div className="flex gap-5 overflow-x-auto -my-3 py-3">
                   {continueReading.map((book) => (
-                    <div key={book.id} className="w-35 shrink-0">
+                    <div key={book.id} className={`${SHELF_W[cardSize]} shrink-0`}>
                       <BookCard book={book} onOpen={openReader} />
                     </div>
                   ))}

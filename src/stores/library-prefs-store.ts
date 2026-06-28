@@ -9,6 +9,7 @@ import { persist } from "zustand/middleware";
 
 export type SortKey = "lastOpened" | "added" | "title" | "author" | "progress";
 export type ViewMode = "grid" | "list";
+export type CardSize = "small" | "medium" | "large";
 
 export const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: "lastOpened", label: "Last read" },
@@ -18,11 +19,21 @@ export const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: "progress", label: "Progress" },
 ];
 
+export const CARD_SIZE_OPTIONS: { value: CardSize; label: string }[] = [
+  { value: "small", label: "Small" },
+  { value: "medium", label: "Medium" },
+  { value: "large", label: "Large" },
+];
+
 interface LibraryPrefsState {
   sort: SortKey;
   view: ViewMode;
+  cardSize: CardSize;
+  showCardMetadata: boolean;
   setSort: (sort: SortKey) => void;
   setView: (view: ViewMode) => void;
+  setCardSize: (cardSize: CardSize) => void;
+  setShowCardMetadata: (showCardMetadata: boolean) => void;
 }
 
 export const useLibraryPrefs = create<LibraryPrefsState>()(
@@ -30,8 +41,13 @@ export const useLibraryPrefs = create<LibraryPrefsState>()(
     (set) => ({
       sort: "added",
       view: "grid",
+      cardSize: "medium",
+      // Title/author/progress beneath each cover; off by default for a clean grid.
+      showCardMetadata: false,
       setSort: (sort) => set({ sort }),
       setView: (view) => set({ view }),
+      setCardSize: (cardSize) => set({ cardSize }),
+      setShowCardMetadata: (showCardMetadata) => set({ showCardMetadata }),
     }),
     { name: "aozora-library-prefs" },
   ),
