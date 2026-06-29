@@ -13,9 +13,13 @@ import {
   FONT_FAMILIES,
   FURIGANA_MODES,
   MANGA_SPREAD_MODES,
+  WRITING_MODES,
+  PAGE_COLUMNS_OPTIONS,
+  SIDE_MARGIN_RANGE,
   type FontFamily,
   type ReadingMode,
   type FuriganaMode,
+  type WritingMode,
 } from "@/stores/settings-store";
 import { useFontsStore } from "@/stores/fonts-store";
 
@@ -52,9 +56,14 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   fixedLayout?: boolean;
+  /** Effective writing direction; gates the horizontal-only layout controls and
+   *  drives which Text Direction chip is highlighted while the setting is auto. */
+  vertical?: boolean;
+  /** Columns per page actually in use (resolves auto), to highlight the chip. */
+  activeColumns?: number;
 }
 
-export function ReaderSettingsPanel({ open, onOpenChange, fixedLayout = false }: Props) {
+export function ReaderSettingsPanel({ open, onOpenChange, fixedLayout = false, vertical = true, activeColumns = 1 }: Props) {
   const fontSize = useSettingsStore((s) => s.fontSize);
   const lineHeight = useSettingsStore((s) => s.lineHeight);
   const fontFamily = useSettingsStore((s) => s.fontFamily);
@@ -62,6 +71,7 @@ export function ReaderSettingsPanel({ open, onOpenChange, fixedLayout = false }:
   const readingMode = useSettingsStore((s) => s.readingMode);
   const furiganaMode = useSettingsStore((s) => s.furiganaMode);
   const mangaSpread = useSettingsStore((s) => s.mangaSpread);
+  const sideMargin = useSettingsStore((s) => s.sideMargin);
   const setFontSize = useSettingsStore((s) => s.setFontSize);
   const setLineHeight = useSettingsStore((s) => s.setLineHeight);
   const setFontFamily = useSettingsStore((s) => s.setFontFamily);
@@ -69,6 +79,9 @@ export function ReaderSettingsPanel({ open, onOpenChange, fixedLayout = false }:
   const setReadingMode = useSettingsStore((s) => s.setReadingMode);
   const setFuriganaMode = useSettingsStore((s) => s.setFuriganaMode);
   const setMangaSpread = useSettingsStore((s) => s.setMangaSpread);
+  const setWritingMode = useSettingsStore((s) => s.setWritingMode);
+  const setPageColumns = useSettingsStore((s) => s.setPageColumns);
+  const setSideMargin = useSettingsStore((s) => s.setSideMargin);
   const reset = useSettingsStore((s) => s.reset);
 
   // ToggleGroup lets you click the active item to clear it; ignore empty updates
@@ -112,8 +125,14 @@ export function ReaderSettingsPanel({ open, onOpenChange, fixedLayout = false }:
           ) : (
             <ReflowableFields
               {...{
+                vertical,
                 readingMode,
                 setReadingMode,
+                setWritingMode,
+                activeColumns,
+                setPageColumns,
+                sideMargin,
+                setSideMargin,
                 fontFamily,
                 setFontFamily,
                 furiganaMode,
@@ -140,8 +159,14 @@ export function ReaderSettingsPanel({ open, onOpenChange, fixedLayout = false }:
 }
 
 interface ReflowableFieldsProps {
+  vertical: boolean;
   readingMode: ReadingMode;
   setReadingMode: (mode: ReadingMode) => void;
+  setWritingMode: (mode: WritingMode) => void;
+  activeColumns: number;
+  setPageColumns: (columns: number) => void;
+  sideMargin: number;
+  setSideMargin: (margin: number) => void;
   fontFamily: FontFamily;
   setFontFamily: (family: FontFamily) => void;
   furiganaMode: FuriganaMode;
@@ -155,8 +180,14 @@ interface ReflowableFieldsProps {
 
 /** The settings only meaningful for reflowable (text) books. */
 function ReflowableFields({
+  vertical,
   readingMode,
   setReadingMode,
+  setWritingMode,
+  activeColumns,
+  setPageColumns,
+  sideMargin,
+  setSideMargin,
   fontFamily,
   setFontFamily,
   furiganaMode,
@@ -195,6 +226,49 @@ function ReflowableFields({
           </ToggleGroupItem>
         </ToggleGroup>
       </Field>
+
+      {/* Highlights the effective direction (the book's own while the setting is
+          auto); picking the other chip writes an explicit global override. */}
+      <Field label="Text Direction">
+        <ToggleGroup {...segmented} value={vertical ? "vertical" : "horizontal"} onValueChange={guard(setWritingMode)}>
+          {WRITING_MODES.map((m) => (
+            <ToggleGroupItem key={m.value} value={m.value} className="flex-1">
+              {m.label}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      </Field>
+
+      {/* Horizontal-only layout controls (tategaki paginates by height and reads
+          full-bleed, so columns/side-margin don't apply there). The columns chip
+          shows the count in use (auto resolves with width); picking one overrides. */}
+      {!vertical && readingMode === "paginated" && (
+        <Field label="Columns per Page">
+          <ToggleGroup
+            {...segmented}
+            value={String(activeColumns)}
+            onValueChange={(v: string) => v && setPageColumns(Number(v))}
+          >
+            {PAGE_COLUMNS_OPTIONS.map((o) => (
+              <ToggleGroupItem key={o.value} value={String(o.value)} className="flex-1">
+                {o.label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </Field>
+      )}
+
+      {!vertical && readingMode === "continuous" && (
+        <Field label="Side Margin" value={`${sideMargin}%`}>
+          <Slider
+            value={[sideMargin]}
+            min={SIDE_MARGIN_RANGE.min}
+            max={SIDE_MARGIN_RANGE.max}
+            step={SIDE_MARGIN_RANGE.step}
+            onValueChange={([v]) => setSideMargin(v)}
+          />
+        </Field>
+      )}
 
       <Field label="Font">
         <Select value={fontFamily} onValueChange={guard(setFontFamily)}>

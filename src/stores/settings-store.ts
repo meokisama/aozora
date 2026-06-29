@@ -15,6 +15,7 @@ export type ThemeName = "sepia" | "dark";
 export type ReadingMode = "continuous" | "paginated";
 export type FuriganaMode = "show" | "hide" | "partial" | "toggle" | "full";
 export type MangaSpread = "auto" | "single" | "double";
+export type WritingMode = "auto" | "horizontal" | "vertical";
 
 /** CSS font-family stacks per built-in font. `mincho` rides on system faces (Yu
  *  Mincho lead); `noto-serif`/`noto-sans` use the bundled Noto JP faces and
@@ -49,6 +50,20 @@ export const THEMES: Record<ThemeName, { bg: string; color: string; dark: boolea
 
 export const FONT_SIZE_RANGE = { min: 14, max: 40, step: 1 };
 export const LINE_HEIGHT_RANGE = { min: 1.2, max: 2.6, step: 0.1 };
+/** Side margin (% of width) per edge for horizontal continuous reading. */
+export const SIDE_MARGIN_RANGE = { min: 0, max: 30, step: 1 };
+
+/**
+ * User-selectable columns per page for horizontal paginated reading (ignored in
+ * vertical, which is always single-column). The stored default is `0` = auto
+ * (scales with viewport width, ttsu-style); it stays auto until the reader picks
+ * an explicit count here, so "Auto" isn't shown as its own option.
+ */
+export const PAGE_COLUMNS_OPTIONS: { value: number; label: string }[] = [
+  { value: 1, label: "1" },
+  { value: 2, label: "2" },
+  { value: 3, label: "3" },
+];
 
 /**
  * Furigana display modes (mirrors ttsu, collapsed into one setting). Every mode
@@ -80,6 +95,16 @@ export const MANGA_SPREAD_MODES: { value: MangaSpread; label: string }[] = [
   { value: "double", label: "Spread" },
 ];
 
+/**
+ * User-selectable text directions. The stored default is `"auto"` (follow the
+ * EPUB's own PPD / CSS — tategaki for most LNs), which stays in effect until the
+ * reader picks one of these explicitly, so "Auto" isn't shown as its own option.
+ */
+export const WRITING_MODES: { value: Exclude<WritingMode, "auto">; label: string }[] = [
+  { value: "horizontal", label: "Horizontal" },
+  { value: "vertical", label: "Vertical" },
+];
+
 interface SettingsState {
   fontSize: number;
   lineHeight: number;
@@ -88,6 +113,9 @@ interface SettingsState {
   readingMode: ReadingMode;
   furiganaMode: FuriganaMode;
   mangaSpread: MangaSpread;
+  writingMode: WritingMode;
+  pageColumns: number;
+  sideMargin: number;
   setFontSize: (fontSize: number) => void;
   setLineHeight: (lineHeight: number) => void;
   setFontFamily: (fontFamily: FontFamily) => void;
@@ -95,10 +123,25 @@ interface SettingsState {
   setReadingMode: (readingMode: ReadingMode) => void;
   setFuriganaMode: (furiganaMode: FuriganaMode) => void;
   setMangaSpread: (mangaSpread: MangaSpread) => void;
+  setWritingMode: (writingMode: WritingMode) => void;
+  setPageColumns: (pageColumns: number) => void;
+  setSideMargin: (sideMargin: number) => void;
   reset: () => void;
 }
 
-type SettingsData = Pick<SettingsState, "fontSize" | "lineHeight" | "fontFamily" | "theme" | "readingMode" | "furiganaMode" | "mangaSpread">;
+type SettingsData = Pick<
+  SettingsState,
+  | "fontSize"
+  | "lineHeight"
+  | "fontFamily"
+  | "theme"
+  | "readingMode"
+  | "furiganaMode"
+  | "mangaSpread"
+  | "writingMode"
+  | "pageColumns"
+  | "sideMargin"
+>;
 
 const DEFAULTS: SettingsData = {
   fontSize: 21, // px
@@ -108,6 +151,9 @@ const DEFAULTS: SettingsData = {
   readingMode: "paginated",
   furiganaMode: "show",
   mangaSpread: "auto",
+  writingMode: "auto",
+  pageColumns: 0, // auto
+  sideMargin: 12, // % per edge
 };
 
 export const useSettingsStore = create<SettingsState>()(
@@ -121,6 +167,9 @@ export const useSettingsStore = create<SettingsState>()(
       setReadingMode: (readingMode) => set({ readingMode }),
       setFuriganaMode: (furiganaMode) => set({ furiganaMode }),
       setMangaSpread: (mangaSpread) => set({ mangaSpread }),
+      setWritingMode: (writingMode) => set({ writingMode }),
+      setPageColumns: (pageColumns) => set({ pageColumns }),
+      setSideMargin: (sideMargin) => set({ sideMargin }),
       reset: () => set({ ...DEFAULTS }),
     }),
     {

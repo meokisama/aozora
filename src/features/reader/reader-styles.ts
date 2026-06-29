@@ -10,6 +10,25 @@ const SHARED_DISPLAY = `
 `;
 
 /**
+ * Forces the effective writing direction onto the flattened book wrappers.
+ * JP novels carry the 電書協 template's `.vrtl` class (originally on <html>/<body>,
+ * copied onto these wrappers), and the book's own `.vrtl { writing-mode: vertical-rl }`
+ * would otherwise win over the root rule — keeping text vertical even when the
+ * reader is set to horizontal (and vice-versa). The two-class selector outranks a
+ * bare `.vrtl`, so this wins even against a `!important` book rule.
+ */
+function writingModeRules(scope: string, vertical: boolean) {
+  const wm = vertical ? "vertical-rl" : "horizontal-tb";
+  return `
+    ${scope} .aoz-book-html-wrapper,
+    ${scope} .aoz-book-body-wrapper {
+      writing-mode: ${wm} !important;
+      -webkit-writing-mode: ${wm} !important;
+    }
+  `;
+}
+
+/**
  * Continuous (scroll) reader CSS. Display props come from inherited host CSS
  * vars (settings apply live); only the writing mode is baked in, so this is
  * re-injected on toggle.
@@ -18,22 +37,31 @@ export function continuousStyles(vertical: boolean) {
   return `
     :host { display: block; height: 100%; }
     .aozora-content {
-      height: 100%;
       box-sizing: border-box;
-      padding: 2.5rem 3rem;
       writing-mode: ${vertical ? "vertical-rl" : "horizontal-tb"};
-      ${vertical ? "" : "max-width: 42rem; margin: 0 auto;"}
+      /* Vertical-rl flows along the block (height) axis, so it needs a definite
+         viewport height; horizontal-tb grows down and only needs a floor. In
+         horizontal the left/right padding is the adjustable side margin (a % of
+         width, driven live by --reader-side-padding); equal padding centres it. */
+      ${vertical ? "height: 100%; padding: 2.5rem 3rem;" : "min-height: 100%; padding: 2.5rem var(--reader-side-padding, 12%);"}
       ${SHARED_DISPLAY}
     }
-    /* Give the structural wrappers a definite height so full-page images can
-       size against the viewport instead of collapsing to zero. */
-    .aozora-content > div,
+    /* Vertical-rl only: give the structural wrappers a definite height so
+       full-page images size against the viewport instead of collapsing to zero.
+       In horizontal-tb the wrappers must stay auto-height — pinning them to one
+       viewport makes each chapter overflow and overlap the next. */
+    ${
+      vertical
+        ? `.aozora-content > div,
     .aozora-content .aoz-book-html-wrapper,
-    .aozora-content .aoz-book-body-wrapper { height: 100%; }
+    .aozora-content .aoz-book-body-wrapper { height: 100%; }`
+        : ""
+    }
     /* Breathing room around full-page image spreads (image-only spine items)
        so consecutive illustrations don't sit flush against each other. The
        margin is on the inter-page (block) axis, correct for both writing modes. */
     .aozora-content > div:has(.aoz-no-text) { margin-block: 2.5rem; }
+    ${writingModeRules(".aozora-content", vertical)}
     ${imageRules(".aozora-content")}
     ${furiganaRules(".aozora-content")}
     ${searchHitRule()}
@@ -65,6 +93,7 @@ export function paginatedStyles(vertical: boolean) {
       writing-mode: ${vertical ? "vertical-rl" : "horizontal-tb"};
       ${SHARED_DISPLAY}
     }
+    ${writingModeRules(".aozora-content", vertical)}
     ${imageRules(".aozora-content", "6rem", "8rem")}
     ${spreadRules(".aozora-content")}
     ${furiganaRules(".aozora-content")}
@@ -277,13 +306,20 @@ export function lookupHitRule() {
 /** Writes the reader display settings onto the host as inherited CSS vars. */
 export function applyReaderVars(
   host: HTMLElement | null,
-  { fontSize, lineHeight, fontFamily, theme }: { fontSize: number; lineHeight: number; fontFamily: FontFamily; theme: ThemeName },
+  {
+    fontSize,
+    lineHeight,
+    fontFamily,
+    theme,
+    sideMargin,
+  }: { fontSize: number; lineHeight: number; fontFamily: FontFamily; theme: ThemeName; sideMargin?: number },
   customFonts: CustomFont[] = [],
 ) {
   if (!host) return;
   const t = THEMES[theme] || THEMES.sepia;
   host.style.setProperty("--reader-font-size", `${fontSize}px`);
   host.style.setProperty("--reader-line-height", String(lineHeight));
+  host.style.setProperty("--reader-side-padding", `${sideMargin ?? 12}%`);
   host.style.setProperty("--reader-font-family", resolveFontStack(fontFamily, customFonts));
   host.style.setProperty("--reader-color", t.color);
   host.style.setProperty("--reader-bg", t.bg);

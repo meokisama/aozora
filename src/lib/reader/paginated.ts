@@ -25,6 +25,8 @@ export interface PaginatedState {
   page: number;
   totalPages: number;
   sectionIndex: number;
+  /** Columns per page actually in use (resolves auto), for the settings UI. */
+  columns: number;
 }
 
 export interface PaginatedOptions {
@@ -36,6 +38,8 @@ export interface PaginatedOptions {
   sections: Element[];
   /** true for tategaki (vertical-rl). */
   vertical: boolean;
+  /** Columns per page for horizontal mode; 0 = auto, ignored when vertical. */
+  columns?: number;
   onChange?: (state: PaginatedState) => void;
 }
 
@@ -65,6 +69,8 @@ export class PaginatedController {
   contentEl: HTMLElement;
   sections: Element[];
   vertical: boolean;
+  /** Raw columns setting (0 = auto); resolved per layout in `_effectiveColumns`. */
+  columns: number;
   onChange: (state: PaginatedState) => void;
   gap: number;
 
@@ -83,11 +89,12 @@ export class PaginatedController {
 
   destroyed: boolean;
 
-  constructor({ scrollEl, contentEl, sections, vertical, onChange }: PaginatedOptions) {
+  constructor({ scrollEl, contentEl, sections, vertical, columns, onChange }: PaginatedOptions) {
     this.scrollEl = scrollEl;
     this.contentEl = contentEl;
     this.sections = sections;
     this.vertical = vertical;
+    this.columns = columns ?? 0;
     this.onChange = onChange || (() => {});
     this.gap = PAGE_GAP;
 
@@ -137,6 +144,17 @@ export class PaginatedController {
     return this.sectionStart + (this.pageStartChar[this.page] || 0);
   }
 
+  /**
+   * Columns per page for the current layout. Vertical (tategaki) is always
+   * single-column; horizontal honours the setting, or scales with the viewport
+   * width when set to auto (`0`), matching the reference reader (~1 col / 1000px).
+   */
+  _effectiveColumns(): number {
+    if (this.vertical) return 1;
+    if (this.columns > 0) return this.columns;
+    return Math.max(1, Math.ceil(this.contentW / 1000));
+  }
+
   /** Whether a section carries no flowable text (cover / full-page illustration). */
   _isImageSection(index: number): boolean {
     if (index < 0) return false;
@@ -181,7 +199,12 @@ export class PaginatedController {
       el.style.width = "100%";
       el.style.height = "auto";
     } else {
-      el.style.columnWidth = `${this.contentW}px`;
+      // Pack N columns into one viewport-wide page: N*colW + (N-1)*gap = contentW.
+      // The page stride stays viewport+gap (see `screenSize`), so the next page's
+      // first column lands exactly one screen over.
+      const cols = this._effectiveColumns();
+      const colW = cols > 1 ? (this.contentW - (cols - 1) * this.gap) / cols : this.contentW;
+      el.style.columnWidth = `${colW}px`;
       el.style.width = "auto";
       el.style.height = `${this.contentH}px`;
     }
@@ -289,6 +312,7 @@ export class PaginatedController {
       page: this.page,
       totalPages: this.totalPages,
       sectionIndex: this.sectionIndex,
+      columns: this._effectiveColumns(),
     });
   }
 

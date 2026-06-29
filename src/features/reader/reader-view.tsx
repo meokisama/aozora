@@ -3,7 +3,7 @@ import { ArrowLeft, Bookmark, List, Loader2, Search, Settings } from "lucide-rea
 import { Button } from "@/components/ui/button";
 import { useReaderStore } from "@/stores/reader-store";
 import { useLibraryStore } from "@/stores/library-store";
-import { useSettingsStore } from "@/stores/settings-store";
+import { useSettingsStore, type WritingMode } from "@/stores/settings-store";
 import { useFontsStore } from "@/stores/fonts-store";
 import { ReaderSettingsPanel } from "./settings-panel";
 import { ReaderToc } from "./reader-toc";
@@ -29,6 +29,11 @@ import { useReadingSession } from "./use-reading-session";
 const api = () => window.electronAPI.library;
 
 const FURIGANA_CLASSES = ["aoz-furigana-hide", "aoz-furigana-partial", "aoz-furigana-toggle", "aoz-furigana-full"];
+
+/** Effective writing direction: the user's override, or the book's own when "auto". */
+function resolveVertical(mode: WritingMode, bookVertical: boolean): boolean {
+  return mode === "auto" ? bookVertical : mode === "vertical";
+}
 
 /** Reflects the furigana mode as a class on the content root; "show" clears it
  *  so the book's own furigana styling applies untouched. */
@@ -74,7 +79,10 @@ export function ReaderView() {
   const fontFamily = useSettingsStore((s) => s.fontFamily);
   const theme = useSettingsStore((s) => s.theme);
   const readingMode = useSettingsStore((s) => s.readingMode);
+  const writingMode = useSettingsStore((s) => s.writingMode);
   const furiganaMode = useSettingsStore((s) => s.furiganaMode);
+  const pageColumns = useSettingsStore((s) => s.pageColumns);
+  const sideMargin = useSettingsStore((s) => s.sideMargin);
   const customFonts = useFontsStore((s) => s.customFonts);
 
   const hostRef = useRef<HTMLDivElement>(null);
@@ -121,11 +129,13 @@ export function ReaderView() {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [parseToken, setParseToken] = useState(0); // bumped when parsed content is ready
   const [fixedLayout, setFixedLayout] = useState(false); // manga / fixed-layout book
-  // Writing direction comes from the EPUB (PPD / CSS); no manual override.
+  // Effective writing direction = the Writing Mode setting ("auto" follows the
+  // EPUB's PPD/CSS; "horizontal"/"vertical" force it). Drives the host overflow axis.
   const [vertical, setVertical] = useState(true);
   const [sections, setSections] = useState<Section[]>([]);
   const [currentChar, setCurrentChar] = useState(0);
   const [pageInfo, setPageInfo] = useState<{ page: number; totalPages: number } | null>(null); // paginated mode
+  const [activeColumns, setActiveColumns] = useState(1); // resolved columns/page (paginated horizontal), for the settings UI
   const [tocOpen, setTocOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [bookmarksOpen, setBookmarksOpen] = useState(false);
@@ -241,6 +251,7 @@ export function ReaderView() {
       charRef.current = state.char;
       setCurrentChar(state.char);
       setPageInfo({ page: state.page, totalPages: state.totalPages });
+      setActiveColumns(state.columns);
       markSession(state.char, "paginated");
       clearLookup(); // the matched run scrolled off the page
       clearTimeout(saveTimerRef.current);
@@ -561,12 +572,13 @@ export function ReaderView() {
         objectUrlsRef.current = objectUrls;
         parsedRef.current = parsed;
         htmlRef.current = html;
-        verticalRef.current = parsed.vertical;
+        const initialVertical = resolveVertical(useSettingsStore.getState().writingMode, parsed.vertical);
+        verticalRef.current = initialVertical;
         charRef.current = book.exploredCharCount || 0;
         if (parsed.fixedLayout) {
           fixedDataRef.current = { pages: parsed.pages || [], ppd: parsed.ppd, bookViewport: parsed.bookViewport };
         }
-        setVertical(parsed.vertical);
+        setVertical(initialVertical);
         setFixedLayout(!!parsed.fixedLayout);
         setSections(parsed.sections || []);
         setParseToken((t) => t + 1); // hand off to the render effect
@@ -622,7 +634,9 @@ export function ReaderView() {
     if (!host || !html) return;
 
     let cancelled = false;
-    const vert = verticalRef.current;
+    const vert = resolveVertical(writingMode, parsed.vertical);
+    verticalRef.current = vert;
+    setVertical(vert);
     const mode = readingMode;
     modeRef.current = mode;
     readyRef.current = false;
@@ -650,6 +664,7 @@ export function ReaderView() {
         contentEl,
         sections: sectionEls,
         vertical: vert,
+        columns: useSettingsStore.getState().pageColumns,
         onChange: onPagedChange,
       });
       controllerRef.current = controller;
@@ -694,23 +709,28 @@ export function ReaderView() {
       if (shadow) shadow.innerHTML = "";
     };
     // Content arrives via parseToken + the refs above; the omitted callbacks are
-    // stable, so re-running on them would only re-layout.
-  }, [parseToken, readingMode]);
+    // stable, so re-running on them would only re-layout. writingMode is here so
+    // toggling text direction rebuilds the shadow content (position is char-based,
+    // so it's preserved across the rebuild via charRef).
+  }, [parseToken, readingMode, writingMode]);
 
   // Apply font/theme settings live, and re-flow to keep the reading position.
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
-    applyReaderVars(host, { fontSize, lineHeight, fontFamily, theme }, customFonts);
+    applyReaderVars(host, { fontSize, lineHeight, fontFamily, theme, sideMargin }, customFonts);
     applyFuriganaClass(host.shadowRoot?.querySelector(".aozora-content"));
     if (!readyRef.current) return;
     if (modeRef.current === "paginated") {
+      // Column count change re-flows the multi-column layout; refresh re-measures
+      // and lands back on the current character.
+      if (controllerRef.current) controllerRef.current.columns = pageColumns;
       controllerRef.current?.refresh();
       return;
     }
     const id = requestAnimationFrame(() => restoreContinuous(verticalRef.current));
     return () => cancelAnimationFrame(id);
-  }, [fontSize, lineHeight, fontFamily, theme, furiganaMode, customFonts, restoreContinuous]);
+  }, [fontSize, lineHeight, fontFamily, theme, furiganaMode, pageColumns, sideMargin, customFonts, restoreContinuous]);
 
   // Page-flip helpers (forward = toward the end of the book, regardless of mode).
   const flipNext = useCallback(() => controllerRef.current?.flipPage(1), []);
@@ -971,7 +991,13 @@ export function ReaderView() {
         onJump={jumpToSearchResult}
       />
 
-      <ReaderSettingsPanel open={settingsOpen} onOpenChange={setSettingsOpen} fixedLayout={fixedLayout} />
+      <ReaderSettingsPanel
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        fixedLayout={fixedLayout}
+        vertical={vertical}
+        activeColumns={activeColumns}
+      />
     </div>
   );
 }
