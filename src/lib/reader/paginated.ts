@@ -296,6 +296,11 @@ export class PaginatedController {
   async setSection(index: number, landing?: Landing): Promise<void> {
     index = clamp(index, 0, this.sections.length - 1);
     this.sectionIndex = index;
+    // Hide while swapping + measuring so the user never sees the intermediate
+    // page-0 paint before we scroll to the real landing page (the chapter-switch
+    // "jitter"). visibility keeps layout geometry intact for _measure, unlike
+    // display:none.
+    this.contentEl.style.visibility = "hidden";
     this.contentEl.innerHTML = this.sections[index].outerHTML;
 
     await nextFrame();
@@ -310,6 +315,7 @@ export class PaginatedController {
       page = this._pageForCharWithin(landing.char - this.sectionStart);
     }
     this._scrollToPage(page);
+    this.contentEl.style.visibility = "";
   }
 
   /** Advances (dir = 1) or rewinds (dir = -1) one page, crossing sections. */
