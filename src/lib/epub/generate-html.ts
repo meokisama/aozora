@@ -1,7 +1,7 @@
 import path from "path-browserify";
 import { getManifestItems, getSpineItemRefs, type OpfContents } from "./opf";
 import { buildDummyImage } from "./dummy-image";
-import { clearAllBadImageRef, countCharacters, fixXHtmlHref } from "./dom-utils";
+import { clearAllBadImageRef, countCharacters, fixXHtmlHref, tagGaijiImages } from "./dom-utils";
 
 export const PREPEND = "aoz-";
 
@@ -248,6 +248,10 @@ export function generateHtml(data: Record<string, string | Blob>, contents: OpfC
       const base = htmlHref.split("/").pop();
       if (base) hrefToWrapperId.set(base, childWrapperDiv.id);
     }
+
+    // Mark inline-glyph images before counting so each gaiji weighs one character
+    // (and the reader/gallery treat them as glyphs, not illustrations).
+    tagGaijiImages(childWrapperDiv);
 
     const elementCharCount = countCharacters(childWrapperDiv);
     currentCharCount += elementCharCount;

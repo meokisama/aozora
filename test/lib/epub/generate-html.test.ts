@@ -41,12 +41,17 @@ describe("generateHtml (no TOC)", () => {
   });
 
   it("sums Japanese character counts across the spine", () => {
-    expect(characters).toBe(5); // あいう (3) + えお (2)
+    expect(characters).toBe(6); // あいう (3) + えお (2) + inline gaiji glyph (1)
   });
 
   it("rewrites the image src to a dummy placeholder carrying the blob key", () => {
     const img = element.querySelector(`#${PREPEND}ch2 img`);
     expect(img!.getAttribute("src")).toContain("aoz:images/a.png");
+  });
+
+  it("tags an image inline with text as a gaiji glyph", () => {
+    const img = element.querySelector(`#${PREPEND}ch2 img`);
+    expect(img!.classList.contains("aoz-gaiji")).toBe(true);
   });
 
   it("produces no sections without a parsed TOC", () => {

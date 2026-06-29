@@ -8,6 +8,7 @@ import {
   countCharacters,
   clearAllBadImageRef,
   fixXHtmlHref,
+  tagGaijiImages,
 } from "@/lib/epub/dom-utils";
 
 /** Builds a detached element from an HTML string. */
@@ -33,6 +34,45 @@ describe("isElementGaiji / isNodeGaiji", () => {
   it("isNodeGaiji is false for non-image nodes", () => {
     const span = el('<span class="gaiji">x</span>', "p").firstChild as Node;
     expect(isNodeGaiji(span)).toBe(false);
+  });
+});
+
+describe("tagGaijiImages", () => {
+  it("tags an image inline with text (Calibre/KFX gaiji without a gaiji class)", () => {
+    const root = el('<p>その<img src="aoz:x.jpg" class="class_s8x"/>田</p>');
+    tagGaijiImages(root);
+    const img = root.querySelector("img")!;
+    expect(isElementGaiji(img)).toBe(true);
+  });
+
+  it("tags an image used as a ruby base character", () => {
+    const root = el("<p><ruby><rb><img src=\"aoz:x.jpg\"/></rb><rt>くし</rt></ruby>田</p>");
+    tagGaijiImages(root);
+    expect(isElementGaiji(root.querySelector("img")!)).toBe(true);
+  });
+
+  it("climbs out through an inline wrapper to find the text sibling", () => {
+    const root = el('<p>あ<a><img src="aoz:x.jpg"/></a>い</p>');
+    tagGaijiImages(root);
+    expect(isElementGaiji(root.querySelector("img")!)).toBe(true);
+  });
+
+  it("leaves a standalone block image (illustration) untagged", () => {
+    const root = el('<div><p>text</p><img src="aoz:big.jpg"/><p>more</p></div>');
+    tagGaijiImages(root);
+    expect(isElementGaiji(root.querySelector("img")!)).toBe(false);
+  });
+
+  it("leaves an image alone in its own paragraph untagged", () => {
+    const root = el('<p><img src="aoz:big.jpg"/></p>');
+    tagGaijiImages(root);
+    expect(isElementGaiji(root.querySelector("img")!)).toBe(false);
+  });
+
+  it("does not double-tag an image that already has a gaiji class", () => {
+    const root = el('<p>あ<img class="gaiji" src="aoz:x.jpg"/>い</p>');
+    tagGaijiImages(root);
+    expect(root.querySelector("img")!.className).toBe("gaiji");
   });
 });
 

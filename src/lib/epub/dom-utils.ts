@@ -9,6 +9,46 @@ export function isNodeGaiji(node: Node): node is HTMLImageElement {
   return node instanceof HTMLImageElement && isElementGaiji(node);
 }
 
+// Inline wrappers a glyph image may sit inside while still being "inline with text".
+const INLINE_WRAPPERS = new Set(["SPAN", "A", "B", "I", "EM", "STRONG", "SUP", "SUB", "SMALL", "U", "RB", "RUBY"]);
+
+function hasTextSibling(el: Element): boolean {
+  const parent = el.parentElement;
+  if (!parent) return false;
+  return Array.from(parent.childNodes).some((n) => n !== el && n.nodeType === Node.TEXT_NODE && !!n.textContent?.trim());
+}
+
+/** A glyph image (gaiji) sits inline among text: used as a ruby base, or sharing
+ *  its line with a text sibling (climbing out through inline wrappers). A block's
+ *  lone standalone image is an illustration, not a glyph. */
+function isInlineGlyphImage(img: Element): boolean {
+  let el: Element = img;
+  while (el.parentElement) {
+    const parent = el.parentElement;
+    if (parent.tagName === "RUBY" || parent.tagName === "RB") return true;
+    if (hasTextSibling(el)) return true;
+    if (!INLINE_WRAPPERS.has(parent.tagName)) break; // reached a block — stop climbing
+    el = parent;
+  }
+  return false;
+}
+
+/**
+ * Tags context-detected gaiji with `aoz-gaiji`. Calibre/KFX conversions give gaiji
+ * arbitrary class names (e.g. `class_s8x`, sized `width:1em` by the book's own CSS),
+ * so class alone (`isElementGaiji`) misses them — they then get blown up by the
+ * illustration cap and pollute the gallery. The marker class makes every consumer
+ * correct at once: the reader's `img:not([class*="gaiji"])` rule skips them (book CSS
+ * sizes the glyph), the gallery excludes them, and they count as one character. This
+ * mirrors bibi, which never overrides inline image sizing in the first place.
+ */
+export function tagGaijiImages(root: Element): void {
+  for (const img of Array.from(root.querySelectorAll("img,image"))) {
+    if (isElementGaiji(img)) continue; // already class-tagged
+    if (isInlineGlyphImage(img)) img.classList.add("aoz-gaiji");
+  }
+}
+
 // A gaiji image counts as one character; everything else counts only the
 // Japanese codepoints (kana, kanji, fullwidth alnum, iteration marks).
 const isNotJapaneseRegex = /[^0-9A-Z○◯々-〇〻ぁ-ゖゝ-ゞァ-ヺー０-９Ａ-Ｚｦ-ﾝ\p{Radical}\p{Unified_Ideograph}]+/gimu;
