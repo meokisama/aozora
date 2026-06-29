@@ -57,6 +57,7 @@ export interface DictionaryApi {
   setPriority(id: string, priority: number): Promise<DictionaryInfo | null>;
   lookup(text: string): Promise<LookupResult>;
   getMedia(dictId: string, path: string): Promise<string | null>;
+  getStyles(): Promise<{ dictId: string; css: string }[]>;
   onImportProgress(callback: (progress: DictionaryImportProgress) => void): () => void;
 }
 

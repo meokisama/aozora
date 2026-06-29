@@ -28,6 +28,9 @@ export const dictionaryApi = {
   /** Resolves a glossary image (by dict id + archive path) to a data URL, or null. */
   getMedia: (dictId: string, path: string) => ipcRenderer.invoke("dictionary:get-media", dictId, path),
 
+  /** Per-dictionary custom CSS (styles.css) for dictionaries that ship one. */
+  getStyles: () => ipcRenderer.invoke("dictionary:get-styles"),
+
   /** Subscribes to import-progress events. Returns an unsubscribe function. */
   onImportProgress: (cb: (p: DictionaryImportProgress) => void) => {
     const listener = (_event: unknown, p: DictionaryImportProgress) => cb(p);

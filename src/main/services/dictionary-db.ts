@@ -23,7 +23,8 @@ export function getDb(): Database.Database {
       revision    TEXT,
       imported_at INTEGER NOT NULL,
       enabled     INTEGER NOT NULL DEFAULT 1,
-      priority    INTEGER NOT NULL DEFAULT 0   -- lower = consulted first
+      priority    INTEGER NOT NULL DEFAULT 0,  -- lower = consulted first
+      styles      TEXT NOT NULL DEFAULT ''     -- archive styles.css (custom structured-content CSS)
     );
 
     CREATE TABLE IF NOT EXISTS terms (

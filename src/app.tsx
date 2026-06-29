@@ -10,6 +10,7 @@ import { useReaderStore } from "@/stores/reader-store";
 import { useUiStore } from "@/stores/ui-store";
 import { useSettingsStore, THEMES } from "@/stores/settings-store";
 import { useFontsStore } from "@/stores/fonts-store";
+import { syncDictionaryStyles } from "@/lib/dictionary/dict-styles";
 
 export function App() {
   const reading = useReaderStore((s) => s.currentBook !== null);
@@ -19,6 +20,12 @@ export function App() {
   // Load user-imported fonts (IndexedDB) and register their FontFaces once.
   useEffect(() => {
     useFontsStore.getState().init();
+  }, []);
+
+  // Inject imported dictionaries' custom CSS (styles.css), scoped per dictionary,
+  // so rich glosses (e.g. Jitendex) render styled in the reader popup.
+  useEffect(() => {
+    void syncDictionaryStyles();
   }, []);
 
   // Toggle the `.dark` class on the document root to swap the Tailwind palette

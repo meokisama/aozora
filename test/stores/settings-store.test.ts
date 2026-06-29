@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { useSettingsStore, FONT_STACKS, THEMES, FONT_SIZE_RANGE, LINE_HEIGHT_RANGE, FURIGANA_MODES } from "@/stores/settings-store";
 
 const DEFAULTS = {
-  fontSize: 20,
+  fontSize: 21,
   lineHeight: 1.8,
   fontFamily: "mincho",
   theme: "sepia",

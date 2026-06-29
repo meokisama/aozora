@@ -42,8 +42,7 @@ export const useLibraryPrefs = create<LibraryPrefsState>()(
       sort: "added",
       view: "grid",
       cardSize: "medium",
-      // Title/author/progress beneath each cover; off by default for a clean grid.
-      showCardMetadata: false,
+      showCardMetadata: true,
       setSort: (sort) => set({ sort }),
       setView: (view) => set({ view }),
       setCardSize: (cardSize) => set({ cardSize }),

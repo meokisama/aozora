@@ -235,6 +235,8 @@ function parsePitch(expression: string, data: unknown): ParsedPitch | null {
 export interface ParsedDict {
   title: string;
   revision: string | null;
+  /** Contents of the archive's `styles.css` (custom structured-content styling), or "" if absent. */
+  styles: string;
   rows: {
     expression: string;
     reading: string;
@@ -272,6 +274,12 @@ export async function parseYomitanZip(bytes: Uint8Array): Promise<ParsedDict> {
     if (format !== 3) {
       throw new Error(`Unsupported dictionary format (v${format ?? "?"}). Only Yomitan format 3 is supported.`);
     }
+
+    // Optional custom CSS for structured content (dicts like Jitendex style their
+    // glosses via data-sc-* attributes + this sheet). Stored verbatim, scoped to
+    // the dictionary at render time.
+    const stylesEntry = byName.get("styles.css");
+    const styles = stylesEntry ? await entryText(stylesEntry) : "";
 
     const rows: ParsedDict["rows"] = [];
     const bankNames = entries
@@ -385,7 +393,7 @@ export async function parseYomitanZip(bytes: Uint8Array): Promise<ParsedDict> {
       throw new Error("No importable entries found (expected term_bank, term_meta_bank or kanji_bank files).");
     }
 
-    return { title: index.title || "Untitled dictionary", revision: index.revision ?? null, rows, freqs, pitches, kanji, kanjiFreqs, tags, media };
+    return { title: index.title || "Untitled dictionary", revision: index.revision ?? null, styles, rows, freqs, pitches, kanji, kanjiFreqs, tags, media };
   } finally {
     await reader.close();
   }

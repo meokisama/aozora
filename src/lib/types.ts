@@ -145,6 +145,8 @@ export interface DictionaryInfo {
   pitchCount: number;
   /** Kanji entries (kanji_bank); non-zero ⇒ kanji dictionary. */
   kanjiCount: number;
+  /** Kanji frequency ratings (kanji-meta "freq"); non-zero ⇒ kanji-frequency dictionary. */
+  kanjiFreqCount: number;
 }
 
 /**

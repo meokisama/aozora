@@ -35,6 +35,7 @@ interface DictRow {
   freq_count?: number;
   pitch_count?: number;
   kanji_count?: number;
+  kanji_freq_count?: number;
 }
 
 function rowToInfo(row: DictRow): DictionaryInfo {
@@ -49,6 +50,7 @@ function rowToInfo(row: DictRow): DictionaryInfo {
     freqCount: row.freq_count ?? 0,
     pitchCount: row.pitch_count ?? 0,
     kanjiCount: row.kanji_count ?? 0,
+    kanjiFreqCount: row.kanji_freq_count ?? 0,
   };
 }
 
@@ -198,7 +200,8 @@ export const dictionaryStore = {
                 (SELECT COUNT(*) FROM terms t WHERE t.dict_id = d.id) AS term_count,
                 (SELECT COUNT(*) FROM term_meta m WHERE m.dict_id = d.id) AS freq_count,
                 (SELECT COUNT(*) FROM term_pitch p WHERE p.dict_id = d.id) AS pitch_count,
-                (SELECT COUNT(*) FROM kanji k WHERE k.dict_id = d.id) AS kanji_count
+                (SELECT COUNT(*) FROM kanji k WHERE k.dict_id = d.id) AS kanji_count,
+                (SELECT COUNT(*) FROM kanji_meta km WHERE km.dict_id = d.id) AS kanji_freq_count
            FROM dictionaries d
           ORDER BY d.priority ASC, d.imported_at ASC`,
       )
@@ -213,7 +216,8 @@ export const dictionaryStore = {
                 (SELECT COUNT(*) FROM terms t WHERE t.dict_id = d.id) AS term_count,
                 (SELECT COUNT(*) FROM term_meta m WHERE m.dict_id = d.id) AS freq_count,
                 (SELECT COUNT(*) FROM term_pitch p WHERE p.dict_id = d.id) AS pitch_count,
-                (SELECT COUNT(*) FROM kanji k WHERE k.dict_id = d.id) AS kanji_count
+                (SELECT COUNT(*) FROM kanji k WHERE k.dict_id = d.id) AS kanji_count,
+                (SELECT COUNT(*) FROM kanji_meta km WHERE km.dict_id = d.id) AS kanji_freq_count
            FROM dictionaries d WHERE d.id = ?`,
       )
       .get(id) as DictRow | undefined;
@@ -239,8 +243,8 @@ export const dictionaryStore = {
       existing?.priority ?? (database.prepare("SELECT COALESCE(MAX(priority), -1) + 1 AS p FROM dictionaries").get() as { p: number }).p;
 
     const insertDict = database.prepare(
-      `INSERT INTO dictionaries (id, title, revision, imported_at, enabled, priority)
-         VALUES (@id, @title, @revision, @importedAt, 1, @priority)`,
+      `INSERT INTO dictionaries (id, title, revision, imported_at, enabled, priority, styles)
+         VALUES (@id, @title, @revision, @importedAt, 1, @priority, @styles)`,
     );
     const insertTerm = database.prepare(
       `INSERT INTO terms (dict_id, expression, reading, tags, rules, definitions, score, sequence)
@@ -270,7 +274,7 @@ export const dictionaryStore = {
 
     const importAll = database.transaction((parsed: ParsedDict) => {
       if (existing) database.prepare("DELETE FROM dictionaries WHERE id = ?").run(existing.id);
-      insertDict.run({ id, title: parsed.title, revision: parsed.revision, importedAt: Date.now(), priority: nextPriority });
+      insertDict.run({ id, title: parsed.title, revision: parsed.revision, importedAt: Date.now(), priority: nextPriority, styles: parsed.styles });
       for (const r of parsed.rows) {
         insertTerm.run({
           dictId: id,
@@ -325,6 +329,18 @@ export const dictionaryStore = {
 
   removeDict(id: string): void {
     getDb().prepare("DELETE FROM dictionaries WHERE id = ?").run(id);
+  },
+
+  /**
+   * Custom CSS (from each dictionary's `styles.css`) for the dictionaries that
+   * ship one. The renderer injects these scoped to the dictionary so a dict's
+   * structured-content styling applies in the popup without leaking app-wide.
+   */
+  getStyles(): { dictId: string; css: string }[] {
+    const rows = getDb()
+      .prepare("SELECT id AS dictId, styles AS css FROM dictionaries WHERE styles <> ''")
+      .all() as { dictId: string; css: string }[];
+    return rows;
   },
 
   /**

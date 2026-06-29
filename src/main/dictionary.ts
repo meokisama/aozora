@@ -47,4 +47,7 @@ export const registerDictionaryIpc = (): void => {
 
   // Lazily resolves a structured-content image to a data URL as the popup renders.
   ipcMain.handle("dictionary:get-media", (_event, dictId: string, path: string) => dictionaryStore.getMedia(dictId, path));
+
+  // Per-dictionary custom CSS (styles.css); injected once by the renderer, scoped to each dict.
+  ipcMain.handle("dictionary:get-styles", () => dictionaryStore.getStyles());
 };

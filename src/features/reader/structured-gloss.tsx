@@ -34,6 +34,23 @@ const PASSTHROUGH_TAGS = new Set([
   "td",
 ]);
 
+/**
+ * Maps a node's `data` field to `data-sc-*` attributes, matching Yomitan's
+ * dataset convention (`{content:"x"}` → `data-sc-content="x"`). The dictionary's
+ * scoped `styles.css` targets these, so they're what make rich dicts (Jitendex)
+ * render their tag badges, cross-reference boxes, etc.
+ */
+function dataAttrs(data: Record<string, string> | undefined): Record<string, string> {
+  if (!data) return {};
+  const attrs: Record<string, string> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (!key || typeof value !== "string") continue;
+    const kebab = key.replace(/([A-Z])/g, "-$1").toLowerCase();
+    attrs[`data-sc-${kebab}`] = value;
+  }
+  return attrs;
+}
+
 /** Maps the dictionary's structured-content style subset onto React inline style. */
 function toCss(style: GlossStyle | undefined): CSSProperties | undefined {
   if (!style) return undefined;
@@ -131,13 +148,13 @@ function renderNode(node: GlossContent | undefined, key: Key, dictId: string): R
   const children = el.content != null ? renderNode(el.content, "c", dictId) : null;
 
   // Links: render as plain text (no navigation target in the popup).
-  if (tag === "a") return <span className="underline decoration-dotted">{children}</span>;
+  if (tag === "a") return <span className="underline decoration-dotted" {...dataAttrs(el.data)}>{children}</span>;
 
   if (!PASSTHROUGH_TAGS.has(tag)) {
     return el.content != null ? renderNode(el.content, key, dictId) : null;
   }
 
-  const props: Record<string, unknown> = {};
+  const props: Record<string, unknown> = { ...dataAttrs(el.data) };
   const style = toCss(el.style);
   if (style) props.style = style;
   if (el.lang) props.lang = el.lang;

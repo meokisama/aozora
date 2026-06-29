@@ -303,7 +303,7 @@ export function LibraryView() {
             {continueReading.length > 0 && (
               <section>
                 <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Continue reading</h2>
-                <div className="flex gap-5 overflow-x-auto -my-3 py-3">
+                <div className="flex gap-5 overflow-x-auto -my-8 py-8">
                   {continueReading.map((book) => (
                     <div key={book.id} className={`${SHELF_W[cardSize]} shrink-0`}>
                       <BookCard book={book} onOpen={openReader} />

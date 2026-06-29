@@ -21,28 +21,27 @@ import {
 } from "@/components/ui/alert-dialog";
 import { LibrarySidebar } from "@/features/library/library-sidebar";
 import { useDictionaryStore, LOOKUP_MODIFIERS, type LookupModifier } from "@/stores/dictionary-store";
+import { syncDictionaryStyles } from "@/lib/dictionary/dict-styles";
 import { cn } from "@/lib/utils";
 import type { DictionaryInfo } from "@/lib/types";
 
 const api = () => window.electronAPI.dictionary;
 
-// Pre-built Yomitan dictionaries (JMdict/JMnedict/KANJIDIC). The app can't bundle
-// them (licensing + size), so we point users here to download a ZIP themselves
-// and import it below.
-const JMDICT_URL = "https://github.com/yomidevs/jmdict-yomitan";
-const openJmdict = () => window.electronAPI?.window?.openExternal(JMDICT_URL);
+const DICTIONARIES_URL = "https://yomitan.wiki/dictionaries/";
+const openDictionaries = () => window.electronAPI?.window?.openExternal(DICTIONARIES_URL);
 
 /**
  * Human label for what a dictionary contributes. A term dictionary has glosses
  * ("terms"); a frequency dictionary (e.g. JPDB) has only frequency ratings and
  * legitimately reports 0 terms, so surface its frequency count instead.
  */
-function countLabel(d: Pick<DictionaryInfo, "termCount" | "freqCount" | "pitchCount" | "kanjiCount">): string {
+function countLabel(d: Pick<DictionaryInfo, "termCount" | "freqCount" | "pitchCount" | "kanjiCount" | "kanjiFreqCount">): string {
   const parts: string[] = [];
   if (d.termCount) parts.push(`${d.termCount.toLocaleString()} terms`);
   if (d.freqCount) parts.push(`${d.freqCount.toLocaleString()} frequencies`);
   if (d.pitchCount) parts.push(`${d.pitchCount.toLocaleString()} pitch accents`);
   if (d.kanjiCount) parts.push(`${d.kanjiCount.toLocaleString()} kanji`);
+  if (d.kanjiFreqCount) parts.push(`${d.kanjiFreqCount.toLocaleString()} kanji frequencies`);
   return parts.join(" · ") || "no entries";
 }
 
@@ -152,6 +151,7 @@ export function DictionariesView() {
       if (info) {
         toast.success(`Imported “${info.title}” (${countLabel(info)})`);
         await refresh();
+        void syncDictionaryStyles(); // pick up the new dict's styles.css
       }
     } catch (err) {
       toast.error(`Import failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -179,6 +179,7 @@ export function DictionariesView() {
         await api().remove(id);
       } finally {
         await refresh();
+        void syncDictionaryStyles(); // drop the removed dict's styles
       }
     },
     [refresh],
@@ -298,13 +299,13 @@ export function DictionariesView() {
             <div className="flex items-start gap-2.5 border bg-muted/30 p-3">
               <ExternalLink className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
               <p className="text-[11px]/relaxed text-muted-foreground">
-                You can download free Yomitan dictionaries (JMdict, JMnedict, KANJIDIC) as ZIP files and import them here. Get them from:{" "}
+                You can download free Yomitan dictionaries (JMdict, JMnedict, KANJIDIC, Jitendex…) as ZIP files and import them here. Get them from:{" "}
                 <button
                   type="button"
-                  onClick={openJmdict}
+                  onClick={openDictionaries}
                   className="break-all font-medium text-foreground underline underline-offset-2 hover:text-foreground/80"
                 >
-                  {JMDICT_URL}
+                  {DICTIONARIES_URL}
                 </button>
               </p>
             </div>

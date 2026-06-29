@@ -1,7 +1,8 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { LookupResult } from "@/lib/types";
 import { downstepNumber } from "@/lib/dictionary/pitch";
 import { distributeFurigana } from "@/lib/dictionary/furigana";
+import { DICT_SCOPE_ATTR } from "@/lib/dictionary/dict-styles";
 import { StructuredGloss } from "./structured-gloss";
 import { PitchAccent } from "./pitch-accent";
 import { KanjiCard } from "./kanji-card";
@@ -15,6 +16,11 @@ const GLOSS_CLASS =
   "[&_li]:my-0.5 [&_table]:my-1 [&_table]:border-collapse [&_td]:border [&_td]:border-border " +
   "[&_td]:px-1 [&_th]:border [&_th]:border-border [&_th]:px-1 [&_rt]:text-[0.6em] " +
   "marker:text-muted-foreground/60";
+
+// A dictionary's own styles.css references these vars (with hard-coded fallbacks)
+// for colours sized to the reading theme; bind them to the popup's text colour so
+// themed boxes (xref, example sentences) adapt to light/dark instead of using #333.
+const GLOSS_VARS = { "--text-color": "currentColor" } as CSSProperties;
 
 /**
  * Floating Yomitan-style dictionary popup, anchored below the matched run's box
@@ -149,7 +155,7 @@ export function DictionaryPopup({ result, anchor, onMouseEnter, onMouseLeave, on
                   <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70">{group.dictTitle}</span>
                   <TagBadges tags={group.tags} />
                 </div>
-                <div className={GLOSS_CLASS}>
+                <div className={GLOSS_CLASS} {...{ [DICT_SCOPE_ATTR]: group.dictId }} style={GLOSS_VARS}>
                   {group.glosses.length === 1 ? (
                     <StructuredGloss content={group.glosses[0]} dictId={group.dictId} />
                   ) : (
