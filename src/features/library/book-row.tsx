@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { MoreVertical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { BookActionsMenu, BookContextMenu } from "./book-actions";
 import { readingStatus, relativeTime, STATUS_LABELS, type ReadingStatus } from "@/lib/format";
 import bookTemplate from "@/assets/book-template.png";
@@ -59,13 +60,14 @@ export function BookRow({ book, onOpen }: { book: Book; onOpen?: (book: Book) =>
         <BookActionsMenu
           book={book}
           trigger={
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon-sm"
               aria-label="Book actions"
-              className="flex size-7 shrink-0 items-center justify-center text-muted-foreground opacity-0 transition-colors hover:text-foreground focus-visible:opacity-100 group-hover/row:opacity-100 data-[state=open]:opacity-100"
+              className="text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover/row:opacity-100 data-[state=open]:opacity-100"
             >
               <MoreVertical className="size-4" />
-            </button>
+            </Button>
           }
         />
       </div>

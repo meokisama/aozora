@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Bookmark, List, Loader2, Search, Settings } from "lucide-react";
+import { ArrowLeft, Bookmark, Images, List, Loader2, Search, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useReaderStore } from "@/stores/reader-store";
 import { useLibraryStore } from "@/stores/library-store";
@@ -9,6 +9,8 @@ import { ReaderSettingsPanel } from "./settings-panel";
 import { ReaderToc } from "./reader-toc";
 import { ReaderBookmarks } from "./reader-bookmarks";
 import { ReaderSearch } from "./reader-search";
+import { ReaderGallery } from "./reader-gallery";
+import { collectIllustrations, type Illustration } from "@/lib/reader/illustrations";
 import { applyReaderVars, continuousStyles, paginatedStyles } from "./reader-styles";
 import { parseBook, type ParsedBook, type FixedLayoutPage } from "@/lib/epub/parse-book";
 import type { Section } from "@/lib/epub/generate-html";
@@ -141,6 +143,8 @@ export function ReaderView() {
   const [bookmarks, setBookmarks] = useState<BookmarkRecord[]>([]);
   const [nameInput, setNameInput] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [illustrations, setIllustrations] = useState<Illustration[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<{ results: SearchResult[]; total: number; capped: boolean }>({
     results: [],
@@ -148,6 +152,11 @@ export function ReaderView() {
     capped: false,
   });
   const [lookup, setLookup] = useState<{ result: LookupResult; anchor: DOMRect | null } | null>(null);
+
+  // Mirrors whether any reader overlay (panel/gallery) is open, so the global
+  // page-flip key handler can stand down instead of flipping pages behind it.
+  const panelOpenRef = useRef(false);
+  panelOpenRef.current = tocOpen || settingsOpen || bookmarksOpen || searchOpen || galleryOpen;
 
   const total = totalRef.current;
   // Fixed-layout position is a page ordinal, so the last page (total-1) is 100%;
@@ -566,10 +575,13 @@ export function ReaderView() {
         }
         if (cancelled) return;
 
-        const { html, objectUrls } = buildReaderHtml(parsed.elementHtml, parsed.blobs);
+        const { html, objectUrls, keyToUrl } = buildReaderHtml(parsed.elementHtml, parsed.blobs);
         objectUrlsRef.current = objectUrls;
         parsedRef.current = parsed;
         htmlRef.current = html;
+        // Gallery images share the object URLs above, so their lifetime is tied
+        // to this book load (revoked together on unmount/book change).
+        setIllustrations(parsed.fixedLayout ? [] : collectIllustrations(parsed.elementHtml, keyToUrl));
         const initialVertical = resolveVertical(useSettingsStore.getState().writingMode, parsed.vertical);
         verticalRef.current = initialVertical;
         charRef.current = book.exploredCharCount || 0;
@@ -739,6 +751,7 @@ export function ReaderView() {
   useEffect(() => {
     if (fixedLayout || readingMode !== "paginated") return;
     const onKey = (e: KeyboardEvent) => {
+      if (panelOpenRef.current) return; // a panel/gallery is open — don't flip pages behind it
       if (e.altKey || e.ctrlKey || e.metaKey || e.repeat) return;
       const vert = verticalRef.current;
       switch (e.code) {
@@ -891,6 +904,15 @@ export function ReaderView() {
         <Button
           variant="ghost"
           size="icon"
+          onClick={() => setGalleryOpen(true)}
+          disabled={!illustrations.length}
+          aria-label="Illustrations"
+        >
+          <Images className="size-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={() => {
             setNameInput(computeDefaultName());
             setBookmarksOpen(true);
@@ -987,6 +1009,17 @@ export function ReaderView() {
         total={searchResults.total}
         capped={searchResults.capped}
         onJump={jumpToSearchResult}
+      />
+
+      <ReaderGallery
+        open={galleryOpen}
+        onOpenChange={setGalleryOpen}
+        illustrations={illustrations}
+        total={total}
+        onSelect={(char) => {
+          setGalleryOpen(false);
+          jumpToChar(char);
+        }}
       />
 
       <ReaderSettingsPanel open={settingsOpen} onOpenChange={setSettingsOpen} fixedLayout={fixedLayout} vertical={vertical} />
