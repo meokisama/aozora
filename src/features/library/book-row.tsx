@@ -39,7 +39,7 @@ export function BookRow({ book, onOpen }: { book: Book; onOpen?: (book: Book) =>
         </button>
 
         <button type="button" onClick={() => onOpen?.(book)} className="min-w-0 flex-1 text-left space-y-1">
-          <p className="truncate text-[14px] font-semibold font-noto-serif">{book.title}</p>
+          <p className="truncate text-[14px] text-foreground font-noto-serif">{book.title}</p>
           {book.author && <p className="truncate text-xs font-noto-serif text-muted-foreground">{book.author}</p>}
         </button>
 

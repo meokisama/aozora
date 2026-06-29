@@ -13,31 +13,25 @@
   font-family: "Noto Serif JP";
   font-weight: 400;
   font-display: swap;
-  src: url("../node_modules/@fontsource/noto-serif-jp/files/noto-serif-jp-japanese-400-normal.woff2") format("woff2");
-}
-@font-face {
-  font-family: "Noto Serif JP";
-  font-weight: 600;
-  font-display: swap;
-  src: url("../node_modules/@fontsource/noto-serif-jp/files/noto-serif-jp-japanese-600-normal.woff2") format("woff2");
+  src: url("./assets/noto-serif-jp-japanese-400-normal.woff2") format("woff2");
 }
 @font-face {
   font-family: "Noto Serif JP";
   font-weight: 700;
   font-display: swap;
-  src: url("../node_modules/@fontsource/noto-serif-jp/files/noto-serif-jp-japanese-700-normal.woff2") format("woff2");
+  src: url("./assets/noto-serif-jp-japanese-700-normal.woff2") format("woff2");
 }
 @font-face {
   font-family: "Noto Sans JP";
   font-weight: 400;
   font-display: swap;
-  src: url("../node_modules/@fontsource/noto-sans-jp/files/noto-sans-jp-japanese-400-normal.woff2") format("woff2");
+  src: url("./assets/noto-sans-jp-japanese-400-normal.woff2") format("woff2");
 }
 @font-face {
   font-family: "Noto Sans JP";
   font-weight: 700;
   font-display: swap;
-  src: url("../node_modules/@fontsource/noto-sans-jp/files/noto-sans-jp-japanese-700-normal.woff2") format("woff2");
+  src: url("./assets/noto-sans-jp-japanese-700-normal.woff2") format("woff2");
 }
 
 :root {
@@ -112,7 +106,6 @@
 @theme inline {
   --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mincho: "Yu Mincho", YuMincho, "Hiragino Mincho ProN", serif;
-  --font-epson: "EPGyosho", ui-sans-serif, system-ui, sans-serif;
   --font-noto-serif: "Noto Serif JP", ui-sans-serif, system-ui, sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);

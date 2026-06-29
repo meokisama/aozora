@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check } from "lucide-react";
+import { Check, Clock3 } from "lucide-react";
 import { BookContextMenu } from "./book-actions";
 import { readingStatus, relativeTime } from "@/lib/format";
 import { useLibraryPrefs } from "@/stores/library-prefs-store";
@@ -22,10 +22,6 @@ export function BookCard({ book, onOpen }: { book: Book; onOpen?: (book: Book) =
   useEffect(() => setCoverError(false), [book.coverDataUrl]);
   const useFallback = !book.coverDataUrl || coverError;
 
-  // Compact metric beside the author: percent while reading, "Finished" when
-  // done, else the last-read time.
-  const meta = status === "reading" ? `${pct}%` : status === "finished" ? "Finished" : lastRead;
-
   return (
     <BookContextMenu book={book}>
       <div className="flex flex-col">
@@ -41,13 +37,20 @@ export function BookCard({ book, onOpen }: { book: Book; onOpen?: (book: Book) =
               />
             </button>
 
-            {status === "finished" && (
-              <div className="pointer-events-none absolute left-1.5 top-1.5 flex size-5 items-center justify-center bg-primary text-primary-foreground shadow-sm">
-                <Check className="size-3.5" />
+            {showMetadata && status === "finished" && (
+              <div className="pointer-events-none absolute left-1.5 top-1.5 flex size-5 items-center justify-center bg-black/40 text-white shadow-sm backdrop-blur-xs">
+                <Check className="size-3" />
               </div>
             )}
 
-            {status === "reading" && pct > 0 && (
+            {showMetadata && status === "reading" && lastRead && (
+              <div className="pointer-events-none absolute left-1.5 top-1.5 flex items-center gap-1 bg-black/30 px-1.5 py-1 text-[10px] font-medium leading-none text-white shadow-sm backdrop-blur-xs">
+                <Clock3 className="size-2.5 opacity-80" />
+                <span className="tabular-nums">{lastRead}</span>
+              </div>
+            )}
+
+            {showMetadata && status === "reading" && pct > 0 && (
               <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-linear-to-t from-black/40 to-transparent">
                 <div className="absolute inset-x-0 bottom-0 h-1 bg-black/20">
                   <div className="h-full bg-amber-700" style={{ width: `${pct}%` }} />
@@ -59,15 +62,7 @@ export function BookCard({ book, onOpen }: { book: Book; onOpen?: (book: Book) =
 
         {showMetadata && (
           <div className="mt-2 space-y-0.5">
-            <p className="line-clamp-2 select-text text-xs font-semibold leading-snug font-noto-serif">{book.title}</p>
-            <div className="flex items-baseline justify-between gap-2">
-              {book.author ? (
-                <p className="truncate select-text text-[11px] text-muted-foreground font-noto-serif">{book.author}</p>
-              ) : (
-                <span className="text-[11px] text-transparent">·</span>
-              )}
-              {meta && <span className="shrink-0 text-[11px] text-muted-foreground/80 tabular-nums">{meta}</span>}
-            </div>
+            <p className="line-clamp-2 px-0.5 font-mincho text-xs leading-snug text-foreground select-text">{book.title}</p>
           </div>
         )}
       </div>
