@@ -73,17 +73,35 @@ export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProp
 
   const before = ppd === "rtl" ? "right" : "left"; // opener side
 
-  // Authored pixel size of a page: its SVG viewBox, else the book viewport, else
-  // a portrait fallback. Cached per ordinal (read once off the detached wrapper).
+  // Authored pixel size of a page, cached per ordinal. Resolution order mirrors
+  // bibi: SVG viewBox → book viewport → the bitmap's own size (width/height attrs,
+  // else its natural size once loaded; see layout's onload). A lone manga page that
+  // is just an <img> with none of the above used to fall straight to a portrait
+  // guess and scale to the wrong aspect — now it's measured.
   const pageViewport = useCallback(
     (page: SpreadPage): Viewport => {
       const cached = viewportsRef.current.get(page.ordinal);
       if (cached) return cached;
       const el = wrappersRef.current.get(page.idref ?? "");
       const vb = parseViewBox(el?.querySelector("svg")?.getAttribute("viewBox"));
-      const vp = vb || bookViewport || FALLBACK_VIEWPORT;
-      viewportsRef.current.set(page.ordinal, vp);
-      return vp;
+      let vp = vb || bookViewport;
+      if (!vp) {
+        const img = el?.querySelector("img");
+        const aw = Number(img?.getAttribute("width"));
+        const ah = Number(img?.getAttribute("height"));
+        if (aw > 0 && ah > 0) vp = { width: aw, height: ah };
+        else if (img && img.naturalWidth > 0) vp = { width: img.naturalWidth, height: img.naturalHeight };
+      }
+      if (vp) {
+        viewportsRef.current.set(page.ordinal, vp);
+        return vp;
+      }
+      // Size still unknown (image not loaded yet): guess by stage orientation so the
+      // pre-load box isn't wildly mis-shaped. Not cached — the onload measurement
+      // replaces it on the next layout.
+      const stage = stageRef.current;
+      const landscape = !!stage && stage.clientWidth > stage.clientHeight;
+      return landscape ? { width: FALLBACK_VIEWPORT.height, height: FALLBACK_VIEWPORT.width } : FALLBACK_VIEWPORT;
     },
     [bookViewport],
   );
@@ -162,13 +180,38 @@ export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProp
       canvas.style.transform = `scale(${scale})`;
 
       const original = wrappersRef.current.get(slot.page?.idref ?? "");
-      if (original) canvas.appendChild(original.cloneNode(true));
+      if (original) {
+        const clone = original.cloneNode(true) as Element;
+        canvas.appendChild(clone);
+        // Page size unknown until its bitmap loads → measure it once, then re-lay
+        // out with the true dimensions. Guard on the cache so this fires at most
+        // once per page (no re-layout loop).
+        const ordinal = slot.page?.ordinal;
+        const img = ordinal != null && !viewportsRef.current.has(ordinal) ? clone.querySelector("img") : null;
+        if (img) {
+          img.addEventListener(
+            "load",
+            () => {
+              if (img.naturalWidth > 0 && !viewportsRef.current.has(ordinal)) {
+                viewportsRef.current.set(ordinal, { width: img.naturalWidth, height: img.naturalHeight });
+                layoutRef.current();
+              }
+            },
+            { once: true },
+          );
+        }
+      }
       box.appendChild(canvas);
       spread.appendChild(box);
     }
 
     stage.replaceChildren(spread);
   }, [spreadMode, doubleSpreads, singleViews, ppd, before, pageViewport]);
+
+  // Stable handle so layout's onload can re-invoke the latest layout without a
+  // circular useCallback dependency.
+  const layoutRef = useRef(layout);
+  layoutRef.current = layout;
 
   // Build the shadow DOM once (and whenever the parsed content changes).
   useEffect(() => {

@@ -2,6 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { xmlParser } from "@/lib/epub/opf";
 import { generateHtml, PREPEND } from "@/lib/epub/generate-html";
+import { buildDummyImage } from "@/lib/epub/dummy-image";
 
 const OPF = `<?xml version="1.0"?>
 <package>
@@ -97,6 +98,38 @@ describe("generateHtml (image-in-spine / OMF)", () => {
   it("counts no characters and tags the wrappers text-free", () => {
     expect(characters).toBe(0);
     expect(element.querySelector(`#${PREPEND}image001 .aoz-no-text`)).toBeTruthy();
+  });
+});
+
+describe("generateHtml (flat numeric filenames — substring collision)", () => {
+  // Calibre/hako books name images by bare numbers at the root, so "1.jpg" is a
+  // substring of "11.jpg"/"21.jpg" and "10.jpg" of "110.jpg". A global string
+  // replace nested the dummies into broken URLs; per-element matching must not.
+  const numOpf = `<?xml version="1.0"?>
+  <package>
+    <manifest>
+      <item id="c" href="ch.html" media-type="application/xhtml+xml"/>
+      <item id="i1" href="1.jpg" media-type="image/jpeg"/>
+      <item id="i11" href="11.jpg" media-type="image/jpeg"/>
+      <item id="i110" href="110.jpg" media-type="image/jpeg"/>
+    </manifest>
+    <spine><itemref idref="c"/></spine>
+  </package>`;
+  const num = xmlParser.parse(numOpf);
+  const data = {
+    "ch.html": '<html><body><p>あ<img src="1.jpg"/><img src="11.jpg"/><img src="110.jpg"/></p></body></html>',
+    "1.jpg": new Blob(["a"], { type: "image/jpeg" }),
+    "11.jpg": new Blob(["b"], { type: "image/jpeg" }),
+    "110.jpg": new Blob(["c"], { type: "image/jpeg" }),
+  };
+  const { element } = generateHtml(data, num, ".");
+  const imgs = Array.from(element.querySelectorAll(`#${PREPEND}c img`));
+
+  it("gives each colliding filename its own intact dummy (no nesting)", () => {
+    const srcs = imgs.map((i) => i.getAttribute("src"));
+    expect(srcs).toEqual([buildDummyImage("1.jpg"), buildDummyImage("11.jpg"), buildDummyImage("110.jpg")]);
+    // A nested/corrupted dummy would carry the marker twice.
+    for (const src of srcs) expect(src!.match(/data:image\/gif/g)!.length).toBe(1);
   });
 });
 

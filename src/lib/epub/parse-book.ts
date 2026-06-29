@@ -46,7 +46,13 @@ export async function parseBook(blob: Blob): Promise<ParsedBook> {
 
   const elementHtml = element.innerHTML;
   const ppd = getPageProgressionDirection(contents);
-  const vertical = ppd === "rtl" || /\bvrtl\b/.test(elementHtml);
+  // Vertical (tategaki) detection. PPD=rtl and the 電書協 `vrtl` class are strong
+  // signals. Calibre/KFX conversions instead declare `writing-mode: vertical-rl`
+  // on arbitrary paragraph classes (no `vrtl`, sometimes no PPD), so also consult
+  // the book stylesheet — but only when PPD isn't an explicit `ltr`, so a
+  // horizontal book with a stray vertical caption isn't flipped wholesale.
+  const cssDeclaresVertical = /(?:-webkit-|-epub-)?writing-mode\s*:\s*(?:vertical-[rl]l|tb-[rl]l)/i.test(styleSheet);
+  const vertical = ppd === "rtl" || /\bvrtl\b/.test(elementHtml) || (ppd !== "ltr" && cssDeclaresVertical);
 
   const fixedLayout = isFixedLayout(contents);
   const effectivePpd = ppd || (fixedLayout ? "rtl" : "ltr");

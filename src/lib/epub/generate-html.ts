@@ -209,24 +209,35 @@ export function generateHtml(data: Record<string, string | Blob>, contents: OpfC
       bodyId = body.id || "";
       bodyClass = body.className || "";
 
+      // Resolve each image reference against its spine item's folder to the blob
+      // key (manifest href), then swap a packed image for its dummy placeholder
+      // *on the element itself*. We deliberately do NOT string-replace the key
+      // across the whole HTML: flat numeric filenames like `1.jpg` are substrings
+      // of `11.jpg` / `21.jpg` / `110.jpg`, so a global replaceAll chews the key
+      // out of already-substituted dummies, nesting them into broken URLs (and
+      // could even hit such a string in prose). Per-element matching is exact.
+      const blobKeys = new Set(blobLocations);
       for (const elm of [...body.querySelectorAll("image,img")]) {
         const attributes = elm.tagName.toLowerCase() === "image" ? elm.getAttributeNames().filter((attr) => attr.endsWith("href")) : ["src"];
         for (const attr of attributes) {
           const value = elm.getAttribute(attr);
-          if (value) {
-            elm.setAttribute(attr, path.join(path.dirname(htmlHref), value));
+          if (!value) continue;
+          const resolved = path.join(path.dirname(htmlHref), value);
+          let key: string | null = blobKeys.has(resolved) ? resolved : null;
+          if (!key) {
+            // The href may be percent-encoded (spaces etc.) while the blob key is not.
+            try {
+              const decoded = decodeURIComponent(resolved);
+              if (blobKeys.has(decoded)) key = decoded;
+            } catch {
+              /* malformed escape — leave unresolved */
+            }
           }
+          elm.setAttribute(attr, key ? buildDummyImage(key) : resolved);
         }
       }
 
       innerHtml = body.innerHTML || "";
-      // Match the blob key (manifest href) directly: the old
-      // `relative(contentsDirectory, …)` indirection mis-resolved to a `../`
-      // prefix when the OPF sat two+ directories deep (e.g. `OPS/content/`),
-      // leaving full-page illustrations unswapped → blank pages.
-      blobLocations.forEach((blobLocation) => {
-        innerHtml = innerHtml.replaceAll(blobLocation, buildDummyImage(blobLocation));
-      });
     }
 
     const childBodyDiv = document.createElement("div");
