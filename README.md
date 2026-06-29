@@ -12,9 +12,10 @@
 ## About
 
 **Aozora 青空** is a **desktop EPUB reader for Japanese light novels & manga** — tuned
-for the things that matter when reading Japanese: tategaki, **multiple furigana display
-modes**, **full-text search**, and a comfortable paginated layout. Import your `.epub`
-library, then read with full TOC navigation, bookmarks, and adjustable typography.
+for the things that matter when reading Japanese: **vertical (tategaki) or horizontal
+text**, **multiple furigana display modes**, **full-text search**, and a comfortable
+paginated layout. Import your `.epub` library, then read with full TOC navigation,
+bookmarks, and adjustable typography.
 
 It's a reading tool, not just a viewer: a built-in hover dictionary with
 **[support for Yomitan dictionaries](#dictionary)** looks up words instantly — with
@@ -35,8 +36,12 @@ activity heatmap with daily goals and streaks. It also reads
 ## Features
 
 - **Two layout modes**, toggled live without re-parsing:
-  - **Paginated** (default) — one column-page at a time, char-based paging.
+  - **Paginated** (default) — page-flip layout, one column-page at a time, char-based paging.
   - **Continuous** — native scroll.
+- **Vertical or horizontal text** — reads tategaki (vertical-rl) by default, following each
+  book's own direction, with a live **Horizontal / Vertical** toggle in settings. Horizontal
+  reading adds two layout controls: **columns per page** (paginated) and an adjustable
+  **side margin** (continuous); both default to a sensible auto value.
 - **Furigana** rendered with native `<ruby>`, with five display modes: **show**, **hide**,
   **dimmed**, **toggle-on-click**, and **reveal-on-hover/click**.
 - **Full-text search\*** within the open book, with hit highlighting via the CSS

@@ -54,12 +54,11 @@ export const LINE_HEIGHT_RANGE = { min: 1.2, max: 2.6, step: 0.1 };
 export const SIDE_MARGIN_RANGE = { min: 0, max: 30, step: 1 };
 
 /**
- * User-selectable columns per page for horizontal paginated reading (ignored in
- * vertical, which is always single-column). The stored default is `0` = auto
- * (scales with viewport width, ttsu-style); it stays auto until the reader picks
- * an explicit count here, so "Auto" isn't shown as its own option.
+ * Columns per page for horizontal paginated reading (ignored in vertical, which
+ * is always single-column). `0` = auto (scales with viewport width, ttsu-style).
  */
 export const PAGE_COLUMNS_OPTIONS: { value: number; label: string }[] = [
+  { value: 0, label: "Auto" },
   { value: 1, label: "1" },
   { value: 2, label: "2" },
   { value: 3, label: "3" },
@@ -96,11 +95,13 @@ export const MANGA_SPREAD_MODES: { value: MangaSpread; label: string }[] = [
 ];
 
 /**
- * User-selectable text directions. The stored default is `"auto"` (follow the
- * EPUB's own PPD / CSS — tategaki for most LNs), which stays in effect until the
- * reader picks one of these explicitly, so "Auto" isn't shown as its own option.
+ * User-selectable text directions. The default is `"auto"` — follow each EPUB's
+ * own PPD / CSS (tategaki for most LNs, horizontal for foreign books). Picking
+ * `horizontal`/`vertical` writes an explicit global override that applies to
+ * every book until switched back to `auto`.
  */
-export const WRITING_MODES: { value: Exclude<WritingMode, "auto">; label: string }[] = [
+export const WRITING_MODES: { value: WritingMode; label: string }[] = [
+  { value: "auto", label: "Auto" },
   { value: "horizontal", label: "Horizontal" },
   { value: "vertical", label: "Vertical" },
 ];

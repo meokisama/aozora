@@ -25,8 +25,6 @@ export interface PaginatedState {
   page: number;
   totalPages: number;
   sectionIndex: number;
-  /** Columns per page actually in use (resolves auto), for the settings UI. */
-  columns: number;
 }
 
 export interface PaginatedOptions {
@@ -312,7 +310,6 @@ export class PaginatedController {
       page: this.page,
       totalPages: this.totalPages,
       sectionIndex: this.sectionIndex,
-      columns: this._effectiveColumns(),
     });
   }
 

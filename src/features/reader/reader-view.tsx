@@ -135,7 +135,6 @@ export function ReaderView() {
   const [sections, setSections] = useState<Section[]>([]);
   const [currentChar, setCurrentChar] = useState(0);
   const [pageInfo, setPageInfo] = useState<{ page: number; totalPages: number } | null>(null); // paginated mode
-  const [activeColumns, setActiveColumns] = useState(1); // resolved columns/page (paginated horizontal), for the settings UI
   const [tocOpen, setTocOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [bookmarksOpen, setBookmarksOpen] = useState(false);
@@ -251,7 +250,6 @@ export function ReaderView() {
       charRef.current = state.char;
       setCurrentChar(state.char);
       setPageInfo({ page: state.page, totalPages: state.totalPages });
-      setActiveColumns(state.columns);
       markSession(state.char, "paginated");
       clearLookup(); // the matched run scrolled off the page
       clearTimeout(saveTimerRef.current);
@@ -991,13 +989,7 @@ export function ReaderView() {
         onJump={jumpToSearchResult}
       />
 
-      <ReaderSettingsPanel
-        open={settingsOpen}
-        onOpenChange={setSettingsOpen}
-        fixedLayout={fixedLayout}
-        vertical={vertical}
-        activeColumns={activeColumns}
-      />
+      <ReaderSettingsPanel open={settingsOpen} onOpenChange={setSettingsOpen} fixedLayout={fixedLayout} vertical={vertical} />
     </div>
   );
 }

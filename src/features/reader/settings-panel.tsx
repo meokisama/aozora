@@ -59,18 +59,18 @@ interface Props {
   /** Effective writing direction; gates the horizontal-only layout controls and
    *  drives which Text Direction chip is highlighted while the setting is auto. */
   vertical?: boolean;
-  /** Columns per page actually in use (resolves auto), to highlight the chip. */
-  activeColumns?: number;
 }
 
-export function ReaderSettingsPanel({ open, onOpenChange, fixedLayout = false, vertical = true, activeColumns = 1 }: Props) {
+export function ReaderSettingsPanel({ open, onOpenChange, fixedLayout = false, vertical = true }: Props) {
   const fontSize = useSettingsStore((s) => s.fontSize);
   const lineHeight = useSettingsStore((s) => s.lineHeight);
   const fontFamily = useSettingsStore((s) => s.fontFamily);
   const theme = useSettingsStore((s) => s.theme);
   const readingMode = useSettingsStore((s) => s.readingMode);
+  const writingMode = useSettingsStore((s) => s.writingMode);
   const furiganaMode = useSettingsStore((s) => s.furiganaMode);
   const mangaSpread = useSettingsStore((s) => s.mangaSpread);
+  const pageColumns = useSettingsStore((s) => s.pageColumns);
   const sideMargin = useSettingsStore((s) => s.sideMargin);
   const setFontSize = useSettingsStore((s) => s.setFontSize);
   const setLineHeight = useSettingsStore((s) => s.setLineHeight);
@@ -128,8 +128,9 @@ export function ReaderSettingsPanel({ open, onOpenChange, fixedLayout = false, v
                 vertical,
                 readingMode,
                 setReadingMode,
+                writingMode,
                 setWritingMode,
-                activeColumns,
+                pageColumns,
                 setPageColumns,
                 sideMargin,
                 setSideMargin,
@@ -147,7 +148,7 @@ export function ReaderSettingsPanel({ open, onOpenChange, fixedLayout = false, v
           )}
         </div>
 
-        <div className="border-t p-4">
+        <div className="p-4">
           <Button variant="outline" className="w-full" onClick={reset}>
             <RotateCcw className="size-3.5" />
             Reset to defaults
@@ -162,8 +163,9 @@ interface ReflowableFieldsProps {
   vertical: boolean;
   readingMode: ReadingMode;
   setReadingMode: (mode: ReadingMode) => void;
+  writingMode: WritingMode;
   setWritingMode: (mode: WritingMode) => void;
-  activeColumns: number;
+  pageColumns: number;
   setPageColumns: (columns: number) => void;
   sideMargin: number;
   setSideMargin: (margin: number) => void;
@@ -183,8 +185,9 @@ function ReflowableFields({
   vertical,
   readingMode,
   setReadingMode,
+  writingMode,
   setWritingMode,
-  activeColumns,
+  pageColumns,
   setPageColumns,
   sideMargin,
   setSideMargin,
@@ -216,6 +219,16 @@ function ReflowableFields({
 
   return (
     <>
+      <Field label="Writing Mode">
+        <ToggleGroup {...segmented} value={writingMode} onValueChange={guard(setWritingMode)}>
+          {WRITING_MODES.map((m) => (
+            <ToggleGroupItem key={m.value} value={m.value} className="flex-1">
+              {m.label}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      </Field>
+
       <Field label="Reading Mode">
         <ToggleGroup {...segmented} value={readingMode} onValueChange={guard(setReadingMode)}>
           <ToggleGroupItem value="paginated" className="flex-1">
@@ -227,28 +240,9 @@ function ReflowableFields({
         </ToggleGroup>
       </Field>
 
-      {/* Highlights the effective direction (the book's own while the setting is
-          auto); picking the other chip writes an explicit global override. */}
-      <Field label="Text Direction">
-        <ToggleGroup {...segmented} value={vertical ? "vertical" : "horizontal"} onValueChange={guard(setWritingMode)}>
-          {WRITING_MODES.map((m) => (
-            <ToggleGroupItem key={m.value} value={m.value} className="flex-1">
-              {m.label}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
-      </Field>
-
-      {/* Horizontal-only layout controls (tategaki paginates by height and reads
-          full-bleed, so columns/side-margin don't apply there). The columns chip
-          shows the count in use (auto resolves with width); picking one overrides. */}
       {!vertical && readingMode === "paginated" && (
         <Field label="Columns per Page">
-          <ToggleGroup
-            {...segmented}
-            value={String(activeColumns)}
-            onValueChange={(v: string) => v && setPageColumns(Number(v))}
-          >
+          <ToggleGroup {...segmented} value={String(pageColumns)} onValueChange={(v: string) => v && setPageColumns(Number(v))}>
             {PAGE_COLUMNS_OPTIONS.map((o) => (
               <ToggleGroupItem key={o.value} value={String(o.value)} className="flex-1">
                 {o.label}
@@ -270,58 +264,6 @@ function ReflowableFields({
         </Field>
       )}
 
-      <Field label="Font">
-        <Select value={fontFamily} onValueChange={guard(setFontFamily)}>
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {FONT_FAMILIES.map((f) => (
-              <SelectItem key={f.value} value={f.value}>
-                {f.label}
-              </SelectItem>
-            ))}
-            {customFonts.length > 0 && (
-              <SelectGroup>
-                {customFonts.map((f) => (
-                  <SelectItem key={f.id} value={f.id}>
-                    {f.label}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            )}
-          </SelectContent>
-        </Select>
-
-        <input ref={fileRef} type="file" accept=".ttf,.otf,.woff,.woff2" className="hidden" onChange={onPickFont} />
-        <div className="mt-2 divide-y border">
-          {customFonts.map((f) => (
-            <div key={f.id} className="flex items-center gap-2 py-1.5 pr-1.5 pl-2.5">
-              <span className="min-w-0 flex-1 truncate text-xs leading-tight" title={f.label}>
-                {f.label}
-              </span>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                className="shrink-0 text-muted-foreground hover:text-destructive"
-                onClick={() => removeFont(f.id)}
-                aria-label={`Remove ${f.label}`}
-              >
-                <Trash2 className="size-3.5" />
-              </Button>
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className="flex w-full cursor-pointer items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors bg-muted/50 hover:bg-muted"
-          >
-            <Upload className="size-3.5" />
-            Import font
-          </button>
-        </div>
-      </Field>
-
       <Field label="Furigana">
         <Select value={furiganaMode} onValueChange={guard(setFuriganaMode)}>
           <SelectTrigger className="w-full">
@@ -335,6 +277,57 @@ function ReflowableFields({
             ))}
           </SelectContent>
         </Select>
+      </Field>
+
+      <Field label="Font">
+        <div className="flex items-center gap-2">
+          <Select value={fontFamily} onValueChange={guard(setFontFamily)}>
+            <SelectTrigger className="flex-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FONT_FAMILIES.map((f) => (
+                <SelectItem key={f.value} value={f.value}>
+                  {f.label}
+                </SelectItem>
+              ))}
+              {customFonts.length > 0 && (
+                <SelectGroup>
+                  {customFonts.map((f) => (
+                    <SelectItem key={f.id} value={f.id}>
+                      {f.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              )}
+            </SelectContent>
+          </Select>
+          <input ref={fileRef} type="file" accept=".ttf,.otf,.woff,.woff2" className="hidden" onChange={onPickFont} />
+          <Button variant="outline" size="icon" className="shrink-0" onClick={() => fileRef.current?.click()} aria-label="Import font">
+            <Upload className="size-3.5" />
+          </Button>
+        </div>
+
+        {customFonts.length > 0 && (
+          <div className="mt-2 divide-y border">
+            {customFonts.map((f) => (
+              <div key={f.id} className="flex items-center gap-2 py-1.5 pr-1.5 pl-2.5">
+                <span className="min-w-0 flex-1 truncate text-xs leading-tight" title={f.label}>
+                  {f.label}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  className="shrink-0 text-muted-foreground hover:text-destructive"
+                  onClick={() => removeFont(f.id)}
+                  aria-label={`Remove ${f.label}`}
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
       </Field>
 
       <Field label="Font Size" value={`${fontSize}px`}>
