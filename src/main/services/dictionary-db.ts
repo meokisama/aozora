@@ -124,3 +124,11 @@ export function getDb(): Database.Database {
   `);
   return db;
 }
+
+/** Closes the DB handle so its file can be deleted (see system:clear-all-data). */
+export function closeDb(): void {
+  if (db) {
+    db.close();
+    db = undefined;
+  }
+}

@@ -61,11 +61,17 @@ export interface DictionaryApi {
   onImportProgress(callback: (progress: DictionaryImportProgress) => void): () => void;
 }
 
+export interface SystemApi {
+  /** Wipes all persisted data and relaunches the app. Never resolves. */
+  clearAllData(): Promise<void>;
+}
+
 export interface ElectronAPI {
   window: WindowApi;
   library: LibraryApi;
   stats: StatsApi;
   dictionary: DictionaryApi;
+  system: SystemApi;
 }
 
 declare global {

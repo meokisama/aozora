@@ -168,6 +168,14 @@ interface RecordSessionInput {
 export const libraryStore = {
   getBooksDir,
 
+  /** Closes the DB handle so its file can be deleted (see system:clear-all-data). */
+  close(): void {
+    if (db) {
+      db.close();
+      db = undefined;
+    }
+  },
+
   listBooks(): Book[] {
     const rows = getDb().prepare("SELECT * FROM books ORDER BY added_at DESC").all() as BookRow[];
     return rows.map(rowToBook) as Book[];

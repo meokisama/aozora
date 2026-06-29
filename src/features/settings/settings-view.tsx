@@ -1,5 +1,19 @@
+import { useState } from "react";
+import { Trash2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { LibrarySidebar } from "@/features/library/library-sidebar";
 import { useSettingsStore, THEMES } from "@/stores/settings-store";
 import { useLibraryPrefs, CARD_SIZE_OPTIONS, type CardSize } from "@/stores/library-prefs-store";
@@ -43,6 +57,10 @@ export function SettingsView() {
   const showCardMetadata = useLibraryPrefs((s) => s.showCardMetadata);
   const setShowCardMetadata = useLibraryPrefs((s) => s.setShowCardMetadata);
 
+  // Disables the button while the wipe runs; the process relaunches before the
+  // call resolves, so this never has to be reset.
+  const [clearing, setClearing] = useState(false);
+
   return (
     <div className="flex h-full">
       <LibrarySidebar />
@@ -76,6 +94,43 @@ export function SettingsView() {
             </SettingRow>
             <SettingRow label="Show book details" description="Display the title, author, and reading progress beneath each cover.">
               <Switch checked={showCardMetadata} onCheckedChange={setShowCardMetadata} aria-label="Show book details" />
+            </SettingRow>
+          </Section>
+
+          <Section title="Data">
+            <SettingRow
+              label="Clear all data"
+              description="Permanently delete your library, dictionaries, reading stats, and all preferences, then restart. Uninstalling does not remove this data on its own."
+            >
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="sm" disabled={clearing}>
+                    <Trash2 />
+                    Clear all data
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Clear all data?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This deletes every imported book, dictionary, bookmark, and reading statistic, and resets all settings. This cannot be undone.
+                      The app will restart afterward.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      variant="destructive"
+                      onClick={() => {
+                        setClearing(true);
+                        void window.electronAPI.system.clearAllData();
+                      }}
+                    >
+                      Delete everything
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </SettingRow>
           </Section>
         </div>
