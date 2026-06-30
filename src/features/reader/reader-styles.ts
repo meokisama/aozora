@@ -259,6 +259,13 @@ export function spreadRules(scope: string) {
  */
 export function furiganaRules(scope: string) {
   return `
+    /* Keep readings out of text selection (and thus copy/lookup) regardless of
+       furigana mode — selecting a base word otherwise drags in its kana. */
+    ${scope} rt {
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
     ${scope}.aoz-furigana-hide rt { display: none; }
 
     ${scope}.aoz-furigana-partial rt { color: var(--reader-furigana-hint, #b8b2a6); }
