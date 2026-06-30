@@ -10,6 +10,7 @@ import { useReaderStore } from "@/stores/reader-store";
 import { useUiStore } from "@/stores/ui-store";
 import { useSettingsStore, THEMES } from "@/stores/settings-store";
 import { useFontsStore } from "@/stores/fonts-store";
+import { useDictionaryImportStore } from "@/stores/dictionary-import-store";
 import { syncDictionaryStyles } from "@/lib/dictionary/dict-styles";
 
 export function App() {
@@ -37,6 +38,15 @@ export function App() {
   // so rich glosses (e.g. Jitendex) render styled in the reader popup.
   useEffect(() => {
     void syncDictionaryStyles();
+  }, []);
+
+  // Mirror dictionary-import progress into a store at the app level, so the
+  // status survives navigating between views (the import itself runs in the
+  // main process) and any view / the title bar can show it.
+  useEffect(() => {
+    const api = window.electronAPI?.dictionary;
+    if (!api) return;
+    return api.onImportProgress((p) => useDictionaryImportStore.getState().applyProgress(p));
   }, []);
 
   // Toggle the `.dark` class on the document root to swap the Tailwind palette

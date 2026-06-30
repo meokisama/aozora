@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { MinusIcon, SquareIcon, CopyIcon, XIcon, Moon, Sun, Info } from "lucide-react";
+import { MinusIcon, SquareIcon, CopyIcon, XIcon, Moon, Sun, Info, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSettingsStore, THEMES } from "@/stores/settings-store";
+import { useDictionaryImportStore } from "@/stores/dictionary-import-store";
 import { AboutDialog } from "@/components/about-dialog";
 
 const win = () => window.electronAPI?.window;
@@ -32,6 +33,10 @@ export function TitleBar({ brand = "Aozora 青空", tagline = "青空の下で�
   const theme = useSettingsStore((s) => s.theme);
   const setTheme = useSettingsStore((s) => s.setTheme);
   const isDark = (THEMES[theme] || THEMES.sepia).dark;
+  // Surfaces an in-flight dictionary import from any view (the work runs in the
+  // main process, so it keeps going even when the Dictionaries page is closed).
+  const importing = useDictionaryImportStore((s) => s.importing);
+  const importStatus = useDictionaryImportStore((s) => s.status);
 
   useEffect(() => {
     const api = win();
@@ -57,7 +62,17 @@ export function TitleBar({ brand = "Aozora 青空", tagline = "青空の下で�
           )}
         </div>
 
-        <div className="flex h-full">
+        <div className="flex h-full items-center">
+          {importing && (
+            <span
+              style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+              className="mr-1 flex items-center gap-1.5 px-2 text-[11px] text-muted-foreground"
+              title={importStatus || "Importing dictionary…"}
+            >
+              <Loader2 className="size-3 animate-spin" />
+              <span className="max-w-48 truncate">{importStatus || "Importing dictionary…"}</span>
+            </span>
+          )}
           <ControlButton
             aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
             onClick={() => setTheme(isDark ? "sepia" : "dark")}

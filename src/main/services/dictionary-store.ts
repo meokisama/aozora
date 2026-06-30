@@ -1,5 +1,6 @@
+import { utilityProcess } from "electron";
+import path from "node:path";
 import Database from "better-sqlite3";
-import { randomUUID } from "node:crypto";
 import { deinflect, conditionFlagsForPartsOfSpeech, conditionsMatch, type Deinflection } from "@/lib/dictionary/deinflect";
 import type {
   DictionaryInfo,
@@ -13,8 +14,45 @@ import type {
   LookupResult,
   DictionaryImportProgress,
 } from "@/lib/types";
-import { getDb } from "./dictionary-db.js";
-import { parseYomitanZip, normalizeMediaPath, type ParsedDict } from "./dictionary-parse.js";
+import { getDb, dictionaryDbPath } from "./dictionary-db.js";
+import { normalizeMediaPath } from "./dictionary-parse.js";
+
+/**
+ * Import runs in a forked utility process (dictionary-import.worker), so a heavy
+ * dictionary's parse + insert never blocks the main-process event loop (the
+ * lookup IPC and window stay responsive). Built as its own Vite entry alongside
+ * main.js, so it sits next to this bundle at runtime.
+ */
+const IMPORT_WORKER_PATH = path.join(__dirname, "dictionary-import.worker.js");
+
+type ImportWorkerMessage =
+  | { type: "progress"; payload: DictionaryImportProgress }
+  | { type: "done"; id: string; title: string; termsInserted: number }
+  | { type: "error"; message: string };
+
+// Serialise imports: a second writer to the WAL DB would hit SQLITE_BUSY, and
+// the UI only ever triggers one at a time.
+let importInFlight = false;
+
+/** Forks the import worker for one ZIP, streaming progress; resolves to the new dictionary id. */
+function runImportWorker(filePath: string, onProgress?: (p: DictionaryImportProgress) => void): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const child = utilityProcess.fork(IMPORT_WORKER_PATH, [dictionaryDbPath(), filePath]);
+    let settled = false;
+    const finish = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      child.kill();
+      fn();
+    };
+    child.on("message", (msg: ImportWorkerMessage) => {
+      if (msg.type === "progress") onProgress?.(msg.payload);
+      else if (msg.type === "done") finish(() => resolve(msg.id));
+      else if (msg.type === "error") finish(() => reject(new Error(msg.message)));
+    });
+    child.on("exit", (code) => finish(() => reject(new Error(`Dictionary import process exited unexpectedly (code ${code}).`))));
+  });
+}
 
 /**
  * Store + lookup engine for imported Yomitan dictionaries — the public API the
@@ -225,106 +263,22 @@ export const dictionaryStore = {
   },
 
   /**
-   * Imports a Yomitan dictionary from raw ZIP bytes, streaming `onProgress`.
-   * Replaces any existing dictionary with the same title (re-import = upgrade).
+   * Imports a Yomitan dictionary ZIP (by file path), streaming `onProgress`.
+   * Parsing + insertion run in a forked utility process so the UI stays
+   * responsive; this connection only reads the result back once it commits
+   * (WAL makes the worker's write visible here). Replaces any existing
+   * dictionary with the same title (re-import = upgrade).
    */
-  async importDict(bytes: Uint8Array, onProgress?: (p: DictionaryImportProgress) => void): Promise<DictionaryInfo> {
-    const database = getDb();
-    onProgress?.({ phase: "reading" });
-    const parsed = await parseYomitanZip(bytes);
-    onProgress?.({ phase: "inserting", title: parsed.title, termsInserted: 0 });
-
-    // Re-import of the same title replaces the old copy (and its terms cascade).
-    const existing = database.prepare("SELECT id, priority FROM dictionaries WHERE title = ?").get(parsed.title) as
-      | { id: string; priority: number }
-      | undefined;
-    const id = existing?.id ?? randomUUID();
-    const nextPriority =
-      existing?.priority ?? (database.prepare("SELECT COALESCE(MAX(priority), -1) + 1 AS p FROM dictionaries").get() as { p: number }).p;
-
-    const insertDict = database.prepare(
-      `INSERT INTO dictionaries (id, title, revision, imported_at, enabled, priority, styles)
-         VALUES (@id, @title, @revision, @importedAt, 1, @priority, @styles)`,
-    );
-    const insertTerm = database.prepare(
-      `INSERT INTO terms (dict_id, expression, reading, tags, rules, definitions, score, sequence)
-         VALUES (@dictId, @expression, @reading, @tags, @rules, @definitions, @score, @sequence)`,
-    );
-    const insertFreq = database.prepare(
-      `INSERT INTO term_meta (dict_id, expression, reading, value, display, sort_value)
-         VALUES (@dictId, @expression, @reading, @value, @display, @sortValue)`,
-    );
-    const insertPitch = database.prepare(
-      `INSERT INTO term_pitch (dict_id, expression, reading, pitches)
-         VALUES (@dictId, @expression, @reading, @pitches)`,
-    );
-    const insertKanji = database.prepare(
-      `INSERT INTO kanji (dict_id, character, onyomi, kunyomi, tags, meanings, stats)
-         VALUES (@dictId, @character, @onyomi, @kunyomi, @tags, @meanings, @stats)`,
-    );
-    const insertKanjiFreq = database.prepare(
-      `INSERT INTO kanji_meta (dict_id, character, value, display, sort_value)
-         VALUES (@dictId, @character, @value, @display, @sortValue)`,
-    );
-    const insertTag = database.prepare(
-      `INSERT OR REPLACE INTO tags (dict_id, name, category, notes, sort_order)
-         VALUES (@dictId, @name, @category, @notes, @order)`,
-    );
-    const insertMedia = database.prepare(`INSERT OR REPLACE INTO media (dict_id, path, mime, data) VALUES (@dictId, @path, @mime, @data)`);
-
-    const importAll = database.transaction((parsed: ParsedDict) => {
-      if (existing) database.prepare("DELETE FROM dictionaries WHERE id = ?").run(existing.id);
-      insertDict.run({ id, title: parsed.title, revision: parsed.revision, importedAt: Date.now(), priority: nextPriority, styles: parsed.styles });
-      for (const r of parsed.rows) {
-        insertTerm.run({
-          dictId: id,
-          expression: r.expression,
-          reading: r.reading,
-          tags: r.tags,
-          rules: r.rules,
-          definitions: JSON.stringify(r.definitions),
-          score: r.score,
-          sequence: r.sequence,
-        });
-      }
-      for (const f of parsed.freqs) {
-        insertFreq.run({
-          dictId: id,
-          expression: f.expression,
-          reading: f.reading,
-          value: f.value,
-          display: f.display,
-          sortValue: f.sortValue,
-        });
-      }
-      for (const p of parsed.pitches) {
-        insertPitch.run({ dictId: id, expression: p.expression, reading: p.reading, pitches: JSON.stringify(p.patterns) });
-      }
-      for (const k of parsed.kanji) {
-        insertKanji.run({
-          dictId: id,
-          character: k.character,
-          onyomi: k.onyomi,
-          kunyomi: k.kunyomi,
-          tags: k.tags,
-          meanings: JSON.stringify(k.meanings),
-          stats: JSON.stringify(k.stats),
-        });
-      }
-      for (const kf of parsed.kanjiFreqs) {
-        insertKanjiFreq.run({ dictId: id, character: kf.character, value: kf.value, display: kf.display, sortValue: kf.sortValue });
-      }
-      for (const t of parsed.tags) {
-        insertTag.run({ dictId: id, name: t.name, category: t.category, notes: t.notes, order: t.order });
-      }
-      for (const m of parsed.media) {
-        insertMedia.run({ dictId: id, path: m.path, mime: m.mime, data: Buffer.from(m.data) });
-      }
-    });
-    importAll(parsed);
-
-    onProgress?.({ phase: "done", title: parsed.title, termsInserted: parsed.rows.length });
-    return this.getDict(id)!;
+  async importDict(filePath: string, onProgress?: (p: DictionaryImportProgress) => void): Promise<DictionaryInfo> {
+    if (importInFlight) throw new Error("A dictionary import is already in progress.");
+    importInFlight = true;
+    try {
+      const id = await runImportWorker(filePath, onProgress);
+      onProgress?.({ phase: "done" });
+      return this.getDict(id)!;
+    } finally {
+      importInFlight = false;
+    }
   },
 
   removeDict(id: string): void {

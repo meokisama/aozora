@@ -1,5 +1,4 @@
 import { ipcMain, dialog, BrowserWindow } from "electron";
-import fs from "node:fs";
 import { dictionaryStore } from "./services/dictionary-store.js";
 import type { DictionaryImportProgress } from "@/lib/types";
 
@@ -23,8 +22,7 @@ export const registerDictionaryIpc = (): void => {
 
     const onProgress = (p: DictionaryImportProgress) => event.sender.send("dictionary:import-progress", p);
     try {
-      const bytes = fs.readFileSync(result.filePaths[0]);
-      return await dictionaryStore.importDict(new Uint8Array(bytes), onProgress);
+      return await dictionaryStore.importDict(result.filePaths[0], onProgress);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       onProgress({ phase: "error", message });

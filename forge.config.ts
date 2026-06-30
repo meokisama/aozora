@@ -82,6 +82,13 @@ const config: ForgeConfig = {
             target: "main",
           },
           {
+            // Dictionary-import utility process, forked from the main process so a
+            // heavy import never blocks the UI. Emitted next to main.js.
+            entry: "src/main/services/dictionary-import.worker.ts",
+            config: "vite.worker.config.ts",
+            target: "main",
+          },
+          {
             entry: "src/preload.ts",
             config: "vite.preload.config.ts",
             target: "preload",

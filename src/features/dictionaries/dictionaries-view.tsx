@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { LibrarySidebar } from "@/features/library/library-sidebar";
 import { useDictionaryStore, LOOKUP_MODIFIERS, type LookupModifier } from "@/stores/dictionary-store";
+import { useDictionaryImportStore } from "@/stores/dictionary-import-store";
 import { syncDictionaryStyles } from "@/lib/dictionary/dict-styles";
 import { cn } from "@/lib/utils";
 import type { DictionaryInfo } from "@/lib/types";
@@ -120,8 +121,9 @@ export function DictionariesView() {
 
   const [dicts, setDicts] = useState<DictionaryInfo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [importing, setImporting] = useState(false);
-  const [progress, setProgress] = useState(""); // import status line (large imports take a while)
+  // Import state lives in a store so it survives navigating away mid-import.
+  const importing = useDictionaryImportStore((s) => s.importing);
+  const status = useDictionaryImportStore((s) => s.status);
 
   const refresh = useCallback(async () => {
     try {
@@ -135,17 +137,11 @@ export function DictionariesView() {
     refresh().finally(() => setLoading(false));
   }, [refresh]);
 
-  // Mirror import progress streamed from the main process into a status line.
-  useEffect(() => {
-    return api().onImportProgress((p) => {
-      if (p.phase === "reading") setProgress("Reading…");
-      else if (p.phase === "inserting") setProgress(`Importing ${p.title ?? ""}…`);
-      else setProgress("");
-    });
-  }, []);
-
   const handleImport = useCallback(async () => {
-    setImporting(true);
+    // Progress events (app-level listener) refine the status; begin/finish
+    // bracket the flag so the file-dialog window and cancels are covered too.
+    const { begin, finish } = useDictionaryImportStore.getState();
+    begin();
     try {
       const info = await api().pickAndImport();
       if (info) {
@@ -156,7 +152,7 @@ export function DictionariesView() {
     } catch (err) {
       toast.error(`Import failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
-      setImporting(false);
+      finish();
     }
   }, [refresh]);
 
@@ -261,7 +257,7 @@ export function DictionariesView() {
                 Imported{dicts.length > 0 ? ` (${dicts.length})` : ""}
               </h2>
               <div className="flex items-center gap-2">
-                {importing && progress && <span className="text-[11px] text-muted-foreground">{progress}</span>}
+                {importing && status && <span className="text-[11px] text-muted-foreground">{status}</span>}
                 <Button size="sm" variant="outline" onClick={handleImport} disabled={importing}>
                   {importing ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
                   Import dictionary

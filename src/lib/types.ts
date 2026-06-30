@@ -326,5 +326,7 @@ export interface DictionaryImportProgress {
   phase: "reading" | "inserting" | "done" | "error";
   title?: string;
   termsInserted?: number;
+  inserted?: number; // rows written so far across all banks (for a progress bar)
+  total?: number; // total rows to write
   message?: string;
 }
