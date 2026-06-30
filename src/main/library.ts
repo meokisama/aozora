@@ -125,7 +125,7 @@ export const registerLibraryIpc = (): void => {
 
   ipcMain.handle("library:list", () => libraryStore.listBooks().map(withCover));
 
-  // A new cover (raw bytes from the renderer) is downscaled and written as at import.
+  // A new cover is downscaled and written the same way as at import.
   ipcMain.handle("library:update-book", (_event, payload: UpdateBookPayload) => {
     const { id, title, author, coverBytes, coverMime } = payload;
     const existing = libraryStore.getBook(id);

@@ -10,12 +10,10 @@ const SHARED_DISPLAY = `
 `;
 
 /**
- * Forces the effective writing direction onto the flattened book wrappers.
- * JP novels carry the 電書協 template's `.vrtl` class (originally on <html>/<body>,
- * copied onto these wrappers), and the book's own `.vrtl { writing-mode: vertical-rl }`
- * would otherwise win over the root rule — keeping text vertical even when the
- * reader is set to horizontal (and vice-versa). The two-class selector outranks a
- * bare `.vrtl`, so this wins even against a `!important` book rule.
+ * Forces the writing direction onto the flattened book wrappers. JP novels carry
+ * the 電書協 template's `.vrtl { writing-mode: vertical-rl }`, which would otherwise
+ * override the reader's chosen mode. A two-class selector outranks the bare
+ * `.vrtl`, winning even against its `!important`.
  */
 function writingModeRules(scope: string, vertical: boolean) {
   const wm = vertical ? "vertical-rl" : "horizontal-tb";
@@ -62,7 +60,7 @@ export function continuousStyles(vertical: boolean) {
        margin is on the inter-page (block) axis, correct for both writing modes. */
     .aozora-content > div:has(.aoz-no-text) { margin-block: 2.5rem; }
     ${writingModeRules(".aozora-content", vertical)}
-    ${imageRules(".aozora-content")}
+    ${imageRules(".aozora-content", undefined, undefined, vertical)}
     ${furiganaRules(".aozora-content")}
     ${searchHitRule()}
     ${lookupHitRule()}
@@ -94,7 +92,7 @@ export function paginatedStyles(vertical: boolean) {
       ${SHARED_DISPLAY}
     }
     ${writingModeRules(".aozora-content", vertical)}
-    ${imageRules(".aozora-content", "6rem", "8rem")}
+    ${imageRules(".aozora-content", "6rem", "8rem", vertical)}
     ${spreadRules(".aozora-content")}
     ${furiganaRules(".aozora-content")}
     ${searchHitRule()}
@@ -155,16 +153,28 @@ export function fixedLayoutStyles() {
  * size (--reader-w/--reader-h; padV/padH budget the content padding) since the
  * book's percentage max-* can't resolve through the auto-height/inline wrappers.
  *
- * Full-page SVGs carry percentage width/height + a viewBox: with both CSS dims
- * auto they have no intrinsic pixel size, only a ratio, so they collapse to 0
- * width (the "blank illustration page" bug). Anchoring height to the viewport
- * (width auto) lets the viewBox derive width, and works in both writing modes
- * since it needs no definite-width ancestor. Raster <img> keep the standard cap.
+ * Full-page SVGs carry percentage width/height + a viewBox, so with both CSS dims
+ * auto they have only a ratio and collapse to 0 width (the "blank illustration
+ * page" bug). Anchoring height to the viewport lets the viewBox derive width, in
+ * both writing modes (no definite-width ancestor needed). Raster <img> keep the cap.
  */
-export function imageRules(scope: string, padV = "5rem", padH = "6rem") {
+export function imageRules(scope: string, padV = "5rem", padH = "6rem", vertical = false) {
   const maxW = `calc(var(--reader-w, 100vw) - ${padH})`;
   const maxH = `calc(var(--reader-h, 100vh) - ${padV})`;
-  return `
+  // Centre in-flow illustrations: inline by default, so margin:auto can't, and
+  // block lets the inline-axis auto margins do it. Horizontal-tb only — the axis
+  // flips in vertical-rl (where they're already fine). Gaiji stay inline.
+  const inflowCentering = vertical
+    ? ""
+    : `
+    ${scope} img:not([class*="gaiji"]) { display: block; }
+    ${scope} svg:not([class*="gaiji"]) { display: block; margin-inline: auto; }`;
+  return `${inflowCentering}
+    /* Kill native image-drag: a mousedown near an inline image starts a
+       drag-ghost mid-selection instead of selecting text. */
+    ${scope} img,
+    ${scope} svg { -webkit-user-drag: none; }
+
     /* Centre image-only pages on both axes via flex. margin:auto can't (inline
        SVG, and vertical-rl block flow starts at the right edge — why these once
        sat flush right); flex centres regardless of writing mode. */
