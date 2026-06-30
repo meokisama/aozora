@@ -1,5 +1,6 @@
-import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useMemo, useRef, type CSSProperties } from "react";
 import type { LookupResult } from "@/lib/types";
+import { useAnchoredPosition } from "./use-anchored-position";
 import { downstepNumber } from "@/lib/dictionary/pitch";
 import { distributeFurigana } from "@/lib/dictionary/furigana";
 import { DICT_SCOPE_ATTR } from "@/lib/dictionary/dict-styles";
@@ -27,9 +28,6 @@ const GLOSS_VARS = { "--text-color": "currentColor" } as CSSProperties;
  * (flipping above / clamping to the viewport on overflow). Renders null with no
  * result, so the reader can keep it mounted and just feed it state.
  */
-
-const GAP = 6; // px between the matched word and the popup
-const MARGIN = 8; // min gap from the viewport edge
 
 interface Props {
   result: LookupResult | null;
@@ -67,33 +65,7 @@ function Furigana({ expression, reading }: { expression: string; reading: string
 
 export function DictionaryPopup({ result, anchor, onMouseEnter, onMouseLeave, onLayout }: Props) {
   const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
-
-  // Measure the popup after it renders and place it against the anchor box,
-  // flipping above the word when there isn't room below, then clamping to the
-  // viewport on both axes.
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el || !anchor) {
-      setPos(null);
-      return;
-    }
-    const { offsetWidth: w, offsetHeight: h } = el;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-
-    let top = anchor.bottom + GAP;
-    if (top + h > vh - MARGIN && anchor.top - GAP - h >= MARGIN) {
-      top = anchor.top - GAP - h; // flip above
-    }
-    top = Math.max(MARGIN, Math.min(top, vh - h - MARGIN));
-
-    let left = anchor.left;
-    left = Math.max(MARGIN, Math.min(left, vw - w - MARGIN));
-
-    setPos({ left, top });
-    onLayout?.({ left, top, right: left + w, bottom: top + h });
-  }, [result, anchor, onLayout]);
+  const pos = useAnchoredPosition(ref, anchor, result, onLayout);
 
   if (!result || (!result.entries.length && !result.kanji.length) || !anchor) return null;
 

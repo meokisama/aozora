@@ -26,6 +26,8 @@ import { clearSearchHighlight, highlightSearchResult, setLookupHighlight } from 
 import { cursorTextFromPoint } from "@/lib/reader/lookup-text";
 import { useDictionaryStore, modifierHeld } from "@/stores/dictionary-store";
 import { DictionaryPopup } from "./dictionary-popup";
+import { FootnotePopup } from "./footnote-popup";
+import { collectFootnotes } from "@/lib/reader/footnotes";
 import { useReadingSession } from "./use-reading-session";
 
 const api = () => window.electronAPI.library;
@@ -104,6 +106,7 @@ export function ReaderView() {
   const wheelTsRef = useRef(0);
   const readyRef = useRef(false);
   const searchIndexRef = useRef<SearchIndexEntry[] | null>(null); // lazily built on first search
+  const footnotesRef = useRef<Map<string, string>>(new Map()); // id → note inner HTML
 
   // Hover-dictionary state: last cursor position (so a modifier keydown can look
   // up without moving the mouse), a sequence guard against stale async results, a
@@ -152,6 +155,7 @@ export function ReaderView() {
     capped: false,
   });
   const [lookup, setLookup] = useState<{ result: LookupResult; anchor: DOMRect | null } | null>(null);
+  const [footnote, setFootnote] = useState<{ html: string; anchor: DOMRect } | null>(null);
 
   // Mirrors whether any reader overlay (panel/gallery) is open, so the global
   // page-flip key handler can stand down instead of flipping pages behind it.
@@ -261,6 +265,7 @@ export function ReaderView() {
       setPageInfo({ page: state.page, totalPages: state.totalPages });
       markSession(state.char, "paginated");
       clearLookup(); // the matched run scrolled off the page
+      setFootnote(null);
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(persist, 800);
     },
@@ -579,6 +584,7 @@ export function ReaderView() {
         objectUrlsRef.current = objectUrls;
         parsedRef.current = parsed;
         htmlRef.current = html;
+        footnotesRef.current = parsed.fixedLayout ? new Map() : collectFootnotes(html);
         // Gallery images share the object URLs above, so their lifetime is tied
         // to this book load (revoked together on unmount/book change).
         setIllustrations(parsed.fixedLayout ? [] : collectIllustrations(parsed.elementHtml, keyToUrl));
@@ -791,6 +797,7 @@ export function ReaderView() {
   const handleScroll = () => {
     if (modeRef.current !== "continuous") return;
     clearLookup(); // the matched run scrolled away
+    setFootnote(null);
     if (rafRef.current) return;
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = 0;
@@ -857,12 +864,23 @@ export function ReaderView() {
     const href = anchor?.getAttribute("href");
     if (!href || href[0] !== "#") return;
     const id = decodeURIComponent(href.slice(1));
+    // A noteref opens the note in a popup instead of jumping away from the prose.
+    const note = footnotesRef.current.get(id);
+    if (note && anchor) {
+      e.preventDefault();
+      clearLookup(); // don't stack a dictionary popup behind it
+      setFootnote({ html: note, anchor: anchor.getBoundingClientRect() });
+      return;
+    }
     if (modeRef.current === "paginated") {
       if (id && controllerRef.current?.jumpToSectionId(id)) e.preventDefault();
     } else if (id && jumpToReference(id)) {
       e.preventDefault();
     }
   };
+
+  // A content rebuild or mode switch invalidates the open note's anchor box.
+  useEffect(() => setFootnote(null), [parseToken, readingMode]);
 
   if (!book) return null;
 
@@ -985,6 +1003,7 @@ export function ReaderView() {
             scheduleClear();
           }}
         />
+        <FootnotePopup html={footnote?.html ?? null} anchor={footnote?.anchor ?? null} onClose={() => setFootnote(null)} />
       </div>
 
       <ReaderToc open={tocOpen} onOpenChange={setTocOpen} chapters={chapters} activeChapterId={activeChapterId} onJump={handleJump} />
