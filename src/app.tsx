@@ -15,7 +15,18 @@ import { syncDictionaryStyles } from "@/lib/dictionary/dict-styles";
 export function App() {
   const reading = useReaderStore((s) => s.currentBook !== null);
   const view = useUiStore((s) => s.view);
+  const fullscreen = useUiStore((s) => s.fullscreen);
   const theme = useSettingsStore((s) => s.theme);
+
+  // Mirror the native window's fullscreen state so the title bar can hide and the
+  // reader's toggle can reflect it (source of truth is the main process).
+  useEffect(() => {
+    const api = window.electronAPI?.window;
+    if (!api) return;
+    const setFullscreen = useUiStore.getState().setFullscreen;
+    api.isFullscreen().then(setFullscreen);
+    return api.onFullscreenChanged(setFullscreen);
+  }, []);
 
   // Load user-imported fonts (IndexedDB) and register their FontFaces once.
   useEffect(() => {
@@ -49,7 +60,7 @@ export function App() {
 
   return (
     <div className="flex h-screen flex-col">
-      <TitleBar />
+      {!fullscreen && <TitleBar />}
       <main className="flex-1 overflow-hidden">
         {reading ? (
           <ReaderView />

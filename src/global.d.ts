@@ -23,9 +23,13 @@ export interface WindowApi {
   toggleMaximize(): void;
   close(): void;
   isMaximized(): Promise<boolean>;
+  toggleFullscreen(): void;
+  isFullscreen(): Promise<boolean>;
   openExternal(url: string): Promise<void>;
   /** Subscribe to maximize-state changes; returns an unsubscribe function. */
   onMaximizedChanged(callback: (maximized: boolean) => void): () => void;
+  /** Subscribe to fullscreen-state changes; returns an unsubscribe function. */
+  onFullscreenChanged(callback: (fullscreen: boolean) => void): () => void;
 }
 
 export interface LibraryApi {

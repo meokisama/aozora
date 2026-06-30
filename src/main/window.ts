@@ -23,8 +23,18 @@ export const registerWindowIpc = (): void => {
     BrowserWindow.fromWebContents(event.sender)?.close();
   });
 
+  ipcMain.on("window:toggle-fullscreen", (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) return;
+    win.setFullScreen(!win.isFullScreen());
+  });
+
   ipcMain.handle("window:is-maximized", (event) => {
     return BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false;
+  });
+
+  ipcMain.handle("window:is-fullscreen", (event) => {
+    return BrowserWindow.fromWebContents(event.sender)?.isFullScreen() ?? false;
   });
 
   // Restricted to http(s) so the renderer can't launch other protocols.

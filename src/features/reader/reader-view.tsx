@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Bookmark, Images, List, Loader2, Search, Settings } from "lucide-react";
+import { ArrowLeft, Bookmark, Images, List, Loader2, Maximize, Minimize, Search, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useReaderStore } from "@/stores/reader-store";
 import { useLibraryStore } from "@/stores/library-store";
 import { useSettingsStore, type WritingMode } from "@/stores/settings-store";
 import { useFontsStore } from "@/stores/fonts-store";
+import { useUiStore } from "@/stores/ui-store";
 import { ReaderSettingsPanel } from "./settings-panel";
 import { ReaderToc } from "./reader-toc";
 import { ReaderBookmarks } from "./reader-bookmarks";
@@ -88,6 +89,7 @@ export function ReaderView() {
   const pageColumns = useSettingsStore((s) => s.pageColumns);
   const sideMargin = useSettingsStore((s) => s.sideMargin);
   const customFonts = useFontsStore((s) => s.customFonts);
+  const fullscreen = useUiStore((s) => s.fullscreen);
 
   const hostRef = useRef<HTMLDivElement>(null);
   const parsedRef = useRef<ParsedBook | null>(null);
@@ -882,6 +884,23 @@ export function ReaderView() {
   // A content rebuild or mode switch invalidates the open note's anchor box.
   useEffect(() => setFootnote(null), [parseToken, readingMode]);
 
+  // F11 toggles native fullscreen for distraction-free reading. Leaving the
+  // reader drops fullscreen so the user can't get stuck with the title bar
+  // hidden on a page that has no toggle.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "F11") {
+        e.preventDefault();
+        window.electronAPI.window.toggleFullscreen();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      if (useUiStore.getState().fullscreen) window.electronAPI.window.toggleFullscreen();
+    };
+  }, []);
+
   if (!book) return null;
 
   const paged = readingMode === "paginated";
@@ -938,6 +957,14 @@ export function ReaderView() {
           aria-label="Bookmarks"
         >
           <Bookmark className="size-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => window.electronAPI.window.toggleFullscreen()}
+          aria-label={fullscreen ? "Exit full screen" : "Full screen"}
+        >
+          {fullscreen ? <Minimize className="size-4" /> : <Maximize className="size-4" />}
         </Button>
         <Button variant="ghost" size="icon" onClick={() => setSettingsOpen(true)} aria-label="Reader settings">
           <Settings className="size-4" />

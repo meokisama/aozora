@@ -35,6 +35,14 @@ const createWindow = () => {
     mainWindow.webContents.send("window:maximized-changed", false);
   });
 
+  // Keep the renderer's fullscreen state (title-bar visibility, reader toggle) in sync.
+  mainWindow.on("enter-full-screen", () => {
+    mainWindow.webContents.send("window:fullscreen-changed", true);
+  });
+  mainWindow.on("leave-full-screen", () => {
+    mainWindow.webContents.send("window:fullscreen-changed", false);
+  });
+
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
     mainWindow.webContents.openDevTools();

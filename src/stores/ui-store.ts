@@ -10,6 +10,9 @@ interface UiState {
   setStatusFilter: (statusFilter: StatusFilter) => void;
   authorFilter: string | null;
   setAuthorFilter: (authorFilter: string | null) => void;
+  /** Mirrors the native window's fullscreen state (source of truth: main process). */
+  fullscreen: boolean;
+  setFullscreen: (fullscreen: boolean) => void;
 }
 
 /**
@@ -25,4 +28,7 @@ export const useUiStore = create<UiState>((set) => ({
   setStatusFilter: (statusFilter) => set({ statusFilter }),
   authorFilter: null,
   setAuthorFilter: (authorFilter) => set({ authorFilter }),
+
+  fullscreen: false,
+  setFullscreen: (fullscreen) => set({ fullscreen }),
 }));
