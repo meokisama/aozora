@@ -44,4 +44,30 @@ describe("generateStyleSheet", () => {
     const contents = opfWithCss([]);
     expect(generateStyleSheet({}, contents)).toBe("");
   });
+
+  describe("line-height stripping (so the reader's setting governs)", () => {
+    function css(input: string) {
+      const contents = opfWithCss(["a.css"]);
+      return generateStyleSheet({ "a.css": input }, contents);
+    }
+
+    it("drops line-height but keeps surrounding declarations", () => {
+      // Calibre body class: line-height between other props (the reported bug).
+      expect(css(".class1{display:block;line-height:1.2;margin:0 5pt}")).toBe(".class1{display:block;margin:0 5pt}");
+    });
+
+    it("drops a line-height that is the only/last declaration in a rule", () => {
+      expect(css("body{line-height:1.75}")).toBe("body{}");
+      expect(css(".a{color:red;line-height:1.6}")).toBe(".a{color:red;}");
+    });
+
+    it("tolerates whitespace around the colon and value", () => {
+      // The boundary char (here the leading space) is preserved by design.
+      expect(css(".a{ line-height:    1.6 ;color:red}")).toBe(".a{ color:red}");
+    });
+
+    it("leaves unrelated properties untouched", () => {
+      expect(css(".a{height:1.6em;max-width:10px}")).toBe(".a{height:1.6em;max-width:10px}");
+    });
+  });
 });
