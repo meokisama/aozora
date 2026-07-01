@@ -117,6 +117,7 @@ interface SettingsState {
   writingMode: WritingMode;
   pageColumns: number;
   sideMargin: number;
+  discordRichPresence: boolean;
   setFontSize: (fontSize: number) => void;
   setLineHeight: (lineHeight: number) => void;
   setFontFamily: (fontFamily: FontFamily) => void;
@@ -127,6 +128,7 @@ interface SettingsState {
   setWritingMode: (writingMode: WritingMode) => void;
   setPageColumns: (pageColumns: number) => void;
   setSideMargin: (sideMargin: number) => void;
+  setDiscordRichPresence: (discordRichPresence: boolean) => void;
   reset: () => void;
 }
 
@@ -142,6 +144,7 @@ type SettingsData = Pick<
   | "writingMode"
   | "pageColumns"
   | "sideMargin"
+  | "discordRichPresence"
 >;
 
 const DEFAULTS: SettingsData = {
@@ -155,6 +158,7 @@ const DEFAULTS: SettingsData = {
   writingMode: "auto",
   pageColumns: 0, // auto
   sideMargin: 12, // % per edge
+  discordRichPresence: false, // opt-in; shares the current book to Discord
 };
 
 export const useSettingsStore = create<SettingsState>()(
@@ -171,6 +175,7 @@ export const useSettingsStore = create<SettingsState>()(
       setWritingMode: (writingMode) => set({ writingMode }),
       setPageColumns: (pageColumns) => set({ pageColumns }),
       setSideMargin: (sideMargin) => set({ sideMargin }),
+      setDiscordRichPresence: (discordRichPresence) => set({ discordRichPresence }),
       reset: () => set({ ...DEFAULTS }),
     }),
     {

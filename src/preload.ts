@@ -4,6 +4,7 @@ import { libraryApi } from "./preload/library.js";
 import { statsApi } from "./preload/stats.js";
 import { dictionaryApi } from "./preload/dictionary.js";
 import { systemApi } from "./preload/system.js";
+import { discordApi } from "./preload/discord.js";
 
 // Curated `window.electronAPI` surface; add new feature namespaces here.
 contextBridge.exposeInMainWorld("electronAPI", {
@@ -12,4 +13,5 @@ contextBridge.exposeInMainWorld("electronAPI", {
   stats: statsApi,
   dictionary: dictionaryApi,
   system: systemApi,
+  discord: discordApi,
 });

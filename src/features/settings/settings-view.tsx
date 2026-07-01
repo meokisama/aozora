@@ -52,6 +52,9 @@ export function SettingsView() {
   const setTheme = useSettingsStore((s) => s.setTheme);
   const isDark = (THEMES[theme] || THEMES.sepia).dark;
 
+  const discordRichPresence = useSettingsStore((s) => s.discordRichPresence);
+  const setDiscordRichPresence = useSettingsStore((s) => s.setDiscordRichPresence);
+
   const cardSize = useLibraryPrefs((s) => s.cardSize);
   const setCardSize = useLibraryPrefs((s) => s.setCardSize);
   const showCardMetadata = useLibraryPrefs((s) => s.showCardMetadata);
@@ -94,6 +97,15 @@ export function SettingsView() {
             </SettingRow>
             <SettingRow label="Show book details" description="Display the title, author, and reading progress beneath each cover.">
               <Switch checked={showCardMetadata} onCheckedChange={setShowCardMetadata} aria-label="Show book details" />
+            </SettingRow>
+          </Section>
+
+          <Section title="Integrations">
+            <SettingRow
+              label="Discord Rich Presence"
+              description="Show the book you're reading on your Discord profile. Requires the Discord desktop app to be running."
+            >
+              <Switch checked={discordRichPresence} onCheckedChange={setDiscordRichPresence} aria-label="Discord Rich Presence" />
             </SettingRow>
           </Section>
 

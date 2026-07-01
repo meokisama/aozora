@@ -70,12 +70,29 @@ export interface SystemApi {
   clearAllData(): Promise<void>;
 }
 
+export interface DiscordApi {
+  /** Turn Discord Rich Presence on/off. */
+  setEnabled(enabled: boolean): void;
+  /** Report the currently-open book so Discord shows it. */
+  update(presence: {
+    bookTitle: string;
+    author?: string | null;
+    chapterName?: string | null;
+    chapterIndex?: number;
+    chapterTotal?: number;
+    progress?: number;
+  }): void;
+  /** Clear the presence (no book open) while staying connected. */
+  clear(): void;
+}
+
 export interface ElectronAPI {
   window: WindowApi;
   library: LibraryApi;
   stats: StatsApi;
   dictionary: DictionaryApi;
   system: SystemApi;
+  discord: DiscordApi;
 }
 
 declare global {

@@ -18,6 +18,7 @@ export function App() {
   const view = useUiStore((s) => s.view);
   const fullscreen = useUiStore((s) => s.fullscreen);
   const theme = useSettingsStore((s) => s.theme);
+  const discordRichPresence = useSettingsStore((s) => s.discordRichPresence);
 
   // Mirror the native window's fullscreen state so the title bar can hide and the
   // reader's toggle can reflect it (source of truth is the main process).
@@ -48,6 +49,18 @@ export function App() {
     if (!api) return;
     return api.onImportProgress((p) => useDictionaryImportStore.getState().applyProgress(p));
   }, []);
+
+  // Connect/disconnect Discord Rich Presence with the setting. Done here (not in
+  // the reader) so it's live regardless of which view is open.
+  useEffect(() => {
+    window.electronAPI.discord.setEnabled(discordRichPresence);
+  }, [discordRichPresence]);
+
+  // Show the idle presence whenever no book is open; the reader owns the
+  // reading presence while it's mounted.
+  useEffect(() => {
+    if (discordRichPresence && !reading) window.electronAPI.discord.clear();
+  }, [discordRichPresence, reading]);
 
   // Toggle the `.dark` class on the document root to swap the Tailwind palette
   // in index.css per the selected theme.

@@ -88,6 +88,7 @@ export function ReaderView() {
   const furiganaMode = useSettingsStore((s) => s.furiganaMode);
   const pageColumns = useSettingsStore((s) => s.pageColumns);
   const sideMargin = useSettingsStore((s) => s.sideMargin);
+  const discordRichPresence = useSettingsStore((s) => s.discordRichPresence);
   const customFonts = useFontsStore((s) => s.customFonts);
   const fullscreen = useUiStore((s) => s.fullscreen);
 
@@ -179,6 +180,22 @@ export function ReaderView() {
     }
     return active;
   }, [chapters, currentChar]);
+
+  // Discord Rich Presence: mirror the current book/chapter/progress while reading.
+  // Enabling/disabling and the idle presence live in App (always mounted); the
+  // main process throttles the actual sends.
+  useEffect(() => {
+    if (!discordRichPresence || !book) return;
+    const idx = chapters.findIndex((c) => c.reference === activeChapterId);
+    window.electronAPI.discord.update({
+      bookTitle: book.title,
+      author: book.author,
+      chapterName: idx >= 0 ? chapters[idx].label : undefined,
+      chapterIndex: idx >= 0 ? idx + 1 : undefined,
+      chapterTotal: chapters.length || undefined,
+      progress: progressPct,
+    });
+  }, [discordRichPresence, book, chapters, activeChapterId, progressPct]);
 
   /** Persists the current position to the main process and the in-memory store. */
   const persist = useCallback(() => {
