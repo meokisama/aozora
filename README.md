@@ -55,7 +55,7 @@
 - [**Anki flashcard mining**](#anki) — add a card to Anki straight from the dictionary
   popup: the word, its reading, the definition, the sentence you found it in, and a
   screenshot of the passage, all mapped to your own note fields via **AnkiConnect**.
-- [**Read aloud (TTS)**](#read-aloud) — hear any word or sentence in natural Japanese via
+- [**Read aloud (TTS)**](#read-aloud-tts) — hear any word or sentence in natural Japanese via
   **VOICEVOX**: a speaker button on every dictionary entry, plus a hold-a-key + hover
   gesture that reads a whole sentence with a **karaoke highlight** tracking the voice.
 - **Discord Rich Presence** — show the book you're reading on your Discord profile with the Discord desktop app running.
