@@ -25,13 +25,12 @@
 
 ## Features
 
-- **Two layout modes**, toggled live without re-parsing:
-  - **Paginated** (default) — page-flip layout, one column-page at a time, char-based paging.
-  - **Continuous** — native scroll.
-- **Vertical or horizontal text** — reads tategaki (vertical-rl) by default, following each
-  book's own direction, with a live **Horizontal / Vertical** toggle in settings. Horizontal
-  reading adds two layout controls: **columns per page** (paginated) and an adjustable
-  **side margin** (continuous); both default to a sensible auto value.
+- **Flexible layout & text direction** — switch live (no re-parsing) between **Paginated**
+  (default; page-flip, char-based paging) and **Continuous** (native scroll), and read
+  **vertical tategaki** (vertical-rl, the default, following each book's own direction) or
+  **horizontal** via a toggle in settings. Horizontal reading adds two layout controls:
+  **columns per page** (paginated) and an adjustable **side margin** (continuous); both
+  default to a sensible auto value.
 - **Furigana** rendered with native `<ruby>`, with five display modes: **show**, **hide**,
   **dimmed**, **toggle-on-click**, and **reveal-on-hover/click**.
 - **Footnote popups** — click a note reference and the footnote opens in a popup right
@@ -42,15 +41,11 @@
   (Shift by default), and get deinflected entries from your imported Yomitan
   dictionaries — furigana headwords, structured glossaries (numbered senses, tables,
   ruby, images), frequency, pitch-accent graphs, and kanji breakdowns.
-- [**Manga & fixed-layout**](#manga--fixed-layout) — image-per-page EPUBs render as true two-page spreads.
 - **Illustration gallery** — browse every image in the book in a full-screen viewer
   (zoom, pan, thumbnail filmstrip) and jump to where an illustration appears in the text.
 - **Reading statistics** — automatic session tracking feeds a stats page with a
   GitHub-style activity heatmap, daily goal, streaks, milestones and per-book
   totals.
-- **Typography & themes** — adjustable font size and line height, **sepia / dark** themes,
-  built-in Japanese fonts (Mincho, Noto Serif/Sans, gyōsho) plus **import your own**
-  (TTF/OTF/WOFF/WOFF2).
 - **Full-screen reading** — distraction-free mode via a header toggle or **F11**.
 - [**Anki flashcard mining**](#anki) — add a card to Anki straight from the dictionary
   popup: the word, its reading, the definition, the sentence you found it in, and a
@@ -61,33 +56,6 @@
 - **Discord Rich Presence** — show the book you're reading on your Discord profile with the Discord desktop app running.
 
   ![](/preview/preview-7.png)
-
-## Manga & fixed-layout
-
-Aozora's text reader follows the **ttsu (ッツ)** approach: the whole book is flattened
-into one flowing document and reading position is a character offset, which is what
-makes tategaki, live re-flow, and full-text search work so smoothly. That model is
-built for **reflowable text** — a fixed-layout page (a full-page image) shows up as a
-single standalone page, so manga read one page at a time with no real spreads.
-
-![](./preview/preview-1.png)
-
-Aozora adds a dedicated **fixed-layout path** on top, so image-per-page books read the
-way they're meant to:
-
-- **Detects fixed-layout books** declared `rendition:layout="pre-paginated"`, _and_
-  **Open Manga Format (OMF)** books that reference page images directly from the spine
-  (no XHTML wrapper).
-- **Two-page spreads** — adjacent pages are paired into a spread honoring each page's
-  `page-spread-left` / `-right` / `-center` and the book's
-  `page-progression-direction` (right-to-left for Japanese manga). Covers and lone
-  pages stay single.
-- **Auto layout** — a two-page spread when the window is landscape, a single page when
-  it's portrait; or force **Single** / **Spread** in settings.
-- **Mixed books** — a light novel with embedded colour/illustration spreads: the prose
-  flows as text while paired image pages render **side by side** in paginated mode.
-  Search and character-offset progress keep working over the text; image pages simply
-  contribute no characters.
 
 ## Dictionary
 
