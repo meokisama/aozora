@@ -52,6 +52,9 @@
   built-in Japanese fonts (Mincho, Noto Serif/Sans, gyōsho) plus **import your own**
   (TTF/OTF/WOFF/WOFF2).
 - **Full-screen reading** — distraction-free mode via a header toggle or **F11**.
+- [**Anki flashcard mining**](#anki) — add a card to Anki straight from the dictionary
+  popup: the word, its reading, the definition, the sentence you found it in, and a
+  screenshot of the passage, all mapped to your own note fields via **AnkiConnect**.
 - **Discord Rich Presence** — show the book you're reading on your Discord profile with the Discord desktop app running.
 
   ![](/preview/preview-7.png)
@@ -123,6 +126,41 @@ with the entry's part of speech, so a noun never matches a verb deinflection. Th
 longest prefix that hits anything wins, and its length drives the highlight. Inflected
 words resolve to their dictionary form (e.g. 食べさせられた → 食べる) with the chain of
 inflection reasons shown in the popup.
+
+## Anki
+
+Turn the words you look up into flashcards without leaving the reader. Aozora talks to
+Anki through the **[AnkiConnect](https://ankiweb.net/shared/info/2055492159)** add-on,
+an **＋ Anki** button appears on every dictionary
+entry, and one click builds a card from what's on screen.
+
+**Setup** (once): install the AnkiConnect add-on in Anki, restart the app and keep Anki running, then
+open **Aozora Settings → Anki**:
+
+- **Enable** the integration and hit **Test** to connect (this loads your decks and note
+  types).
+- Pick the target **deck** and **note type**, then map each of that note type's **fields**
+  to a piece of card content. Aozora guesses sensible defaults from the field names
+  (e.g. a field called _Sentence_ → the sentence, _Meaning_ → the definition).
+- Optionally set **tags**, choose whether to **allow or prevent duplicates**, and toggle
+  the **screenshot** (with an adjustable image quality).
+
+The content you can map onto a field:
+
+| Marker                           | What it inserts                                                    |
+| -------------------------------- | ------------------------------------------------------------------ |
+| **Word** / **Reading**           | the dictionary headword and its kana reading                       |
+| **Furigana**                     | the reading over the kanji, as `<ruby>` or as plain `漢字[かんじ]` |
+| **Definition**                   | the glossary, kept as structured HTML or flattened to plain text   |
+| **Sentence**                     | the full sentence the word was found in (furigana excluded)        |
+| **Pitch accent** / **Frequency** | the downstep number(s) and frequency rating(s)                     |
+| **Book title** / **Book author** | the current book's metadata                                        |
+| **Screenshot**                   | an image of the passage, cropped to the sentence's paragraph       |
+
+**Mining**: in the reader, hover a word and hold the trigger key as usual, then click
+**＋ Anki** in the popup. The button shows a check when the card is added; if the note
+already exists (and duplicates are prevented), it says so instead. The book's title is
+also attached as a tag automatically, so cards stay grouped by source.
 
 ## Installation
 

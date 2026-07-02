@@ -1,5 +1,7 @@
-import { useMemo, useRef, type CSSProperties } from "react";
-import type { LookupResult } from "@/lib/types";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { Check, Loader2, Plus } from "lucide-react";
+import type { DictionaryEntry, LookupResult } from "@/lib/types";
+import type { MineStatus } from "@/lib/dictionary/anki-note";
 import { useAnchoredPosition } from "./use-anchored-position";
 import { downstepNumber } from "@/lib/dictionary/pitch";
 import { distributeFurigana } from "@/lib/dictionary/furigana";
@@ -39,6 +41,28 @@ interface Props {
   onMouseLeave?: () => void;
   /** Reports the popup's final viewport box after each placement (for the sticky zone). */
   onLayout?: (rect: { left: number; top: number; right: number; bottom: number }) => void;
+  /** Mines an entry to Anki. Absent (or returning) hides the per-entry Anki button. */
+  onMine?: (entry: DictionaryEntry) => Promise<MineStatus>;
+  /** Kept mounted but visually hidden while a mining screenshot is captured, so
+   *  the popup doesn't occlude the sentence in the image. */
+  hiddenForCapture?: boolean;
+}
+
+/** Per-entry "Add to Anki" button, reflecting the mining outcome. */
+function MineButton({ status, onClick }: { status?: MineStatus | "loading"; onClick: () => void }) {
+  const done = status === "added" || status === "duplicate";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={status === "loading" || done}
+      title={done ? (status === "duplicate" ? "Already in Anki" : "Added to Anki") : "Add to Anki"}
+      className="inline-flex shrink-0 items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-accent-foreground disabled:opacity-60"
+    >
+      {status === "loading" ? <Loader2 className="size-3 animate-spin" /> : done ? <Check className="size-3" /> : <Plus className="size-3" />}
+      Anki
+    </button>
+  );
 }
 
 /**
@@ -63,11 +87,20 @@ function Furigana({ expression, reading }: { expression: string; reading: string
   );
 }
 
-export function DictionaryPopup({ result, anchor, onMouseEnter, onMouseLeave, onLayout }: Props) {
+export function DictionaryPopup({ result, anchor, onMouseEnter, onMouseLeave, onLayout, onMine, hiddenForCapture }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const pos = useAnchoredPosition(ref, anchor, result, onLayout);
+  // Per-entry mining status, reset whenever the looked-up word changes.
+  const [mined, setMined] = useState<Record<number, MineStatus | "loading">>({});
+  useEffect(() => setMined({}), [result]);
 
   if (!result || (!result.entries.length && !result.kanji.length) || !anchor) return null;
+
+  const mine = (entry: DictionaryEntry, i: number) => {
+    if (!onMine) return;
+    setMined((m) => ({ ...m, [i]: "loading" }));
+    void onMine(entry).then((status) => setMined((m) => ({ ...m, [i]: status })));
+  };
 
   return (
     <div
@@ -80,16 +113,19 @@ export function DictionaryPopup({ result, anchor, onMouseEnter, onMouseLeave, on
         position: "fixed",
         left: pos?.left ?? -9999,
         top: pos?.top ?? -9999,
-        visibility: pos ? "visible" : "hidden",
+        visibility: pos && !hiddenForCapture ? "visible" : "hidden",
       }}
       className="z-50 max-h-80 w-80 overflow-y-auto border bg-popover text-popover-foreground shadow-md"
     >
       <ul className="divide-y">
         {result.entries.map((entry, i) => (
           <li key={`${entry.expression}-${entry.reading ?? ""}-${i}`} className="p-3">
-            <div className="flex items-baseline gap-2">
-              <Furigana expression={entry.expression} reading={entry.reading ?? ""} />
-              {entry.reasons.length > 0 && <span className="text-[10px] text-muted-foreground">{entry.reasons.join(" › ")}</span>}
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-baseline gap-2">
+                <Furigana expression={entry.expression} reading={entry.reading ?? ""} />
+                {entry.reasons.length > 0 && <span className="text-[10px] text-muted-foreground">{entry.reasons.join(" › ")}</span>}
+              </div>
+              {onMine && <MineButton status={mined[i]} onClick={() => mine(entry, i)} />}
             </div>
 
             {entry.frequencies.length > 0 && (

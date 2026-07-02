@@ -330,3 +330,62 @@ export interface DictionaryImportProgress {
   total?: number; // total rows to write
   message?: string;
 }
+
+// ─── Anki (AnkiConnect) ──────────────────────────────────────────────────────
+// Flashcard mining to Anki via the AnkiConnect add-on. Config lives in the
+// renderer (persisted like reader prefs); the main process is a stateless
+// AnkiConnect HTTP client — a Node fetch has no browser Origin, so unlike a
+// browser extension we sidestep AnkiConnect's CORS/origin whitelist entirely.
+
+/** How to handle a card whose first field already exists in the collection. */
+export type AnkiDuplicateBehavior = "allow" | "prevent";
+
+/** Where to reach AnkiConnect. Passed with every call (the main side is stateless). */
+export interface AnkiEndpoint {
+  /** Server URL, default http://127.0.0.1:8765. */
+  server: string;
+  /** Optional AnkiConnect API key (blank = none). */
+  apiKey: string;
+}
+
+/** User's Anki mining configuration (persisted in the renderer). */
+export interface AnkiConfig extends AnkiEndpoint {
+  enabled: boolean;
+  deck: string;
+  model: string;
+  /** Anki field name → template string containing {markers}. */
+  fields: Record<string, string>;
+  tags: string[];
+  duplicateBehavior: AnkiDuplicateBehavior;
+  screenshot: boolean;
+  /** JPEG quality 0–100 (PNG ignores it). */
+  screenshotQuality: number;
+}
+
+/** A note ready for AnkiConnect (fields already rendered from the templates). */
+export interface AnkiNote {
+  deckName: string;
+  modelName: string;
+  fields: Record<string, string>;
+  tags: string[];
+  options: { allowDuplicate: boolean };
+}
+
+/**
+ * Screenshot capture accompanying an addNote call. The renderer can't capture
+ * the window, so it asks the main process to grab this rect, store it via
+ * AnkiConnect, and splice the stored filename into the field carrying the
+ * screenshot sentinel.
+ */
+export interface AnkiScreenshotRequest {
+  /** Viewport rect (CSS px, device-independent) to crop to; null = whole page. */
+  rect: { x: number; y: number; width: number; height: number } | null;
+  format: "png" | "jpg";
+  quality: number;
+}
+
+/** Result of a connection test (the AnkiConnect `version` action). */
+export type AnkiTestResult = { ok: true; version: number } | { ok: false; error: string };
+
+/** Result of adding a note. */
+export type AnkiAddResult = { ok: true; noteId: number } | { ok: false; error: string };

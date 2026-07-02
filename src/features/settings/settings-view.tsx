@@ -15,6 +15,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { LibrarySidebar } from "@/features/library/library-sidebar";
+import { AnkiSettings } from "@/features/settings/anki-settings";
 import { useSettingsStore, THEMES } from "@/stores/settings-store";
 import { useLibraryPrefs, CARD_SIZE_OPTIONS, type CardSize } from "@/stores/library-prefs-store";
 
@@ -120,6 +121,10 @@ export function SettingsView() {
                 aria-label="Show book cover on Discord"
               />
             </SettingRow>
+          </Section>
+
+          <Section title="Anki">
+            <AnkiSettings />
           </Section>
 
           <Section title="Data">

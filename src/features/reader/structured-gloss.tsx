@@ -165,7 +165,22 @@ function renderNode(node: GlossContent | undefined, key: Key, dictId: string): R
     if (typeof el.rowSpan === "number") props.rowSpan = el.rowSpan;
   }
 
+  // Many Yomitan dicts emit `<table>` with `<tr>` children directly. The browser
+  // adds an implicit <tbody>, but React warns on the invalid nesting, so wrap the
+  // rows ourselves — unless the table already carries a thead/tbody/tfoot.
+  if (tag === "table" && !containsTableSection(el.content)) {
+    return createElement("table", props, createElement("tbody", null, children));
+  }
+
   return createElement(tag, props, children);
+}
+
+/** Whether a table's content already includes a thead/tbody/tfoot section. */
+function containsTableSection(content: GlossContent | undefined): boolean {
+  if (content == null || typeof content === "string") return false;
+  if (Array.isArray(content)) return content.some(containsTableSection);
+  const tag = (content as GlossElement).tag;
+  return tag === "thead" || tag === "tbody" || tag === "tfoot";
 }
 
 /** Renders a single glossary item (string or structured-content tree). */

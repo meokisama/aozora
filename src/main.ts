@@ -8,6 +8,7 @@ import { registerStatsIpc } from "./main/stats.js";
 import { registerDictionaryIpc } from "./main/dictionary.js";
 import { registerSystemIpc } from "./main/system.js";
 import { registerDiscordIpc } from "./main/discord.js";
+import { registerAnkiIpc } from "./main/anki.js";
 
 // Quit early during Squirrel.Windows install/uninstall (shortcut creation/removal).
 if (started) {
@@ -60,6 +61,7 @@ app.whenReady().then(() => {
   registerDictionaryIpc();
   registerSystemIpc();
   registerDiscordIpc();
+  registerAnkiIpc();
   createWindow();
 
   // macOS: re-create a window when the dock icon is clicked with none open.

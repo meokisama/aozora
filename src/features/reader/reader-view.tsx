@@ -15,17 +15,21 @@ import { collectIllustrations, type Illustration } from "@/lib/reader/illustrati
 import { applyReaderVars, continuousStyles, paginatedStyles } from "./reader-styles";
 import { parseBook, type ParsedBook, type FixedLayoutPage } from "@/lib/epub/parse-book";
 import type { Section } from "@/lib/epub/generate-html";
-import type { Bookmark as BookmarkRecord, LookupResult } from "@/lib/types";
+import { toast } from "sonner";
+import type { AnkiScreenshotRequest, Bookmark as BookmarkRecord, DictionaryEntry, LookupResult } from "@/lib/types";
 import { buildReaderHtml } from "@/lib/epub/format-html";
 import { getCachedBook, putCachedBook } from "@/lib/reader-cache";
 import { collectAnchors, currentCharAtCenter, scrollToChar, scrollToElementId, type Anchor } from "@/lib/reader/position";
 import { PaginatedController, type PaginatedState } from "@/lib/reader/paginated";
 import { mergeSpreadSections } from "@/lib/reader/merge-spreads";
 import { FixedLayoutView, type FixedLayoutHandle } from "./fixed-layout-view";
-import { buildSearchIndex, searchIndex, type SearchResult, type SearchIndexEntry } from "@/lib/reader/search";
+import { blockAncestor, buildSearchIndex, searchIndex, type SearchResult, type SearchIndexEntry } from "@/lib/reader/search";
 import { clearSearchHighlight, highlightSearchResult, setLookupHighlight } from "@/lib/reader/highlight";
 import { cursorTextFromPoint } from "@/lib/reader/lookup-text";
+import { sentenceAround } from "@/lib/reader/sentence";
 import { useDictionaryStore, modifierHeld } from "@/stores/dictionary-store";
+import { useAnkiStore } from "@/stores/anki-store";
+import { cardDataFromEntry, buildNote, type MineStatus } from "@/lib/dictionary/anki-note";
 import { DictionaryPopup } from "./dictionary-popup";
 import { FootnotePopup } from "./footnote-popup";
 import { collectFootnotes } from "@/lib/reader/footnotes";
@@ -75,6 +79,7 @@ export function ReaderView() {
   const book = useReaderStore((s) => s.currentBook);
   const close = useReaderStore((s) => s.close);
   const applyProgress = useLibraryStore((s) => s.applyProgress);
+  const ankiEnabled = useAnkiStore((s) => s.enabled);
 
   // Records reading time / characters for the stats page.
   const { mark: markSession } = useReadingSession(book?.id);
@@ -127,6 +132,9 @@ export function ReaderView() {
   // joining word and popup (matched-run rect ∪ popup rect, padded), so crossing
   // words while reaching for the popup don't re-trigger a lookup.
   const lookupAnchorRef = useRef<DOMRect | null>(null); // matched-run box of the open popup
+  // Live match range + its content root, kept so Anki mining can pull the enclosing
+  // sentence and a screenshot rect for the word currently in the popup.
+  const mineCtxRef = useRef<{ range: Range; contentRoot: Element } | null>(null);
   const popupRectRef = useRef<{ left: number; top: number; right: number; bottom: number } | null>(null);
   const dictEnabled = useDictionaryStore((s) => s.enabled);
   const dictModifier = useDictionaryStore((s) => s.modifier);
@@ -159,6 +167,8 @@ export function ReaderView() {
     capped: false,
   });
   const [lookup, setLookup] = useState<{ result: LookupResult; anchor: DOMRect | null } | null>(null);
+  // Hides the popup for one repaint while a mining screenshot is captured.
+  const [capturing, setCapturing] = useState(false);
   const [footnote, setFootnote] = useState<{ html: string; anchor: DOMRect } | null>(null);
 
   // Mirrors whether any reader overlay (panel/gallery) is open, so the global
@@ -483,6 +493,7 @@ export function ReaderView() {
           const range = source.rangeForLength(result.matchedLength);
           const anchor = range?.getBoundingClientRect() ?? null;
           setLookupHighlight(range);
+          mineCtxRef.current = range ? { range, contentRoot } : null; // context for Anki mining
           lookupAnchorRef.current = anchor; // pin point for the frozen zone
           popupRectRef.current = null; // re-measured by the popup's onLayout
           setLookup({ result, anchor });
@@ -490,6 +501,65 @@ export function ReaderView() {
         .catch(() => {});
     },
     [scheduleClear],
+  );
+
+  // Mines the popup's entry to Anki: pulls the enclosing sentence + a screenshot
+  // rect from the live match, builds the note from the configured templates, and
+  // asks the main process to add it (capturing the screenshot on its side).
+  const mineEntry = useCallback(
+    async (entry: DictionaryEntry): Promise<MineStatus> => {
+      if (!book) return "error";
+      const cfg = useAnkiStore.getState();
+      if (!cfg.enabled || !cfg.deck || !cfg.model || Object.keys(cfg.fields).length === 0) {
+        toast.error("Set up Anki in Settings first.");
+        return "error";
+      }
+
+      const ctx = mineCtxRef.current;
+      const sentence = ctx ? sentenceAround(ctx.range, ctx.contentRoot) : "";
+      const data = cardDataFromEntry(entry, {
+        sentence,
+        documentTitle: book.title,
+        documentAuthor: book.author ?? "",
+        hasScreenshot: cfg.screenshot,
+      });
+      const note = buildNote(cfg, data);
+
+      let screenshot: AnkiScreenshotRequest | null = null;
+      const useShot = cfg.screenshot && ctx != null;
+      if (cfg.screenshot && ctx) {
+        // Hide the popup and wait one painted frame so it doesn't occlude the
+        // sentence in the capture the main process is about to take.
+        setCapturing(true);
+        await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+        // Crop to the paragraph containing the word, clamped to the viewport.
+        const block = blockAncestor(ctx.range.startContainer, ctx.contentRoot);
+        const r = block.getBoundingClientRect();
+        const x = Math.max(0, r.left);
+        const y = Math.max(0, r.top);
+        const width = Math.min(r.right, window.innerWidth) - x;
+        const height = Math.min(r.bottom, window.innerHeight) - y;
+        const rect = width > 0 && height > 0 ? { x, y, width, height } : null;
+        screenshot = { rect, format: cfg.screenshotQuality >= 100 ? "png" : "jpg", quality: cfg.screenshotQuality };
+      }
+
+      try {
+        const res = await window.electronAPI.anki.addNote({ server: cfg.server, apiKey: cfg.apiKey }, note, screenshot);
+        if (res.ok) {
+          toast.success(`Added “${entry.expression}” to Anki.`);
+          return "added";
+        }
+        if (/duplicate/i.test(res.error)) {
+          toast.info(`“${entry.expression}” is already in Anki.`);
+          return "duplicate";
+        }
+        toast.error(res.error);
+        return "error";
+      } finally {
+        if (useShot) setCapturing(false);
+      }
+    },
+    [book],
   );
 
   // Coalesce rapid mousemoves into one lookup per frame.
@@ -1048,6 +1118,8 @@ export function ReaderView() {
             popupHoveredRef.current = false;
             scheduleClear();
           }}
+          onMine={ankiEnabled ? mineEntry : undefined}
+          hiddenForCapture={capturing}
         />
         <FootnotePopup html={footnote?.html ?? null} anchor={footnote?.anchor ?? null} onClose={() => setFootnote(null)} />
       </div>

@@ -1,6 +1,11 @@
 import type {
   AddBookmarkPayload,
   AddBookPayload,
+  AnkiAddResult,
+  AnkiEndpoint,
+  AnkiNote,
+  AnkiScreenshotRequest,
+  AnkiTestResult,
   Book,
   Bookmark,
   DictionaryImportProgress,
@@ -87,6 +92,15 @@ export interface DiscordApi {
   clear(): void;
 }
 
+export interface AnkiApi {
+  test(endpoint: AnkiEndpoint): Promise<AnkiTestResult>;
+  decks(endpoint: AnkiEndpoint): Promise<string[]>;
+  models(endpoint: AnkiEndpoint): Promise<string[]>;
+  fields(endpoint: AnkiEndpoint, model: string): Promise<string[]>;
+  canAdd(endpoint: AnkiEndpoint, note: AnkiNote): Promise<boolean>;
+  addNote(endpoint: AnkiEndpoint, note: AnkiNote, screenshot: AnkiScreenshotRequest | null): Promise<AnkiAddResult>;
+}
+
 export interface ElectronAPI {
   window: WindowApi;
   library: LibraryApi;
@@ -94,6 +108,7 @@ export interface ElectronAPI {
   dictionary: DictionaryApi;
   system: SystemApi;
   discord: DiscordApi;
+  anki: AnkiApi;
 }
 
 declare global {
