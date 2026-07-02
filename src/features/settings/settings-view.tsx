@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { LibrarySidebar } from "@/features/library/library-sidebar";
 import { AnkiSettings } from "@/features/settings/anki-settings";
+import { TtsSettings } from "@/features/settings/tts-settings";
 import { useSettingsStore, THEMES } from "@/stores/settings-store";
 import { useLibraryPrefs, CARD_SIZE_OPTIONS, type CardSize } from "@/stores/library-prefs-store";
 
@@ -101,6 +102,10 @@ export function SettingsView() {
             <SettingRow label="Show book details" description="Display the title, author, and reading progress beneath each cover.">
               <Switch checked={showCardMetadata} onCheckedChange={setShowCardMetadata} aria-label="Show book details" />
             </SettingRow>
+          </Section>
+
+          <Section title="Read aloud">
+            <TtsSettings />
           </Section>
 
           <Section title="Integrations">

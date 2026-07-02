@@ -27,8 +27,10 @@ import { blockAncestor, buildSearchIndex, searchIndex, type SearchResult, type S
 import { clearSearchHighlight, highlightSearchResult, setLookupHighlight } from "@/lib/reader/highlight";
 import { cursorTextFromPoint } from "@/lib/reader/lookup-text";
 import { sentenceAround } from "@/lib/reader/sentence";
+import { speakVoicevox, stopVoicevox } from "@/lib/reader/voicevox";
 import { useDictionaryStore, modifierHeld } from "@/stores/dictionary-store";
 import { useAnkiStore } from "@/stores/anki-store";
+import { useTtsStore } from "@/stores/tts-store";
 import { cardDataFromEntry, buildNote, type MineStatus } from "@/lib/dictionary/anki-note";
 import { DictionaryPopup } from "./dictionary-popup";
 import { FootnotePopup } from "./footnote-popup";
@@ -80,6 +82,7 @@ export function ReaderView() {
   const close = useReaderStore((s) => s.close);
   const applyProgress = useLibraryStore((s) => s.applyProgress);
   const ankiEnabled = useAnkiStore((s) => s.enabled);
+  const ttsEnabled = useTtsStore((s) => s.enabled);
 
   // Records reading time / characters for the stats page.
   const { mark: markSession } = useReadingSession(book?.id);
@@ -562,6 +565,23 @@ export function ReaderView() {
     [book],
   );
 
+  // Read text aloud through VOICEVOX.
+  const speakText = useCallback((text: string) => {
+    const s = useTtsStore.getState();
+    void speakVoicevox(text, { server: s.voicevoxServer, styleId: s.voicevoxSpeaker, rate: s.rate }).then((err) => {
+      if (err) toast.error(err);
+    });
+  }, []);
+
+  // Read the sentence the popup's word was found in — reuses the same live match
+  // context (and sentence walk) that Anki mining uses for its {sentence} field.
+  const speakSentence = useCallback(() => {
+    const ctx = mineCtxRef.current;
+    if (!ctx) return;
+    const sentence = sentenceAround(ctx.range, ctx.contentRoot);
+    if (sentence) speakText(sentence);
+  }, [speakText]);
+
   // Coalesce rapid mousemoves into one lookup per frame.
   const scheduleLookup = useCallback(() => {
     if (lookupRafRef.current) return;
@@ -990,6 +1010,9 @@ export function ReaderView() {
     };
   }, []);
 
+  // Silence any in-flight read-aloud when leaving the reader.
+  useEffect(() => () => stopVoicevox(), []);
+
   if (!book) return null;
 
   const paged = readingMode === "paginated";
@@ -1119,6 +1142,8 @@ export function ReaderView() {
             scheduleClear();
           }}
           onMine={ankiEnabled ? mineEntry : undefined}
+          onSpeak={ttsEnabled ? speakText : undefined}
+          onSpeakSentence={ttsEnabled ? speakSentence : undefined}
           hiddenForCapture={capturing}
         />
         <FootnotePopup html={footnote?.html ?? null} anchor={footnote?.anchor ?? null} onClose={() => setFootnote(null)} />

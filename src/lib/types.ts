@@ -389,3 +389,19 @@ export type AnkiTestResult = { ok: true; version: number } | { ok: false; error:
 
 /** Result of adding a note. */
 export type AnkiAddResult = { ok: true; noteId: number } | { ok: false; error: string };
+
+/**
+ * A VOICEVOX voice: one style of one speaker, flattened for a single dropdown.
+ * `styleId` is what the engine's `speaker` query param expects.
+ */
+export interface VoicevoxSpeaker {
+  /** Combined "speaker（style）" label. */
+  name: string;
+  styleId: number;
+}
+
+/** Result of a VOICEVOX connection test (the engine's `/version` endpoint). */
+export type VoicevoxTestResult = { ok: true; version: string } | { ok: false; error: string };
+
+/** Result of a synthesis request: the WAV bytes, or an error message. */
+export type VoicevoxSynthesisResult = { ok: true; audio: Uint8Array } | { ok: false; error: string };

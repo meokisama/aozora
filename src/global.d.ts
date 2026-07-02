@@ -16,6 +16,9 @@ import type {
   ReadingSession,
   Stats,
   UpdateBookPayload,
+  VoicevoxSpeaker,
+  VoicevoxSynthesisResult,
+  VoicevoxTestResult,
 } from "@/lib/types";
 
 /**
@@ -101,6 +104,12 @@ export interface AnkiApi {
   addNote(endpoint: AnkiEndpoint, note: AnkiNote, screenshot: AnkiScreenshotRequest | null): Promise<AnkiAddResult>;
 }
 
+export interface VoicevoxApi {
+  test(server: string): Promise<VoicevoxTestResult>;
+  speakers(server: string): Promise<VoicevoxSpeaker[]>;
+  synthesize(server: string, text: string, styleId: number, rate: number): Promise<VoicevoxSynthesisResult>;
+}
+
 export interface ElectronAPI {
   window: WindowApi;
   library: LibraryApi;
@@ -109,6 +118,7 @@ export interface ElectronAPI {
   system: SystemApi;
   discord: DiscordApi;
   anki: AnkiApi;
+  voicevox: VoicevoxApi;
 }
 
 declare global {

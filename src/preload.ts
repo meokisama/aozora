@@ -6,6 +6,7 @@ import { dictionaryApi } from "./preload/dictionary.js";
 import { systemApi } from "./preload/system.js";
 import { discordApi } from "./preload/discord.js";
 import { ankiApi } from "./preload/anki.js";
+import { voicevoxApi } from "./preload/voicevox.js";
 
 // Curated `window.electronAPI` surface; add new feature namespaces here.
 contextBridge.exposeInMainWorld("electronAPI", {
@@ -16,4 +17,5 @@ contextBridge.exposeInMainWorld("electronAPI", {
   system: systemApi,
   discord: discordApi,
   anki: ankiApi,
+  voicevox: voicevoxApi,
 });

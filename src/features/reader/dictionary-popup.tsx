@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Check, Loader2, Plus } from "lucide-react";
+import { Check, Loader2, Plus, Volume2 } from "lucide-react";
 import type { DictionaryEntry, LookupResult } from "@/lib/types";
 import type { MineStatus } from "@/lib/dictionary/anki-note";
 import { useAnchoredPosition } from "./use-anchored-position";
@@ -43,6 +43,10 @@ interface Props {
   onLayout?: (rect: { left: number; top: number; right: number; bottom: number }) => void;
   /** Mines an entry to Anki. Absent (or returning) hides the per-entry Anki button. */
   onMine?: (entry: DictionaryEntry) => Promise<MineStatus>;
+  /** Reads a headword aloud (its reading). Absent hides the per-entry speaker button. */
+  onSpeak?: (text: string) => void;
+  /** Reads the sentence the word was found in. Absent hides the "Read sentence" button. */
+  onSpeakSentence?: () => void;
   /** Kept mounted but visually hidden while a mining screenshot is captured, so
    *  the popup doesn't occlude the sentence in the image. */
   hiddenForCapture?: boolean;
@@ -61,6 +65,21 @@ function MineButton({ status, onClick }: { status?: MineStatus | "loading"; onCl
     >
       {status === "loading" ? <Loader2 className="size-3 animate-spin" /> : done ? <Check className="size-3" /> : <Plus className="size-3" />}
       Anki
+    </button>
+  );
+}
+
+/** Compact speaker button that reads a piece of text aloud. */
+function SpeakButton({ onClick, title }: { onClick: () => void; title: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      className="inline-flex shrink-0 items-center rounded-sm border p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+    >
+      <Volume2 className="size-3" />
     </button>
   );
 }
@@ -87,7 +106,7 @@ function Furigana({ expression, reading }: { expression: string; reading: string
   );
 }
 
-export function DictionaryPopup({ result, anchor, onMouseEnter, onMouseLeave, onLayout, onMine, hiddenForCapture }: Props) {
+export function DictionaryPopup({ result, anchor, onMouseEnter, onMouseLeave, onLayout, onMine, onSpeak, onSpeakSentence, hiddenForCapture }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const pos = useAnchoredPosition(ref, anchor, result, onLayout);
   // Per-entry mining status, reset whenever the looked-up word changes.
@@ -117,6 +136,20 @@ export function DictionaryPopup({ result, anchor, onMouseEnter, onMouseLeave, on
       }}
       className="z-50 max-h-80 w-80 overflow-y-auto border bg-popover text-popover-foreground shadow-md"
     >
+      {onSpeakSentence && (
+        <div className="flex items-center justify-between gap-2 border-b bg-muted/30 px-3 py-1.5">
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70">Read aloud</span>
+          <button
+            type="button"
+            onClick={onSpeakSentence}
+            title="Read the sentence aloud"
+            className="inline-flex shrink-0 items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          >
+            <Volume2 className="size-3" />
+            Sentence
+          </button>
+        </div>
+      )}
       <ul className="divide-y">
         {result.entries.map((entry, i) => (
           <li key={`${entry.expression}-${entry.reading ?? ""}-${i}`} className="p-3">
@@ -125,7 +158,10 @@ export function DictionaryPopup({ result, anchor, onMouseEnter, onMouseLeave, on
                 <Furigana expression={entry.expression} reading={entry.reading ?? ""} />
                 {entry.reasons.length > 0 && <span className="text-[10px] text-muted-foreground">{entry.reasons.join(" › ")}</span>}
               </div>
-              {onMine && <MineButton status={mined[i]} onClick={() => mine(entry, i)} />}
+              <div className="flex shrink-0 items-center gap-1">
+                {onSpeak && <SpeakButton onClick={() => onSpeak(entry.reading || entry.expression)} title="Read word aloud" />}
+                {onMine && <MineButton status={mined[i]} onClick={() => mine(entry, i)} />}
+              </div>
             </div>
 
             {entry.frequencies.length > 0 && (
