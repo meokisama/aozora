@@ -1,7 +1,7 @@
 {
   "name": "aozora",
   "productName": "Aozora",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Desktop EPUB reader for Japanese light novels & manga — tategaki, furigana, fixed-layout two-page spreads, TOC, bookmarks, and full-text search.",
   "main": ".vite/build/main.js",
   "scripts": {
