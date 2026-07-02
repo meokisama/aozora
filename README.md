@@ -55,6 +55,9 @@
 - [**Anki flashcard mining**](#anki) — add a card to Anki straight from the dictionary
   popup: the word, its reading, the definition, the sentence you found it in, and a
   screenshot of the passage, all mapped to your own note fields via **AnkiConnect**.
+- [**Read aloud (TTS)**](#read-aloud) — hear any word or sentence in natural Japanese via
+  **VOICEVOX**: a speaker button on every dictionary entry, plus a hold-a-key + hover
+  gesture that reads a whole sentence with a **karaoke highlight** tracking the voice.
 - **Discord Rich Presence** — show the book you're reading on your Discord profile with the Discord desktop app running.
 
   ![](/preview/preview-7.png)
@@ -161,6 +164,44 @@ The content you can map onto a field:
 **＋ Anki** in the popup. The button shows a check when the card is added; if the note
 already exists (and duplicates are prevented), it says so instead. The book's title is
 also attached as a tag automatically, so cards stay grouped by source.
+
+## Read aloud (TTS)
+
+Aozora can speak the Japanese you're reading — a single word, or a whole sentence — using
+**[VOICEVOX](https://voicevox.hiroshiba.jp/)** for the voice.
+
+**VOICEVOX** is a free Japanese text-to-speech engine with a cast of expressive character
+voices (ずんだもん, 四国めたん, and many more). It runs **entirely on your machine**: there's
+no account, no network round-trip, and nothing you read leaves your computer. The
+downloadable app also exposes a small local HTTP engine, and that's what Aozora talks to —
+so its synthesis quality is far beyond what a browser's built-in speech offers. Aozora uses
+**VOICEVOX exclusively**; there is no lower-quality fallback engine, so it's required for
+the read-aloud feature.
+
+**Setup** (once): download and run **VOICEVOX** from
+[voicevox.hiroshiba.jp](https://voicevox.hiroshiba.jp/), then open
+**Aozora Settings → Read aloud**:
+
+- **Enable** read aloud and hit **Test** to connect to the engine (default
+  `http://127.0.0.1:50021`). This loads the available voices.
+- Pick a **voice** and set the **speed**. A quick preview button lets you hear the choice.
+- Choose the **Read sentence** hotkey — **Alt** by default, or **Ctrl** / **Shift** (kept
+  separate from the dictionary's lookup key so the two gestures never collide).
+
+<video src="https://github.com/user-attachments/assets/cf33655e-7ddc-474c-a11a-2c385d8800c4" controls width="100%"></video>
+
+Two ways to listen, both in the reader:
+
+- **A word** — in the dictionary popup, click the 🔊 button on any entry to hear that
+  headword's reading.
+- **A sentence** — **hold the read-sentence hotkey and hover a sentence**; a floating
+  **Read sentence** button appears next to the cursor. Click it and Aozora speaks the whole
+  sentence while a **karaoke-style highlight grows across the text in time with the audio**,
+  driven by VOICEVOX's per-mora timings. The highlight paints only the base text, never the
+  furigana above it.
+
+> VOICEVOX and its character voices come with their own terms of use (generally free for
+> personal and commercial work, with credit to the voice). See the VOICEVOX site for details.
 
 ## Installation
 
