@@ -1,6 +1,7 @@
 import { ipcMain } from "electron";
 import net from "node:net";
 import { randomUUID } from "node:crypto";
+import { resolveCoverUrl } from "./discord-cover.js";
 
 /**
  * Discord Rich Presence, spoken directly over Discord's local IPC socket — no
@@ -21,6 +22,52 @@ const CLIENT_ID = process.env.AOZORA_DISCORD_CLIENT_ID ?? "1521878992423223326";
 /** Shown as a button at the bottom of the presence card (max 2 buttons, label ≤ 32 chars). */
 const DOWNLOAD_BUTTON = { label: "Get Aozora青空", url: "https://github.com/meokisama/aozora/releases" };
 
+/**
+ * A public https image URL can be used as `large_image` directly — the Discord
+ * client fetches, proxies and caches it (no upload / external-assets call needed).
+ * The catch: the client expands the URL into an internal `mp:external/{id}/...`
+ * asset key that must stay ≤ 256 chars, so an over-long URL is silently dropped.
+ * We reproduce that expansion to pre-flight the length and fall back to the
+ * bundled "aozora" asset when it wouldn't fit or isn't a valid http(s) URL.
+ */
+const usableCoverUrl = (url: string): string | null => {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    const scheme = u.protocol.replace(/:$/, "");
+    // media.discordapp.net collapses to cdn.discordapp.com in the expanded key.
+    const host = u.hostname === "media.discordapp.net" ? "cdn.discordapp.com" : u.hostname;
+    const key = `mp:external/${"x".repeat(43)}/${encodeURIComponent(u.search)}/${scheme}/${host}${u.pathname}`;
+    return key.length <= 256 ? u.href : null;
+  } catch {
+    return null;
+  }
+};
+
+// Cover upload runs off-band (see resolveCover); these hold the last resolved URL
+// and the book it belongs to, so a stale upload can't attach to a newer book.
+let resolvedCoverFor = "";
+let resolvedCoverUrl = "";
+let coverToken = 0;
+
+/** Resolve the large image: resolved cover for the open book, else the bundled asset. */
+const largeImage = (): string => {
+  const fromCover = desired?.coverBookId && desired.coverBookId === resolvedCoverFor ? resolvedCoverUrl : "";
+  return (fromCover && usableCoverUrl(fromCover)) || "aozora";
+};
+
+/** Kick off (or reuse) the cover upload for the given book, then re-send once ready. */
+const resolveCover = (bookId?: string | null): void => {
+  if (!bookId || bookId === resolvedCoverFor) return; // none requested, or already resolved
+  const token = ++coverToken;
+  void resolveCoverUrl(bookId).then((url) => {
+    if (token !== coverToken) return; // a newer book superseded this upload
+    resolvedCoverFor = bookId;
+    resolvedCoverUrl = url ?? "";
+    if (enabled) scheduleSend();
+  });
+};
+
 const OP_HANDSHAKE = 0;
 const OP_FRAME = 1;
 const OP_CLOSE = 2;
@@ -37,6 +84,7 @@ interface PresenceInput {
   chapterIndex?: number; // 1-based position in the TOC
   chapterTotal?: number;
   progress?: number; // 0-100
+  coverBookId?: string | null; // set (opt-in) so the main process uploads its cover for large_image
 }
 
 let socket: net.Socket | null = null;
@@ -107,7 +155,7 @@ const buildActivity = (): Record<string, unknown> => {
   if (!desired) {
     return {
       state: "Browsing the library",
-      assets: { large_image: "aozora", large_text: "Aozora" },
+      assets: { large_image: largeImage(), large_text: "Aozora" },
       buttons: [DOWNLOAD_BUTTON],
     };
   }
@@ -123,7 +171,7 @@ const buildActivity = (): Record<string, unknown> => {
   const largeText = clamp(desired.chapterName || desired.author || "Aozora", 128);
 
   const activity: Record<string, unknown> = {
-    assets: { large_image: "aozora", large_text: largeText },
+    assets: { large_image: largeImage(), large_text: largeText },
     timestamps: { start: sessionStart },
     buttons: [DOWNLOAD_BUTTON],
   };
@@ -252,6 +300,7 @@ const update = (input: PresenceInput): void => {
     sessionStart = Date.now();
   }
   desired = input;
+  resolveCover(input.coverBookId); // no-op unless the cover opt-in sent a book id
   if (enabled) scheduleSend();
 };
 

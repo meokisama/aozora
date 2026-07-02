@@ -118,6 +118,7 @@ interface SettingsState {
   pageColumns: number;
   sideMargin: number;
   discordRichPresence: boolean;
+  discordCover: boolean;
   setFontSize: (fontSize: number) => void;
   setLineHeight: (lineHeight: number) => void;
   setFontFamily: (fontFamily: FontFamily) => void;
@@ -129,6 +130,7 @@ interface SettingsState {
   setPageColumns: (pageColumns: number) => void;
   setSideMargin: (sideMargin: number) => void;
   setDiscordRichPresence: (discordRichPresence: boolean) => void;
+  setDiscordCover: (discordCover: boolean) => void;
   reset: () => void;
 }
 
@@ -145,6 +147,7 @@ type SettingsData = Pick<
   | "pageColumns"
   | "sideMargin"
   | "discordRichPresence"
+  | "discordCover"
 >;
 
 const DEFAULTS: SettingsData = {
@@ -158,7 +161,8 @@ const DEFAULTS: SettingsData = {
   writingMode: "auto",
   pageColumns: 0, // auto
   sideMargin: 12, // % per edge
-  discordRichPresence: false, // opt-in; shares the current book to Discord
+  discordRichPresence: true, // on by default (opt-out); shares the current book to Discord
+  discordCover: true, // on by default (opt-out); uploads the cover to a public host (catbox.moe) for the large image
 };
 
 export const useSettingsStore = create<SettingsState>()(
@@ -176,6 +180,7 @@ export const useSettingsStore = create<SettingsState>()(
       setPageColumns: (pageColumns) => set({ pageColumns }),
       setSideMargin: (sideMargin) => set({ sideMargin }),
       setDiscordRichPresence: (discordRichPresence) => set({ discordRichPresence }),
+      setDiscordCover: (discordCover) => set({ discordCover }),
       reset: () => set({ ...DEFAULTS }),
     }),
     {

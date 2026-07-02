@@ -7,6 +7,7 @@ export interface DiscordPresence {
   chapterIndex?: number; // 1-based position in the TOC
   chapterTotal?: number;
   progress?: number; // 0-100
+  coverBookId?: string | null; // set (opt-in) so the main process uploads its cover for large_image
 }
 
 /**

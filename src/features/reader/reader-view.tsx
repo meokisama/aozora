@@ -89,6 +89,7 @@ export function ReaderView() {
   const pageColumns = useSettingsStore((s) => s.pageColumns);
   const sideMargin = useSettingsStore((s) => s.sideMargin);
   const discordRichPresence = useSettingsStore((s) => s.discordRichPresence);
+  const discordCover = useSettingsStore((s) => s.discordCover);
   const customFonts = useFontsStore((s) => s.customFonts);
   const fullscreen = useUiStore((s) => s.fullscreen);
 
@@ -194,8 +195,9 @@ export function ReaderView() {
       chapterIndex: idx >= 0 ? idx + 1 : undefined,
       chapterTotal: chapters.length || undefined,
       progress: progressPct,
+      coverBookId: discordCover ? book.id : undefined, // opt-in: main uploads the cover for the large image
     });
-  }, [discordRichPresence, book, chapters, activeChapterId, progressPct]);
+  }, [discordRichPresence, discordCover, book, chapters, activeChapterId, progressPct]);
 
   /** Persists the current position to the main process and the in-memory store. */
   const persist = useCallback(() => {

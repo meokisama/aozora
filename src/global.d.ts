@@ -81,6 +81,7 @@ export interface DiscordApi {
     chapterIndex?: number;
     chapterTotal?: number;
     progress?: number;
+    coverBookId?: string | null;
   }): void;
   /** Clear the presence (no book open) while staying connected. */
   clear(): void;

@@ -54,6 +54,8 @@ export function SettingsView() {
 
   const discordRichPresence = useSettingsStore((s) => s.discordRichPresence);
   const setDiscordRichPresence = useSettingsStore((s) => s.setDiscordRichPresence);
+  const discordCover = useSettingsStore((s) => s.discordCover);
+  const setDiscordCover = useSettingsStore((s) => s.setDiscordCover);
 
   const cardSize = useLibraryPrefs((s) => s.cardSize);
   const setCardSize = useLibraryPrefs((s) => s.setCardSize);
@@ -106,6 +108,17 @@ export function SettingsView() {
               description="Show the book you're reading on your Discord profile. Requires the Discord desktop app to be running."
             >
               <Switch checked={discordRichPresence} onCheckedChange={setDiscordRichPresence} aria-label="Discord Rich Presence" />
+            </SettingRow>
+            <SettingRow
+              label="Show book cover"
+              description="Display the current book's cover as the Discord RP's large image. Uploads the cover to a public host (catbox.moe), which reveals what you're reading."
+            >
+              <Switch
+                checked={discordCover}
+                onCheckedChange={setDiscordCover}
+                disabled={!discordRichPresence}
+                aria-label="Show book cover on Discord"
+              />
             </SettingRow>
           </Section>
 

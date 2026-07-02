@@ -41,9 +41,8 @@
 - [**Dictionary**](#dictionary) — Yomitan-style pop-up lookup: hover a word, hold a modifier
   (Shift by default), and get deinflected entries from your imported Yomitan
   dictionaries — furigana headwords, structured glossaries (numbered senses, tables,
-  ruby, images), frequency, pitch-accent graphs, and kanji breakdowns (see below).
-- [**Manga & fixed-layout**](#manga--fixed-layout) — image-per-page EPUBs render as true two-page spreads
-  (see below).
+  ruby, images), frequency, pitch-accent graphs, and kanji breakdowns.
+- [**Manga & fixed-layout**](#manga--fixed-layout) — image-per-page EPUBs render as true two-page spreads.
 - **Illustration gallery** — browse every image in the book in a full-screen viewer
   (zoom, pan, thumbnail filmstrip) and jump to where an illustration appears in the text.
 - **Reading statistics** — automatic session tracking feeds a stats page with a
@@ -53,6 +52,9 @@
   built-in Japanese fonts (Mincho, Noto Serif/Sans, gyōsho) plus **import your own**
   (TTF/OTF/WOFF/WOFF2).
 - **Full-screen reading** — distraction-free mode via a header toggle or **F11**.
+- **Discord Rich Presence** — show the book you're reading on your Discord profile with the Discord desktop app running.
+
+  ![](/preview/preview-7.png)
 
 ## Manga & fixed-layout
 
