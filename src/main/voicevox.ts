@@ -1,5 +1,5 @@
 import { ipcMain } from "electron";
-import type { VoicevoxSpeaker, VoicevoxTestResult, VoicevoxSynthesisResult } from "@/lib/types";
+import type { VoicevoxSpeaker, VoicevoxTestResult, VoicevoxSynthesisResult, VoicevoxTimings } from "@/lib/types";
 
 /**
  * VOICEVOX Engine IPC. Like the AnkiConnect client (src/main/anki.ts), the
@@ -18,6 +18,37 @@ import type { VoicevoxSpeaker, VoicevoxTestResult, VoicevoxSynthesisResult } fro
 const trimSlash = (url: string): string => url.replace(/\/+$/, "");
 
 const errMsg = (err: unknown): string => (err instanceof Error ? err.message : String(err));
+
+/** One mora's phoneme lengths (seconds, at speed 1) from the AudioQuery. */
+interface Mora {
+  consonant_length?: number | null;
+  vowel_length?: number | null;
+}
+interface AccentPhrase {
+  moras?: Mora[];
+  pause_mora?: Mora | null;
+}
+
+/**
+ * Turns an AudioQuery into a mora timeline on the synthesized WAV's clock. The
+ * engine divides every phoneme length (including the pre/post silence and the
+ * inter-phrase pauses) by `speedScale`, so we mirror that here. Pauses advance
+ * the clock but add no mora — the highlight naturally holds over a comma.
+ */
+function buildTimings(query: Record<string, unknown>, speed: number): VoicevoxTimings {
+  const s = speed || 1;
+  const phrases = (query.accent_phrases as AccentPhrase[] | undefined) ?? [];
+  const moras: number[] = [];
+  let t = Number(query.prePhonemeLength ?? 0) / s;
+  for (const phrase of phrases) {
+    for (const m of phrase.moras ?? []) {
+      t += ((m.consonant_length ?? 0) + (m.vowel_length ?? 0)) / s;
+      moras.push(t);
+    }
+    if (phrase.pause_mora) t += (phrase.pause_mora.vowel_length ?? 0) / s;
+  }
+  return { total: t + Number(query.postPhonemeLength ?? 0) / s, moras };
+}
 
 /** Wraps a fetch so an unreachable engine reports a friendly, actionable error. */
 async function request(url: string, init?: RequestInit): Promise<Response> {
@@ -66,7 +97,7 @@ export const registerVoicevoxIpc = (): void => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(query),
         });
-        return { ok: true, audio: new Uint8Array(await s.arrayBuffer()) };
+        return { ok: true, audio: new Uint8Array(await s.arrayBuffer()), timings: buildTimings(query, rate) };
       } catch (err) {
         return { ok: false, error: errMsg(err) };
       }

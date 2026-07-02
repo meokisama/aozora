@@ -64,6 +64,7 @@ export function continuousStyles(vertical: boolean) {
     ${furiganaRules(".aozora-content")}
     ${searchHitRule()}
     ${lookupHitRule()}
+    ${karaokeHitRule()}
     .aozora-content a { color: inherit; }
     /* Force the reader's font over fonts the book hardcodes on its own elements
        (電書協-template novels set font-family on body/p/spans), so it must win
@@ -97,6 +98,7 @@ export function paginatedStyles(vertical: boolean) {
     ${furiganaRules(".aozora-content")}
     ${searchHitRule()}
     ${lookupHitRule()}
+    ${karaokeHitRule()}
     .aoz-page-content p { break-inside: avoid; }
     .aozora-content a { color: inherit; }
     .aozora-content,
@@ -303,13 +305,20 @@ export function furiganaRules(scope: string) {
   `;
 }
 
+// A highlight Range runs from its start node to its end node in document order,
+// so it sweeps across any furigana <rt> sitting between base-text nodes — and the
+// CSS Custom Highlight API ignores `user-select: none`. Re-scoping the pseudo to
+// `rt` (higher specificity than bare `::highlight()`) clears the wash off the
+// reading so only the base text is painted.
+const clearRt = (name: string) => `rt::highlight(${name}) { background-color: transparent; }`;
+
 /**
  * Paints the active search hit. The match is a Range registered via the CSS
  * Custom Highlight API (see `lib/reader/highlight.js`), so this `::highlight()`
  * pseudo styles it without touching the book DOM.
  */
 export function searchHitRule() {
-  return `::highlight(aoz-search-hit) { background-color: rgba(250, 204, 21, 0.45); color: inherit; }`;
+  return `::highlight(aoz-search-hit) { background-color: rgba(250, 204, 21, 0.45); color: inherit; } ${clearRt("aoz-search-hit")}`;
 }
 
 /**
@@ -317,7 +326,16 @@ export function searchHitRule() {
  * A cooler wash than the search hit so the two stay distinguishable.
  */
 export function lookupHitRule() {
-  return `::highlight(aoz-dict-hit) { background-color: rgba(56, 189, 248, 0.35); color: inherit; }`;
+  return `::highlight(aoz-dict-hit) { background-color: rgba(56, 189, 248, 0.35); color: inherit; } ${clearRt("aoz-dict-hit")}`;
+}
+
+/**
+ * Paints the run being read aloud, advancing over the sentence in sync with the
+ * TTS audio (`aoz-tts-karaoke` highlight Range). A warm green, distinct from the
+ * search (yellow) and dictionary (cyan) washes.
+ */
+export function karaokeHitRule() {
+  return `::highlight(aoz-tts-karaoke) { background-color: rgba(34, 197, 94, 0.4); color: inherit; } ${clearRt("aoz-tts-karaoke")}`;
 }
 
 /** Writes the reader display settings onto the host as inherited CSS vars. */

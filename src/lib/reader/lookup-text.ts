@@ -126,3 +126,21 @@ export function cursorTextFromPoint(x: number, y: number, contentRoot: Element, 
   if (!contentRoot.contains(caret.node)) return null;
   return extractRunAt(caret.node as Text, caret.offset, contentRoot, maxLength);
 }
+
+/**
+ * Resolves a collapsed Range at the caret under a viewport point (piercing the
+ * reader's shadow root), for callers that need the DOM position rather than the
+ * forward text run — e.g. finding the sentence under the cursor. Returns null
+ * when the point isn't over readable text within `contentRoot`.
+ */
+export function caretRangeFromPoint(x: number, y: number, contentRoot: Element): Range | null {
+  const rootNode = contentRoot.getRootNode();
+  const shadowRoot = rootNode instanceof ShadowRoot ? rootNode : null;
+  const caret = caretFromPoint(x, y, shadowRoot);
+  if (!caret || caret.node.nodeType !== Node.TEXT_NODE) return null;
+  if (!contentRoot.contains(caret.node)) return null;
+  const range = document.createRange();
+  range.setStart(caret.node, caret.offset);
+  range.collapse(true);
+  return range;
+}

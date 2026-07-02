@@ -6,7 +6,7 @@ import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useTtsStore } from "@/stores/tts-store";
+import { useTtsStore, SENTENCE_HOTKEYS, type SentenceHotkey } from "@/stores/tts-store";
 import { speakVoicevox } from "@/lib/reader/voicevox";
 import type { VoicevoxSpeaker } from "@/lib/types";
 
@@ -36,8 +36,10 @@ export function TtsSettings() {
 
   const setEnabled = useTtsStore((s) => s.setEnabled);
   const setRate = useTtsStore((s) => s.setRate);
+  const sentenceHotkey = useTtsStore((s) => s.sentenceHotkey);
   const setVoicevoxServer = useTtsStore((s) => s.setVoicevoxServer);
   const setVoicevoxSpeaker = useTtsStore((s) => s.setVoicevoxSpeaker);
+  const setSentenceHotkey = useTtsStore((s) => s.setSentenceHotkey);
 
   const [speakers, setSpeakers] = useState<VoicevoxSpeaker[]>([]);
   const [testing, setTesting] = useState(false);
@@ -145,6 +147,27 @@ export function TtsSettings() {
               <Slider value={[rate]} min={0.5} max={1.5} step={0.1} onValueChange={([v]) => setRate(v)} />
               <span className="w-8 text-right text-xs tabular-nums text-muted-foreground">{rate.toFixed(1)}x</span>
             </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-4">
+            <div className="space-y-0.5">
+              <p className="text-xs">Read sentence</p>
+              <p className="text-[11px] text-muted-foreground">
+                Hold this key and hover a sentence in the reader to show a button that reads it aloud.
+              </p>
+            </div>
+            <Select value={sentenceHotkey} onValueChange={(v) => setSentenceHotkey(v as SentenceHotkey)}>
+              <SelectTrigger size="sm" className="w-36">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SENTENCE_HOTKEYS.map((h) => (
+                  <SelectItem key={h.value} value={h.value}>
+                    {h.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </>
       )}

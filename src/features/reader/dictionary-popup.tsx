@@ -45,8 +45,6 @@ interface Props {
   onMine?: (entry: DictionaryEntry) => Promise<MineStatus>;
   /** Reads a headword aloud (its reading). Absent hides the per-entry speaker button. */
   onSpeak?: (text: string) => void;
-  /** Reads the sentence the word was found in. Absent hides the "Read sentence" button. */
-  onSpeakSentence?: () => void;
   /** Kept mounted but visually hidden while a mining screenshot is captured, so
    *  the popup doesn't occlude the sentence in the image. */
   hiddenForCapture?: boolean;
@@ -106,7 +104,7 @@ function Furigana({ expression, reading }: { expression: string; reading: string
   );
 }
 
-export function DictionaryPopup({ result, anchor, onMouseEnter, onMouseLeave, onLayout, onMine, onSpeak, onSpeakSentence, hiddenForCapture }: Props) {
+export function DictionaryPopup({ result, anchor, onMouseEnter, onMouseLeave, onLayout, onMine, onSpeak, hiddenForCapture }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const pos = useAnchoredPosition(ref, anchor, result, onLayout);
   // Per-entry mining status, reset whenever the looked-up word changes.
@@ -136,20 +134,6 @@ export function DictionaryPopup({ result, anchor, onMouseEnter, onMouseLeave, on
       }}
       className="z-50 max-h-80 w-80 overflow-y-auto border bg-popover text-popover-foreground shadow-md"
     >
-      {onSpeakSentence && (
-        <div className="flex items-center justify-between gap-2 border-b bg-muted/30 px-3 py-1.5">
-          <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70">Read aloud</span>
-          <button
-            type="button"
-            onClick={onSpeakSentence}
-            title="Read the sentence aloud"
-            className="inline-flex shrink-0 items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-          >
-            <Volume2 className="size-3" />
-            Sentence
-          </button>
-        </div>
-      )}
       <ul className="divide-y">
         {result.entries.map((entry, i) => (
           <li key={`${entry.expression}-${entry.reading ?? ""}-${i}`} className="p-3">

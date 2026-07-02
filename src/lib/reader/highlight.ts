@@ -14,6 +14,7 @@ import { collectBlocks, normalize, type Block } from "@/lib/reader/search";
 
 const HL_NAME = "aoz-search-hit";
 const DICT_HL_NAME = "aoz-dict-hit";
+const KARAOKE_HL_NAME = "aoz-tts-karaoke";
 
 const supported = (): boolean => typeof CSS !== "undefined" && !!CSS.highlights && typeof Highlight !== "undefined";
 
@@ -29,6 +30,16 @@ export function setLookupHighlight(range: Range | null): void {
   if (!supported()) return;
   if (range) CSS.highlights.set(DICT_HL_NAME, new Highlight(range));
   else CSS.highlights.delete(DICT_HL_NAME);
+}
+
+/**
+ * Paints (or clears) the run currently being read aloud, growing over the
+ * sentence in time with the VOICEVOX audio (karaoke). Pass null to clear.
+ */
+export function setKaraokeHighlight(range: Range | null): void {
+  if (!supported()) return;
+  if (range) CSS.highlights.set(KARAOKE_HL_NAME, new Highlight(range));
+  else CSS.highlights.delete(KARAOKE_HL_NAME);
 }
 
 /** Builds a Range over [start, start+len) raw characters within a block. */

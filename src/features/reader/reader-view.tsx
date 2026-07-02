@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Bookmark, Images, List, Loader2, Maximize, Minimize, Search, Settings } from "lucide-react";
+import { ArrowLeft, Bookmark, Images, List, Loader2, Maximize, Minimize, Search, Settings, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useReaderStore } from "@/stores/reader-store";
 import { useLibraryStore } from "@/stores/library-store";
@@ -24,9 +24,9 @@ import { PaginatedController, type PaginatedState } from "@/lib/reader/paginated
 import { mergeSpreadSections } from "@/lib/reader/merge-spreads";
 import { FixedLayoutView, type FixedLayoutHandle } from "./fixed-layout-view";
 import { blockAncestor, buildSearchIndex, searchIndex, type SearchResult, type SearchIndexEntry } from "@/lib/reader/search";
-import { clearSearchHighlight, highlightSearchResult, setLookupHighlight } from "@/lib/reader/highlight";
-import { cursorTextFromPoint } from "@/lib/reader/lookup-text";
-import { sentenceAround } from "@/lib/reader/sentence";
+import { clearSearchHighlight, highlightSearchResult, setKaraokeHighlight, setLookupHighlight } from "@/lib/reader/highlight";
+import { cursorTextFromPoint, caretRangeFromPoint } from "@/lib/reader/lookup-text";
+import { sentenceAround, sentenceContextAround, type SentenceContext } from "@/lib/reader/sentence";
 import { speakVoicevox, stopVoicevox } from "@/lib/reader/voicevox";
 import { useDictionaryStore, modifierHeld } from "@/stores/dictionary-store";
 import { useAnkiStore } from "@/stores/anki-store";
@@ -83,6 +83,7 @@ export function ReaderView() {
   const applyProgress = useLibraryStore((s) => s.applyProgress);
   const ankiEnabled = useAnkiStore((s) => s.enabled);
   const ttsEnabled = useTtsStore((s) => s.enabled);
+  const sentenceHotkey = useTtsStore((s) => s.sentenceHotkey);
 
   // Records reading time / characters for the stats page.
   const { mark: markSession } = useReadingSession(book?.id);
@@ -145,6 +146,21 @@ export function ReaderView() {
   const dictModifierRef = useRef(dictModifier);
   dictEnabledRef.current = dictEnabled;
   dictModifierRef.current = dictModifier;
+  const ttsEnabledRef = useRef(ttsEnabled);
+  const sentenceHotkeyRef = useRef(sentenceHotkey);
+  ttsEnabledRef.current = ttsEnabled;
+  sentenceHotkeyRef.current = sentenceHotkey;
+  // Read-sentence hover button: its placement + the sentence to speak, a grace
+  // timer so the cursor can travel from the sentence to the button, and a guard
+  // against re-setting state for the sentence already shown.
+  const [sentencePlay, setSentencePlay] = useState<{ left: number; top: number; sctx: SentenceContext } | null>(null);
+  const sentenceTimerRef = useRef(0);
+  const sentenceBtnHoveredRef = useRef(false);
+  const sentencePlayKeyRef = useRef(""); // sentence currently shown (skip re-place)
+  // Padded box spanning the button and the cursor that summoned it; while the
+  // cursor stays inside, we don't retarget — so reaching the button doesn't jump
+  // the selection to an adjacent sentence.
+  const sentenceBtnBoxRef = useRef<{ left: number; right: number; top: number; bottom: number } | null>(null);
 
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [parseToken, setParseToken] = useState(0); // bumped when parsed content is ready
@@ -565,22 +581,112 @@ export function ReaderView() {
     [book],
   );
 
-  // Read text aloud through VOICEVOX.
+  // Read text aloud through VOICEVOX (no karaoke — used for the popup's single word).
   const speakText = useCallback((text: string) => {
+    setKaraokeHighlight(null);
     const s = useTtsStore.getState();
     void speakVoicevox(text, { server: s.voicevoxServer, styleId: s.voicevoxSpeaker, rate: s.rate }).then((err) => {
       if (err) toast.error(err);
     });
   }, []);
 
-  // Read the sentence the popup's word was found in — reuses the same live match
-  // context (and sentence walk) that Anki mining uses for its {sentence} field.
-  const speakSentence = useCallback(() => {
-    const ctx = mineCtxRef.current;
-    if (!ctx) return;
-    const sentence = sentenceAround(ctx.range, ctx.contentRoot);
-    if (sentence) speakText(sentence);
-  }, [speakText]);
+  const clearSentencePlay = useCallback(() => {
+    if (sentenceTimerRef.current) {
+      clearTimeout(sentenceTimerRef.current);
+      sentenceTimerRef.current = 0;
+    }
+    sentencePlayKeyRef.current = "";
+    sentenceBtnBoxRef.current = null;
+    setSentencePlay(null);
+  }, []);
+
+  // Dismiss the read-sentence button after a grace window (releasing the hotkey,
+  // or leaving the button) so the cursor can travel to it without it vanishing.
+  const scheduleSentencePlayClear = useCallback(() => {
+    if (sentenceTimerRef.current) return;
+    sentenceTimerRef.current = window.setTimeout(() => {
+      sentenceTimerRef.current = 0;
+      if (sentenceBtnHoveredRef.current) return; // settled on the button — keep it
+      clearSentencePlay();
+    }, 500);
+  }, [clearSentencePlay]);
+
+  // Reads the given sentence with a karaoke highlight that grows over it in sync
+  // with the VOICEVOX audio (mora-fraction → character count).
+  const playSentence = useCallback(
+    (sctx: SentenceContext) => {
+      clearSentencePlay();
+      const s = useTtsStore.getState();
+      const total = sctx.text.length;
+      setKaraokeHighlight(null);
+      void speakVoicevox(sctx.text, {
+        server: s.voicevoxServer,
+        styleId: s.voicevoxSpeaker,
+        rate: s.rate,
+        onProgress: (f) => {
+          const chars = Math.round(f * total);
+          setKaraokeHighlight(f < 1 && chars > 0 ? sctx.rangeForSlice(0, chars) : null);
+        },
+      }).then((err) => {
+        setKaraokeHighlight(null);
+        if (err) toast.error(err);
+      });
+    },
+    [clearSentencePlay],
+  );
+
+  // Resolves the sentence under a viewport point and shows the read button right
+  // next to the cursor. Callers gate on the hotkey being held.
+  const showSentencePlayAt = useCallback((x: number, y: number) => {
+    if (!ttsEnabledRef.current || modeRef.current === "fixed") return;
+
+    // Cursor still inside the current button's frozen box (button ∪ summon point):
+    // keep it pinned and cancel any pending dismissal — don't retarget en route.
+    const box = sentenceBtnBoxRef.current;
+    if (box && x >= box.left && x <= box.right && y >= box.top && y <= box.bottom) {
+      if (sentenceTimerRef.current) {
+        clearTimeout(sentenceTimerRef.current);
+        sentenceTimerRef.current = 0;
+      }
+      return;
+    }
+
+    const shadow = hostRef.current?.shadowRoot;
+    if (!shadow) return;
+    const sel = modeRef.current === "paginated" ? ".aoz-page-content" : ".aozora-content";
+    const contentRoot = shadow.querySelector(sel);
+    if (!contentRoot) return;
+
+    const caret = caretRangeFromPoint(x, y, contentRoot);
+    if (!caret) return;
+    const sctx = sentenceContextAround(caret, contentRoot);
+    if (!sctx?.text) return;
+
+    if (sentenceTimerRef.current) {
+      clearTimeout(sentenceTimerRef.current);
+      sentenceTimerRef.current = 0;
+    }
+    // Still within the same sentence (but outside the box) — keep the button
+    // where it first appeared instead of chasing the cursor.
+    if (sctx.text === sentencePlayKeyRef.current) return;
+    sentencePlayKeyRef.current = sctx.text;
+
+    // Anchor just above-right of the cursor (below it if there's no room), so the
+    // button is a short reach away rather than at the sentence's far edge.
+    const BTN_W = 122;
+    const BTN_H = 26;
+    const PAD = 16;
+    const left = Math.max(4, Math.min(x + 8, window.innerWidth - BTN_W - 4));
+    let top = y - BTN_H - 6;
+    if (top < 4) top = Math.min(y + 14, window.innerHeight - BTN_H - 4);
+    sentenceBtnBoxRef.current = {
+      left: left - PAD,
+      right: left + BTN_W + PAD,
+      top: Math.min(top, y) - PAD,
+      bottom: Math.max(top + BTN_H, y) + PAD,
+    };
+    setSentencePlay({ left, top, sctx });
+  }, []);
 
   // Coalesce rapid mousemoves into one lookup per frame.
   const scheduleLookup = useCallback(() => {
@@ -594,6 +700,13 @@ export function ReaderView() {
 
   const handleMouseMove = (e: React.MouseEvent) => {
     lastMouseRef.current = { x: e.clientX, y: e.clientY };
+
+    // Read-sentence gesture, independent of the dictionary modifier: while the
+    // TTS hotkey is held, reveal a play button over the hovered sentence.
+    if (ttsEnabledRef.current && modeRef.current !== "fixed" && modifierHeld(sentenceHotkeyRef.current, e)) {
+      showSentencePlayAt(e.clientX, e.clientY);
+    }
+
     if (!dictEnabledRef.current || modeRef.current === "fixed") return;
     if (!modifierHeld(dictModifierRef.current, e)) {
       clearLookup();
@@ -634,6 +747,27 @@ export function ReaderView() {
       window.removeEventListener("keyup", onUp);
     };
   }, [dictEnabled, dictModifier, fixedLayout, runLookupAt, scheduleClear]);
+
+  // Read-sentence hotkey: pressing it reveals the button under a resting cursor
+  // (no wiggle needed); releasing it dismisses the button through a grace window.
+  useEffect(() => {
+    if (!ttsEnabled || fixedLayout) return;
+    const keyName = sentenceHotkey === "shift" ? "Shift" : sentenceHotkey === "ctrl" ? "Control" : "Alt";
+    const onDown = (e: KeyboardEvent) => {
+      if (e.key !== keyName || e.repeat) return;
+      const m = lastMouseRef.current;
+      if (m) showSentencePlayAt(m.x, m.y);
+    };
+    const onUp = (e: KeyboardEvent) => {
+      if (e.key === keyName) scheduleSentencePlayClear();
+    };
+    window.addEventListener("keydown", onDown);
+    window.addEventListener("keyup", onUp);
+    return () => {
+      window.removeEventListener("keydown", onDown);
+      window.removeEventListener("keyup", onUp);
+    };
+  }, [ttsEnabled, sentenceHotkey, fixedLayout, showSentencePlayAt, scheduleSentencePlayClear]);
 
   // Expose the reader area's pixel size as inherited CSS vars so illustrations
   // can be capped against it, and re-paginate the page-flip reader on resize.
@@ -860,8 +994,15 @@ export function ReaderView() {
   }, [fontSize, lineHeight, fontFamily, theme, furiganaMode, pageColumns, sideMargin, customFonts, restoreContinuous]);
 
   // Page-flip helpers (forward = toward the end of the book, regardless of mode).
-  const flipNext = useCallback(() => controllerRef.current?.flipPage(1), []);
-  const flipPrev = useCallback(() => controllerRef.current?.flipPage(-1), []);
+  // Flipping invalidates the hovered sentence's box, so dismiss its read button.
+  const flipNext = useCallback(() => {
+    clearSentencePlay();
+    controllerRef.current?.flipPage(1);
+  }, [clearSentencePlay]);
+  const flipPrev = useCallback(() => {
+    clearSentencePlay();
+    controllerRef.current?.flipPage(-1);
+  }, [clearSentencePlay]);
 
   // Keyboard navigation for the page-flip reader. The fixed-layout viewer owns
   // its own key handling, so the reflowable handler stands down for manga.
@@ -908,6 +1049,7 @@ export function ReaderView() {
   const handleScroll = () => {
     if (modeRef.current !== "continuous") return;
     clearLookup(); // the matched run scrolled away
+    clearSentencePlay(); // the hovered sentence's box moved
     setFootnote(null);
     if (rafRef.current) return;
     rafRef.current = requestAnimationFrame(() => {
@@ -1010,8 +1152,15 @@ export function ReaderView() {
     };
   }, []);
 
-  // Silence any in-flight read-aloud when leaving the reader.
-  useEffect(() => () => stopVoicevox(), []);
+  // Silence any in-flight read-aloud (and clear its karaoke highlight / button) on leave.
+  useEffect(
+    () => () => {
+      stopVoicevox();
+      setKaraokeHighlight(null);
+      clearSentencePlay();
+    },
+    [clearSentencePlay],
+  );
 
   if (!book) return null;
 
@@ -1143,9 +1292,32 @@ export function ReaderView() {
           }}
           onMine={ankiEnabled ? mineEntry : undefined}
           onSpeak={ttsEnabled ? speakText : undefined}
-          onSpeakSentence={ttsEnabled ? speakSentence : undefined}
           hiddenForCapture={capturing}
         />
+        {sentencePlay && (
+          <button
+            type="button"
+            onMouseEnter={() => {
+              sentenceBtnHoveredRef.current = true;
+              if (sentenceTimerRef.current) {
+                clearTimeout(sentenceTimerRef.current);
+                sentenceTimerRef.current = 0;
+              }
+            }}
+            onMouseLeave={() => {
+              sentenceBtnHoveredRef.current = false;
+              scheduleSentencePlayClear();
+            }}
+            onClick={() => playSentence(sentencePlay.sctx)}
+            title="Read this sentence aloud"
+            aria-label="Read this sentence aloud"
+            style={{ position: "fixed", left: sentencePlay.left, top: sentencePlay.top }}
+            className="z-50 inline-flex items-center gap-1 rounded-sm border bg-popover px-2 py-1 text-[11px] font-medium text-popover-foreground shadow-md hover:bg-accent hover:text-accent-foreground"
+          >
+            <Volume2 className="size-3.5" />
+            Read sentence
+          </button>
+        )}
         <FootnotePopup html={footnote?.html ?? null} anchor={footnote?.anchor ?? null} onClose={() => setFootnote(null)} />
       </div>
 

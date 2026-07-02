@@ -403,5 +403,18 @@ export interface VoicevoxSpeaker {
 /** Result of a VOICEVOX connection test (the engine's `/version` endpoint). */
 export type VoicevoxTestResult = { ok: true; version: string } | { ok: false; error: string };
 
-/** Result of a synthesis request: the WAV bytes, or an error message. */
-export type VoicevoxSynthesisResult = { ok: true; audio: Uint8Array } | { ok: false; error: string };
+/**
+ * Mora timeline derived from the AudioQuery, for karaoke-style highlighting.
+ * Times are seconds on the synthesized WAV's clock (speedScale already applied).
+ */
+export interface VoicevoxTimings {
+  /** Total audio duration, including leading/trailing silence. */
+  total: number;
+  /** Cumulative end time of each spoken mora; length = number of moras. */
+  moras: number[];
+}
+
+/** Result of a synthesis request: the WAV bytes + mora timeline, or an error. */
+export type VoicevoxSynthesisResult =
+  | { ok: true; audio: Uint8Array; timings: VoicevoxTimings }
+  | { ok: false; error: string };
