@@ -15,27 +15,24 @@ import { collectIllustrations, type Illustration } from "@/lib/reader/illustrati
 import { applyReaderVars, continuousStyles, paginatedStyles } from "./reader-styles";
 import { parseBook, type ParsedBook, type FixedLayoutPage } from "@/lib/epub/parse-book";
 import type { Section } from "@/lib/epub/generate-html";
-import { toast } from "sonner";
-import type { AnkiScreenshotRequest, Bookmark as BookmarkRecord, DictionaryEntry, LookupResult } from "@/lib/types";
+import type { Bookmark as BookmarkRecord } from "@/lib/types";
 import { buildReaderHtml } from "@/lib/epub/format-html";
 import { getCachedBook, putCachedBook } from "@/lib/reader-cache";
 import { collectAnchors, currentCharAtCenter, scrollToChar, scrollToElementId, type Anchor } from "@/lib/reader/position";
 import { PaginatedController, type PaginatedState } from "@/lib/reader/paginated";
 import { mergeSpreadSections } from "@/lib/reader/merge-spreads";
 import { FixedLayoutView, type FixedLayoutHandle } from "./fixed-layout-view";
-import { blockAncestor, buildSearchIndex, searchIndex, type SearchResult, type SearchIndexEntry } from "@/lib/reader/search";
-import { clearSearchHighlight, highlightSearchResult, setKaraokeHighlight, setLookupHighlight } from "@/lib/reader/highlight";
-import { cursorTextFromPoint, caretRangeFromPoint } from "@/lib/reader/lookup-text";
-import { sentenceAround, sentenceContextAround, type SentenceContext } from "@/lib/reader/sentence";
-import { speakVoicevox, stopVoicevox } from "@/lib/reader/voicevox";
-import { useDictionaryStore, modifierHeld } from "@/stores/dictionary-store";
+import { buildSearchIndex, searchIndex, type SearchResult, type SearchIndexEntry } from "@/lib/reader/search";
+import { clearSearchHighlight, highlightSearchResult } from "@/lib/reader/highlight";
+import { useDictionaryStore } from "@/stores/dictionary-store";
 import { useAnkiStore } from "@/stores/anki-store";
-import { useTtsStore, ttsParams } from "@/stores/tts-store";
-import { cardDataFromEntry, buildNote, type MineStatus } from "@/lib/dictionary/anki-note";
+import { useTtsStore } from "@/stores/tts-store";
 import { DictionaryPopup } from "./dictionary-popup";
 import { FootnotePopup } from "./footnote-popup";
 import { collectFootnotes } from "@/lib/reader/footnotes";
 import { useReadingSession } from "./use-reading-session";
+import { useHoverDictionary } from "./use-hover-dictionary";
+import { useSentencePlay } from "./use-sentence-play";
 
 const api = () => window.electronAPI.library;
 
@@ -44,6 +41,18 @@ const FURIGANA_CLASSES = ["aoz-furigana-hide", "aoz-furigana-partial", "aoz-furi
 /** Effective writing direction: the user's override, or the book's own when "auto". */
 function resolveVertical(mode: WritingMode, bookVertical: boolean): boolean {
   return mode === "auto" ? bookVertical : mode === "vertical";
+}
+
+/** Index of the last chapter that starts at or before `char` (chapters are in
+ *  document order), or -1 if none — the shared basis for the active-chapter
+ *  indicator, Discord presence, bookmark names, and search-result labels. */
+function chapterIndexAt(chapters: Section[], char: number): number {
+  let idx = -1;
+  for (let i = 0; i < chapters.length; i++) {
+    if ((chapters[i].startCharacter ?? 0) <= char) idx = i;
+    else break;
+  }
+  return idx;
 }
 
 /** Reflects the furigana mode as a class on the content root; "show" clears it
@@ -123,46 +132,8 @@ export function ReaderView() {
   const searchIndexRef = useRef<SearchIndexEntry[] | null>(null); // lazily built on first search
   const footnotesRef = useRef<Map<string, string>>(new Map()); // id → note inner HTML
 
-  // Hover-dictionary state: last cursor position (so a modifier keydown can look
-  // up without moving the mouse), a sequence guard against stale async results, a
-  // rAF gate to coalesce mousemoves, and the last queried run text (skip re-query).
-  const lastMouseRef = useRef<{ x: number; y: number } | null>(null);
-  const lookupSeqRef = useRef(0);
-  const lookupRafRef = useRef(0);
-  const lastQueryRef = useRef("");
-  // Dismissal is deferred via a timer so the cursor can travel from the matched
-  // word into the popup (to scroll it) without it vanishing mid-travel.
-  const clearTimerRef = useRef(0);
-  const popupHoveredRef = useRef(false);
-  // Sticky-zone: while a popup is open, re-scanning is frozen inside the corridor
-  // joining word and popup (matched-run rect ∪ popup rect, padded), so crossing
-  // words while reaching for the popup don't re-trigger a lookup.
-  const lookupAnchorRef = useRef<DOMRect | null>(null); // matched-run box of the open popup
-  // Live match range + its content root, kept so Anki mining can pull the enclosing
-  // sentence and a screenshot rect for the word currently in the popup.
-  const mineCtxRef = useRef<{ range: Range; contentRoot: Element } | null>(null);
-  const popupRectRef = useRef<{ left: number; top: number; right: number; bottom: number } | null>(null);
   const dictEnabled = useDictionaryStore((s) => s.enabled);
   const dictModifier = useDictionaryStore((s) => s.modifier);
-  const dictEnabledRef = useRef(dictEnabled);
-  const dictModifierRef = useRef(dictModifier);
-  dictEnabledRef.current = dictEnabled;
-  dictModifierRef.current = dictModifier;
-  const ttsEnabledRef = useRef(ttsEnabled);
-  const sentenceHotkeyRef = useRef(sentenceHotkey);
-  ttsEnabledRef.current = ttsEnabled;
-  sentenceHotkeyRef.current = sentenceHotkey;
-  // Read-sentence hover button: its placement + the sentence to speak, a grace
-  // timer so the cursor can travel from the sentence to the button, and a guard
-  // against re-setting state for the sentence already shown.
-  const [sentencePlay, setSentencePlay] = useState<{ left: number; top: number; sctx: SentenceContext } | null>(null);
-  const sentenceTimerRef = useRef(0);
-  const sentenceBtnHoveredRef = useRef(false);
-  const sentencePlayKeyRef = useRef(""); // sentence currently shown (skip re-place)
-  // Padded box spanning the button and the cursor that summoned it; while the
-  // cursor stays inside, we don't retarget — so reaching the button doesn't jump
-  // the selection to an adjacent sentence.
-  const sentenceBtnBoxRef = useRef<{ left: number; right: number; top: number; bottom: number } | null>(null);
 
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [parseToken, setParseToken] = useState(0); // bumped when parsed content is ready
@@ -187,9 +158,6 @@ export function ReaderView() {
     total: 0,
     capped: false,
   });
-  const [lookup, setLookup] = useState<{ result: LookupResult; anchor: DOMRect | null } | null>(null);
-  // Hides the popup for one repaint while a mining screenshot is captured.
-  const [capturing, setCapturing] = useState(false);
   const [footnote, setFootnote] = useState<{ html: string; anchor: DOMRect } | null>(null);
 
   // Mirrors whether any reader overlay (panel/gallery) is open, so the global
@@ -204,21 +172,15 @@ export function ReaderView() {
 
   // Chapters that carry a TOC label (sub-sections fold into their parent).
   const chapters = useMemo(() => sections.filter((s) => s.label), [sections]);
-  const activeChapterId = useMemo(() => {
-    let active = null;
-    for (const ch of chapters) {
-      if ((ch.startCharacter ?? 0) <= currentChar) active = ch.reference;
-      else break;
-    }
-    return active;
-  }, [chapters, currentChar]);
+  const activeChapterIndex = useMemo(() => chapterIndexAt(chapters, currentChar), [chapters, currentChar]);
+  const activeChapterId = activeChapterIndex >= 0 ? chapters[activeChapterIndex].reference : null;
 
   // Discord Rich Presence: mirror the current book/chapter/progress while reading.
   // Enabling/disabling and the idle presence live in App (always mounted); the
   // main process throttles the actual sends.
   useEffect(() => {
     if (!discordRichPresence || !book) return;
-    const idx = chapters.findIndex((c) => c.reference === activeChapterId);
+    const idx = activeChapterIndex;
     window.electronAPI.discord.update({
       bookTitle: book.title,
       author: book.author,
@@ -228,7 +190,7 @@ export function ReaderView() {
       progress: progressPct,
       coverBookId: discordCover ? book.id : undefined, // opt-in: main uploads the cover for the large image
     });
-  }, [discordRichPresence, discordCover, book, chapters, activeChapterId, progressPct]);
+  }, [discordRichPresence, discordCover, book, chapters, activeChapterIndex, progressPct]);
 
   /** Persists the current position to the main process and the in-memory store. */
   const persist = useCallback(() => {
@@ -248,51 +210,29 @@ export function ReaderView() {
       .catch(() => {});
   }, [book, applyProgress]);
 
-  /** Dismisses the dictionary popup and clears the matched-run highlight. */
-  const clearLookup = useCallback(() => {
-    if (clearTimerRef.current) {
-      clearTimeout(clearTimerRef.current);
-      clearTimerRef.current = 0;
-    }
-    popupHoveredRef.current = false;
-    lookupAnchorRef.current = null;
-    popupRectRef.current = null;
-    lastQueryRef.current = "";
-    setLookupHighlight(null);
-    setLookup(null);
-  }, []);
-
-  // The popup reports its placed box here so the frozen zone can span the gap to
-  // the matched word.
-  const handlePopupLayout = useCallback((rect: { left: number; top: number; right: number; bottom: number }) => {
-    popupRectRef.current = rect;
-  }, []);
-
-  // Is the cursor inside the open popup's frozen zone (padded box spanning word,
-  // popup, and the gap)? While inside, scanning is suppressed.
-  const inFrozenZone = useCallback((x: number, y: number) => {
-    const a = lookupAnchorRef.current;
-    if (!a) return false; // no popup open
-    const p = popupRectRef.current;
-    const PAD = 12;
-    const left = Math.min(a.left, p?.left ?? a.left) - PAD;
-    const right = Math.max(a.right, p?.right ?? a.right) + PAD;
-    const top = Math.min(a.top, p?.top ?? a.top) - PAD;
-    const bottom = Math.max(a.bottom, p?.bottom ?? a.bottom) + PAD;
-    return x >= left && x <= right && y >= top && y <= bottom;
-  }, []);
-
-  // Dismiss after a short grace window so the cursor can cross from word to popup
-  // without it vanishing. Cancelled when the cursor reaches the popup or a fresh
-  // lookup runs.
-  const scheduleClear = useCallback(() => {
-    if (clearTimerRef.current) return;
-    clearTimerRef.current = window.setTimeout(() => {
-      clearTimerRef.current = 0;
-      if (popupHoveredRef.current) return; // cursor settled in the popup — keep it
-      clearLookup();
-    }, 220);
-  }, [clearLookup]);
+  // Hover dictionary (lookup + popup + Anki mining) and read-aloud (sentence
+  // button + karaoke) both hang off the reader's shadow content; they read
+  // hostRef/modeRef but keep their own timers/refs. Character position stays here.
+  const {
+    lookup,
+    capturing,
+    clearLookup,
+    mineEntry,
+    onMouseMove: onDictMouseMove,
+    onMouseLeave: onDictMouseLeave,
+    onPopupLayout,
+    onPopupEnter,
+    onPopupLeave,
+  } = useHoverDictionary({ hostRef, modeRef, book, enabled: dictEnabled, modifier: dictModifier, fixedLayout });
+  const {
+    sentencePlay,
+    speakText,
+    playSentence,
+    clearSentencePlay,
+    onMouseMove: onTtsMouseMove,
+    onButtonEnter,
+    onButtonLeave,
+  } = useSentencePlay({ hostRef, modeRef, enabled: ttsEnabled, hotkey: sentenceHotkey, fixedLayout, voicevoxServer, voicevoxSpeaker });
 
   /** Scrolls the continuous reader to the tracked character (or the book start). */
   const restoreContinuous = useCallback((vert: boolean) => {
@@ -353,11 +293,8 @@ export function ReaderView() {
     const totalChars = totalRef.current || 0;
     const char = charRef.current;
     const pct = totalChars ? Math.round((char / totalChars) * 100) : 0;
-    let label = "";
-    for (const ch of chapters) {
-      if ((ch.startCharacter ?? 0) <= char) label = ch.label || label;
-      else break;
-    }
+    const i = chapterIndexAt(chapters, char);
+    const label = i >= 0 ? chapters[i].label || "" : "";
     return label ? `${label}  (${pct}%)` : `${pct}%`;
   }, [chapters]);
 
@@ -458,318 +395,19 @@ export function ReaderView() {
   // active-chapter / bookmark-name logic).
   const searchDisplay = useMemo(() => {
     return searchResults.results.map((r) => {
-      let label = "";
-      for (const ch of chapters) {
-        if ((ch.startCharacter ?? 0) <= r.charOffset) label = ch.label || label;
-        else break;
-      }
+      const i = chapterIndexAt(chapters, r.charOffset);
+      const label = i >= 0 ? chapters[i].label || "" : "";
       const progress = total ? Math.round((r.charOffset / total) * 100) : 0;
       return { ...r, label, progress };
     });
   }, [searchResults, chapters, total]);
 
-  // Dictionary lookup for the text under a viewport point: resolves the run at
-  // the cursor (furigana excluded), queries for the longest match, highlights it
-  // and anchors the popup. A sequence guard drops stale async results; identical
-  // runs are skipped so jiggling over one word doesn't re-query.
-  const runLookupAt = useCallback(
-    (x: number, y: number) => {
-      const shadow = hostRef.current?.shadowRoot;
-      if (!shadow || modeRef.current === "fixed") return;
-      const sel = modeRef.current === "paginated" ? ".aoz-page-content" : ".aozora-content";
-      const contentRoot = shadow.querySelector(sel);
-      if (!contentRoot) return;
-
-      const source = cursorTextFromPoint(x, y, contentRoot);
-      if (!source) {
-        // No text under the cursor (e.g. the gap between word and popup): dismiss
-        // through the grace window so reaching for the popup doesn't kill it.
-        scheduleClear();
-        return;
-      }
-      if (source.text === lastQueryRef.current) {
-        // Back on the run we already resolved — cancel any pending dismissal.
-        if (clearTimerRef.current) {
-          clearTimeout(clearTimerRef.current);
-          clearTimerRef.current = 0;
-        }
-        return;
-      }
-      lastQueryRef.current = source.text;
-
-      const seq = ++lookupSeqRef.current;
-      window.electronAPI.dictionary
-        .lookup(source.text)
-        .then((result) => {
-          if (seq !== lookupSeqRef.current) return; // superseded by a newer lookup
-          if (!result || !result.matchedLength || (!result.entries.length && !result.kanji.length)) {
-            setLookupHighlight(null);
-            setLookup(null); // keep lastQueryRef so the same no-match run isn't re-queried
-            return;
-          }
-          if (clearTimerRef.current) {
-            clearTimeout(clearTimerRef.current); // a fresh hit supersedes a pending dismissal
-            clearTimerRef.current = 0;
-          }
-          const range = source.rangeForLength(result.matchedLength);
-          const anchor = range?.getBoundingClientRect() ?? null;
-          setLookupHighlight(range);
-          mineCtxRef.current = range ? { range, contentRoot } : null; // context for Anki mining
-          lookupAnchorRef.current = anchor; // pin point for the frozen zone
-          popupRectRef.current = null; // re-measured by the popup's onLayout
-          setLookup({ result, anchor });
-        })
-        .catch(() => {});
-    },
-    [scheduleClear],
-  );
-
-  // Mines the popup's entry to Anki: pulls the enclosing sentence + a screenshot
-  // rect from the live match, builds the note from the configured templates, and
-  // asks the main process to add it (capturing the screenshot on its side).
-  const mineEntry = useCallback(
-    async (entry: DictionaryEntry): Promise<MineStatus> => {
-      if (!book) return "error";
-      const cfg = useAnkiStore.getState();
-      if (!cfg.enabled || !cfg.deck || !cfg.model || Object.keys(cfg.fields).length === 0) {
-        toast.error("Set up Anki in Settings first.");
-        return "error";
-      }
-
-      const ctx = mineCtxRef.current;
-      const sentence = ctx ? sentenceAround(ctx.range, ctx.contentRoot) : "";
-      const data = cardDataFromEntry(entry, {
-        sentence,
-        documentTitle: book.title,
-        documentAuthor: book.author ?? "",
-        hasScreenshot: cfg.screenshot,
-      });
-      const note = buildNote(cfg, data);
-
-      let screenshot: AnkiScreenshotRequest | null = null;
-      const useShot = cfg.screenshot && ctx != null;
-      if (cfg.screenshot && ctx) {
-        // Hide the popup and wait one painted frame so it doesn't occlude the
-        // sentence in the capture the main process is about to take.
-        setCapturing(true);
-        await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-        // Crop to the paragraph containing the word, clamped to the viewport.
-        const block = blockAncestor(ctx.range.startContainer, ctx.contentRoot);
-        const r = block.getBoundingClientRect();
-        const x = Math.max(0, r.left);
-        const y = Math.max(0, r.top);
-        const width = Math.min(r.right, window.innerWidth) - x;
-        const height = Math.min(r.bottom, window.innerHeight) - y;
-        const rect = width > 0 && height > 0 ? { x, y, width, height } : null;
-        screenshot = { rect, format: cfg.screenshotQuality >= 100 ? "png" : "jpg", quality: cfg.screenshotQuality };
-      }
-
-      try {
-        const res = await window.electronAPI.anki.addNote({ server: cfg.server, apiKey: cfg.apiKey }, note, screenshot);
-        if (res.ok) {
-          toast.success(`Added “${entry.expression}” to Anki.`);
-          return "added";
-        }
-        if (/duplicate/i.test(res.error)) {
-          toast.info(`“${entry.expression}” is already in Anki.`);
-          return "duplicate";
-        }
-        toast.error(res.error);
-        return "error";
-      } finally {
-        if (useShot) setCapturing(false);
-      }
-    },
-    [book],
-  );
-
-  // Read text aloud through VOICEVOX (no karaoke — used for the popup's single word).
-  const speakText = useCallback((text: string) => {
-    setKaraokeHighlight(null);
-    const s = useTtsStore.getState();
-    void speakVoicevox(text, { server: s.voicevoxServer, styleId: s.voicevoxSpeaker, params: ttsParams(s) }).then((err) => {
-      if (err) toast.error(err);
-    });
-  }, []);
-
-  const clearSentencePlay = useCallback(() => {
-    if (sentenceTimerRef.current) {
-      clearTimeout(sentenceTimerRef.current);
-      sentenceTimerRef.current = 0;
-    }
-    sentencePlayKeyRef.current = "";
-    sentenceBtnBoxRef.current = null;
-    setSentencePlay(null);
-  }, []);
-
-  // Dismiss the read-sentence button after a grace window (releasing the hotkey,
-  // or leaving the button) so the cursor can travel to it without it vanishing.
-  const scheduleSentencePlayClear = useCallback(() => {
-    if (sentenceTimerRef.current) return;
-    sentenceTimerRef.current = window.setTimeout(() => {
-      sentenceTimerRef.current = 0;
-      if (sentenceBtnHoveredRef.current) return; // settled on the button — keep it
-      clearSentencePlay();
-    }, 500);
-  }, [clearSentencePlay]);
-
-  // Reads the given sentence with a karaoke highlight that grows over it in sync
-  // with the VOICEVOX audio (mora-fraction → character count).
-  const playSentence = useCallback(
-    (sctx: SentenceContext) => {
-      clearSentencePlay();
-      const s = useTtsStore.getState();
-      const total = sctx.text.length; // highlight maps onto the displayed text
-      setKaraokeHighlight(null);
-      void speakVoicevox(s.furiganaReadings ? sctx.spoken : sctx.text, {
-        server: s.voicevoxServer,
-        styleId: s.voicevoxSpeaker,
-        params: ttsParams(s),
-        onProgress: (f) => {
-          const chars = Math.round(f * total);
-          setKaraokeHighlight(f < 1 && chars > 0 ? sctx.rangeForSlice(0, chars) : null);
-        },
-      }).then((err) => {
-        setKaraokeHighlight(null);
-        if (err) toast.error(err);
-      });
-    },
-    [clearSentencePlay],
-  );
-
-  // Resolves the sentence under a viewport point and shows the read button right
-  // next to the cursor. Callers gate on the hotkey being held.
-  const showSentencePlayAt = useCallback((x: number, y: number) => {
-    if (!ttsEnabledRef.current || modeRef.current === "fixed") return;
-
-    // Cursor still inside the current button's frozen box (button ∪ summon point):
-    // keep it pinned and cancel any pending dismissal — don't retarget en route.
-    const box = sentenceBtnBoxRef.current;
-    if (box && x >= box.left && x <= box.right && y >= box.top && y <= box.bottom) {
-      if (sentenceTimerRef.current) {
-        clearTimeout(sentenceTimerRef.current);
-        sentenceTimerRef.current = 0;
-      }
-      return;
-    }
-
-    const shadow = hostRef.current?.shadowRoot;
-    if (!shadow) return;
-    const sel = modeRef.current === "paginated" ? ".aoz-page-content" : ".aozora-content";
-    const contentRoot = shadow.querySelector(sel);
-    if (!contentRoot) return;
-
-    const caret = caretRangeFromPoint(x, y, contentRoot);
-    if (!caret) return;
-    const sctx = sentenceContextAround(caret, contentRoot);
-    if (!sctx?.text) return;
-
-    if (sentenceTimerRef.current) {
-      clearTimeout(sentenceTimerRef.current);
-      sentenceTimerRef.current = 0;
-    }
-    // Still within the same sentence (but outside the box) — keep the button
-    // where it first appeared instead of chasing the cursor.
-    if (sctx.text === sentencePlayKeyRef.current) return;
-    sentencePlayKeyRef.current = sctx.text;
-
-    // Anchor just above-right of the cursor (below it if there's no room), so the
-    // button is a short reach away rather than at the sentence's far edge.
-    const BTN_W = 122;
-    const BTN_H = 26;
-    const PAD = 16;
-    const left = Math.max(4, Math.min(x + 8, window.innerWidth - BTN_W - 4));
-    let top = y - BTN_H - 6;
-    if (top < 4) top = Math.min(y + 14, window.innerHeight - BTN_H - 4);
-    sentenceBtnBoxRef.current = {
-      left: left - PAD,
-      right: left + BTN_W + PAD,
-      top: Math.min(top, y) - PAD,
-      bottom: Math.max(top + BTN_H, y) + PAD,
-    };
-    setSentencePlay({ left, top, sctx });
-  }, []);
-
-  // Coalesce rapid mousemoves into one lookup per frame.
-  const scheduleLookup = useCallback(() => {
-    if (lookupRafRef.current) return;
-    lookupRafRef.current = requestAnimationFrame(() => {
-      lookupRafRef.current = 0;
-      const m = lastMouseRef.current;
-      if (m) runLookupAt(m.x, m.y);
-    });
-  }, [runLookupAt]);
-
+  // Fan the reader's mousemove out to both hover gestures; each records the
+  // cursor and scans/reveals per its own modifier.
   const handleMouseMove = (e: React.MouseEvent) => {
-    lastMouseRef.current = { x: e.clientX, y: e.clientY };
-
-    // Read-sentence gesture, independent of the dictionary modifier: while the
-    // TTS hotkey is held, reveal a play button over the hovered sentence.
-    if (ttsEnabledRef.current && modeRef.current !== "fixed" && modifierHeld(sentenceHotkeyRef.current, e)) {
-      showSentencePlayAt(e.clientX, e.clientY);
-    }
-
-    if (!dictEnabledRef.current || modeRef.current === "fixed") return;
-    if (!modifierHeld(dictModifierRef.current, e)) {
-      clearLookup();
-      return;
-    }
-    // Cursor still in the word→popup corridor: keep the popup pinned, don't
-    // re-scan, and cancel any pending dismissal.
-    if (inFrozenZone(e.clientX, e.clientY)) {
-      if (clearTimerRef.current) {
-        clearTimeout(clearTimerRef.current);
-        clearTimerRef.current = 0;
-      }
-      return;
-    }
-    scheduleLookup();
+    onTtsMouseMove(e);
+    onDictMouseMove(e);
   };
-
-  // Pressing/releasing the lookup modifier triggers (or dismisses) a lookup at
-  // the last cursor position, so holding the modifier over a resting pointer works
-  // without a wiggle. Inactive for "hover only" (no modifier) or fixed-layout.
-  useEffect(() => {
-    if (!dictEnabled || dictModifier === "none" || fixedLayout) return;
-    const keyName = dictModifier === "shift" ? "Shift" : dictModifier === "alt" ? "Alt" : "Control";
-    const onDown = (e: KeyboardEvent) => {
-      if (e.key !== keyName || e.repeat) return;
-      const m = lastMouseRef.current;
-      if (m) runLookupAt(m.x, m.y);
-    };
-    const onUp = (e: KeyboardEvent) => {
-      // Grace window: releasing the modifier to reach for the popup shouldn't
-      // dismiss it if the cursor lands inside in time.
-      if (e.key === keyName) scheduleClear();
-    };
-    window.addEventListener("keydown", onDown);
-    window.addEventListener("keyup", onUp);
-    return () => {
-      window.removeEventListener("keydown", onDown);
-      window.removeEventListener("keyup", onUp);
-    };
-  }, [dictEnabled, dictModifier, fixedLayout, runLookupAt, scheduleClear]);
-
-  // Read-sentence hotkey: pressing it reveals the button under a resting cursor
-  // (no wiggle needed); releasing it dismisses the button through a grace window.
-  useEffect(() => {
-    if (!ttsEnabled || fixedLayout) return;
-    const keyName = sentenceHotkey === "shift" ? "Shift" : sentenceHotkey === "ctrl" ? "Control" : "Alt";
-    const onDown = (e: KeyboardEvent) => {
-      if (e.key !== keyName || e.repeat) return;
-      const m = lastMouseRef.current;
-      if (m) showSentencePlayAt(m.x, m.y);
-    };
-    const onUp = (e: KeyboardEvent) => {
-      if (e.key === keyName) scheduleSentencePlayClear();
-    };
-    window.addEventListener("keydown", onDown);
-    window.addEventListener("keyup", onUp);
-    return () => {
-      window.removeEventListener("keydown", onDown);
-      window.removeEventListener("keyup", onUp);
-    };
-  }, [ttsEnabled, sentenceHotkey, fixedLayout, showSentencePlayAt, scheduleSentencePlayClear]);
 
   // Expose the reader area's pixel size as inherited CSS vars so illustrations
   // can be capped against it, and re-paginate the page-flip reader on resize.
@@ -809,9 +447,7 @@ export function ReaderView() {
     setSections([]);
     searchIndexRef.current = null;
     clearSearchHighlight();
-    setLookupHighlight(null);
-    setLookup(null);
-    lastQueryRef.current = "";
+    clearLookup();
     setSearchOpen(false);
     setSearchQuery("");
     setSearchResults({ results: [], total: 0, capped: false });
@@ -964,9 +600,7 @@ export function ReaderView() {
       persist();
       readyRef.current = false;
       clearSearchHighlight();
-      setLookupHighlight(null);
-      setLookup(null);
-      lastQueryRef.current = "";
+      clearLookup();
       controllerRef.current?.destroy();
       controllerRef.current = null;
       if (shadow) shadow.innerHTML = "";
@@ -1154,22 +788,6 @@ export function ReaderView() {
     };
   }, []);
 
-  // Warm up the selected VOICEVOX voice so the first read-aloud isn't slow (the
-  // engine loads the model lazily). Best effort; re-runs when the voice changes.
-  useEffect(() => {
-    if (ttsEnabled && voicevoxServer) void window.electronAPI.voicevox.initialize(voicevoxServer, voicevoxSpeaker);
-  }, [ttsEnabled, voicevoxServer, voicevoxSpeaker]);
-
-  // Silence any in-flight read-aloud (and clear its karaoke highlight / button) on leave.
-  useEffect(
-    () => () => {
-      stopVoicevox();
-      setKaraokeHighlight(null);
-      clearSentencePlay();
-    },
-    [clearSentencePlay],
-  );
-
   if (!book) return null;
 
   const paged = readingMode === "paginated";
@@ -1264,7 +882,7 @@ export function ReaderView() {
             onScroll={handleScroll}
             onClick={handleContentClick}
             onMouseMove={handleMouseMove}
-            onMouseLeave={scheduleClear}
+            onMouseLeave={onDictMouseLeave}
             className={
               paged
                 ? // Padding lives on the host (outside the shadow scroller) so it
@@ -1280,18 +898,9 @@ export function ReaderView() {
         <DictionaryPopup
           result={lookup?.result ?? null}
           anchor={lookup?.anchor ?? null}
-          onLayout={handlePopupLayout}
-          onMouseEnter={() => {
-            popupHoveredRef.current = true;
-            if (clearTimerRef.current) {
-              clearTimeout(clearTimerRef.current);
-              clearTimerRef.current = 0;
-            }
-          }}
-          onMouseLeave={() => {
-            popupHoveredRef.current = false;
-            scheduleClear();
-          }}
+          onLayout={onPopupLayout}
+          onMouseEnter={onPopupEnter}
+          onMouseLeave={onPopupLeave}
           onMine={ankiEnabled ? mineEntry : undefined}
           onSpeak={ttsEnabled ? speakText : undefined}
           hiddenForCapture={capturing}
@@ -1299,17 +908,8 @@ export function ReaderView() {
         {sentencePlay && (
           <button
             type="button"
-            onMouseEnter={() => {
-              sentenceBtnHoveredRef.current = true;
-              if (sentenceTimerRef.current) {
-                clearTimeout(sentenceTimerRef.current);
-                sentenceTimerRef.current = 0;
-              }
-            }}
-            onMouseLeave={() => {
-              sentenceBtnHoveredRef.current = false;
-              scheduleSentencePlayClear();
-            }}
+            onMouseEnter={onButtonEnter}
+            onMouseLeave={onButtonLeave}
             onClick={() => playSentence(sentencePlay.sctx)}
             title="Read this sentence aloud"
             aria-label="Read this sentence aloud"
