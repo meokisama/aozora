@@ -70,10 +70,13 @@ export function buildCharTimings(query: Record<string, unknown>, text: string, s
 
   // Seconds at which `c` (a possibly fractional mora count) has been spoken.
   // Integer counts land exactly on a mora's end — before any pause that follows
-  // it — which is what lets the highlight hold still through the pause.
+  // it — which is what lets the highlight hold still through the pause. Snap
+  // near-integers first: float accumulation drift (e.g. 3.0000000000000004)
+  // would otherwise tip a boundary char into the next mora, past the pause.
   const timeAt = (c: number): number => {
     if (ends.length === 0 || c <= 0) return starts[0] ?? 0;
-    const clamped = Math.min(c, ends.length);
+    const snapped = Math.abs(c - Math.round(c)) < 1e-6 ? Math.round(c) : c;
+    const clamped = Math.min(snapped, ends.length);
     const i = Math.ceil(clamped) - 1;
     return starts[i] + (clamped - i) * (ends[i] - starts[i]);
   };

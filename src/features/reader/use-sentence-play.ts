@@ -210,7 +210,15 @@ export function useSentencePlay({ hostRef, modeRef, enabled, hotkey, fixedLayout
     if (enabled && voicevoxServer) void window.electronAPI.voicevox.initialize(voicevoxServer, voicevoxSpeaker);
   }, [enabled, voicevoxServer, voicevoxSpeaker]);
 
-  // Silence any in-flight read-aloud (and clear its karaoke highlight / button) on leave.
+  // Silence any in-flight read-aloud (and clear its karaoke highlight / button)
+  // on leave, and immediately when read-aloud is switched off in Settings.
+  useEffect(() => {
+    if (!enabled) {
+      stopVoicevox();
+      setKaraokeHighlight(null);
+      clearSentencePlay();
+    }
+  }, [enabled, clearSentencePlay]);
   useEffect(
     () => () => {
       stopVoicevox();
