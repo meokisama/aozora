@@ -400,6 +400,41 @@ export interface VoicevoxSpeaker {
   styleId: number;
 }
 
+/**
+ * Synthesis tuning applied to the AudioQuery before /synthesis. Mirrors the
+ * engine's own scale fields (1 = neutral, except pitch where 0 = neutral).
+ * `pauseLength` is only applied when the engine's query exposes it (newer engines).
+ */
+export interface VoicevoxParams {
+  /** speedScale — playback speed. */
+  rate: number;
+  /** pitchScale — voice pitch (0 = neutral). */
+  pitch: number;
+  /** intonationScale — pitch-range / expressiveness (0 = flat). */
+  intonation: number;
+  /** volumeScale — loudness. */
+  volume: number;
+  /** pauseLengthScale — length of pauses at punctuation. */
+  pauseLength: number;
+}
+
+/** One style within a speaker, with its icon and preview clips (data URIs). */
+export interface VoicevoxStyleInfo {
+  styleId: number;
+  styleName: string;
+  /** Style icon as a `data:image/png;base64,…` URI (empty if unavailable). */
+  icon: string;
+  /** Preview clips as `data:audio/wav;base64,…` URIs. */
+  samples: string[];
+}
+
+/** A speaker and its styles, assembled from /speakers + /speaker_info for the picker. */
+export interface VoicevoxSpeakerDetail {
+  speakerUuid: string;
+  name: string;
+  styles: VoicevoxStyleInfo[];
+}
+
 /** Result of a VOICEVOX connection test (the engine's `/version` endpoint). */
 export type VoicevoxTestResult = { ok: true; version: string } | { ok: false; error: string };
 
@@ -415,6 +450,4 @@ export interface VoicevoxTimings {
 }
 
 /** Result of a synthesis request: the WAV bytes + mora timeline, or an error. */
-export type VoicevoxSynthesisResult =
-  | { ok: true; audio: Uint8Array; timings: VoicevoxTimings }
-  | { ok: false; error: string };
+export type VoicevoxSynthesisResult = { ok: true; audio: Uint8Array; timings: VoicevoxTimings } | { ok: false; error: string };

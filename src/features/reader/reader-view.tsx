@@ -30,7 +30,7 @@ import { sentenceAround, sentenceContextAround, type SentenceContext } from "@/l
 import { speakVoicevox, stopVoicevox } from "@/lib/reader/voicevox";
 import { useDictionaryStore, modifierHeld } from "@/stores/dictionary-store";
 import { useAnkiStore } from "@/stores/anki-store";
-import { useTtsStore } from "@/stores/tts-store";
+import { useTtsStore, ttsParams } from "@/stores/tts-store";
 import { cardDataFromEntry, buildNote, type MineStatus } from "@/lib/dictionary/anki-note";
 import { DictionaryPopup } from "./dictionary-popup";
 import { FootnotePopup } from "./footnote-popup";
@@ -84,6 +84,8 @@ export function ReaderView() {
   const ankiEnabled = useAnkiStore((s) => s.enabled);
   const ttsEnabled = useTtsStore((s) => s.enabled);
   const sentenceHotkey = useTtsStore((s) => s.sentenceHotkey);
+  const voicevoxSpeaker = useTtsStore((s) => s.voicevoxSpeaker);
+  const voicevoxServer = useTtsStore((s) => s.voicevoxServer);
 
   // Records reading time / characters for the stats page.
   const { mark: markSession } = useReadingSession(book?.id);
@@ -585,7 +587,7 @@ export function ReaderView() {
   const speakText = useCallback((text: string) => {
     setKaraokeHighlight(null);
     const s = useTtsStore.getState();
-    void speakVoicevox(text, { server: s.voicevoxServer, styleId: s.voicevoxSpeaker, rate: s.rate }).then((err) => {
+    void speakVoicevox(text, { server: s.voicevoxServer, styleId: s.voicevoxSpeaker, params: ttsParams(s) }).then((err) => {
       if (err) toast.error(err);
     });
   }, []);
@@ -617,12 +619,12 @@ export function ReaderView() {
     (sctx: SentenceContext) => {
       clearSentencePlay();
       const s = useTtsStore.getState();
-      const total = sctx.text.length;
+      const total = sctx.text.length; // highlight maps onto the displayed text
       setKaraokeHighlight(null);
-      void speakVoicevox(sctx.text, {
+      void speakVoicevox(s.furiganaReadings ? sctx.spoken : sctx.text, {
         server: s.voicevoxServer,
         styleId: s.voicevoxSpeaker,
-        rate: s.rate,
+        params: ttsParams(s),
         onProgress: (f) => {
           const chars = Math.round(f * total);
           setKaraokeHighlight(f < 1 && chars > 0 ? sctx.rangeForSlice(0, chars) : null);
@@ -1152,6 +1154,12 @@ export function ReaderView() {
     };
   }, []);
 
+  // Warm up the selected VOICEVOX voice so the first read-aloud isn't slow (the
+  // engine loads the model lazily). Best effort; re-runs when the voice changes.
+  useEffect(() => {
+    if (ttsEnabled && voicevoxServer) void window.electronAPI.voicevox.initialize(voicevoxServer, voicevoxSpeaker);
+  }, [ttsEnabled, voicevoxServer, voicevoxSpeaker]);
+
   // Silence any in-flight read-aloud (and clear its karaoke highlight / button) on leave.
   useEffect(
     () => () => {
@@ -1199,13 +1207,7 @@ export function ReaderView() {
         <Button variant="ghost" size="icon" onClick={() => setSearchOpen(true)} disabled={!total || fixedLayout} aria-label="Search in book">
           <Search className="size-4" />
         </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setGalleryOpen(true)}
-          disabled={!illustrations.length}
-          aria-label="Illustrations"
-        >
+        <Button variant="ghost" size="icon" onClick={() => setGalleryOpen(true)} disabled={!illustrations.length} aria-label="Illustrations">
           <Images className="size-4" />
         </Button>
         <Button

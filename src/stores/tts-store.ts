@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { VoicevoxParams } from "@/lib/types";
 
 /**
  * Read-aloud (TTS) config, persisted in the renderer like other reader prefs.
@@ -27,6 +28,16 @@ export interface TtsConfig {
   enabled: boolean;
   /** Playback speed (VOICEVOX speedScale; 1 = normal). */
   rate: number;
+  /** Voice pitch (VOICEVOX pitchScale; 0 = neutral). */
+  pitch: number;
+  /** Intonation / expressiveness (VOICEVOX intonationScale; 1 = normal, 0 = flat). */
+  intonation: number;
+  /** Loudness (VOICEVOX volumeScale; 1 = normal). */
+  volume: number;
+  /** Length of pauses at punctuation (VOICEVOX pauseLengthScale; 1 = normal). */
+  pauseLength: number;
+  /** Speak the furigana reading in place of the base text for ruby-annotated words. */
+  furiganaReadings: boolean;
   /** VOICEVOX engine URL. */
   voicevoxServer: string;
   /** VOICEVOX voice (speaker × style) id. */
@@ -38,6 +49,11 @@ export interface TtsConfig {
 const DEFAULTS: TtsConfig = {
   enabled: true,
   rate: 1,
+  pitch: 0,
+  intonation: 1,
+  volume: 1,
+  pauseLength: 1,
+  furiganaReadings: true,
   voicevoxServer: DEFAULT_VOICEVOX_SERVER,
   voicevoxSpeaker: 3, // ずんだもん（ノーマル） — present in stock VOICEVOX
   sentenceHotkey: "alt",
@@ -46,6 +62,11 @@ const DEFAULTS: TtsConfig = {
 interface TtsState extends TtsConfig {
   setEnabled: (enabled: boolean) => void;
   setRate: (rate: number) => void;
+  setPitch: (pitch: number) => void;
+  setIntonation: (intonation: number) => void;
+  setVolume: (volume: number) => void;
+  setPauseLength: (pauseLength: number) => void;
+  setFuriganaReadings: (furiganaReadings: boolean) => void;
   setVoicevoxServer: (voicevoxServer: string) => void;
   setVoicevoxSpeaker: (voicevoxSpeaker: number) => void;
   setSentenceHotkey: (sentenceHotkey: SentenceHotkey) => void;
@@ -57,6 +78,11 @@ export const useTtsStore = create<TtsState>()(
       ...DEFAULTS,
       setEnabled: (enabled) => set({ enabled }),
       setRate: (rate) => set({ rate }),
+      setPitch: (pitch) => set({ pitch }),
+      setIntonation: (intonation) => set({ intonation }),
+      setVolume: (volume) => set({ volume }),
+      setPauseLength: (pauseLength) => set({ pauseLength }),
+      setFuriganaReadings: (furiganaReadings) => set({ furiganaReadings }),
       setVoicevoxServer: (voicevoxServer) => set({ voicevoxServer }),
       setVoicevoxSpeaker: (voicevoxSpeaker) => set({ voicevoxSpeaker }),
       setSentenceHotkey: (sentenceHotkey) => set({ sentenceHotkey }),
@@ -66,3 +92,8 @@ export const useTtsStore = create<TtsState>()(
     },
   ),
 );
+
+/** The synthesis tuning fields, extracted for a synthesize() call. */
+export function ttsParams(s: TtsConfig): VoicevoxParams {
+  return { rate: s.rate, pitch: s.pitch, intonation: s.intonation, volume: s.volume, pauseLength: s.pauseLength };
+}

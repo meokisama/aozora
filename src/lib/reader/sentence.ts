@@ -8,7 +8,7 @@
  * so it can be unit-tested; only the live-DOM `sentenceAround` needs a browser.
  */
 
-import { getParagraphNodes } from "@/lib/epub/dom-utils";
+import { getParagraphNodes, isNodeGaiji } from "@/lib/epub/dom-utils";
 import { blockAncestor } from "@/lib/reader/search";
 
 // Japanese + ASCII sentence terminators. A sentence extends up to and including
@@ -77,6 +77,59 @@ export function sentenceAround(range: Range, contentRoot: Element): string {
   return sentenceFromBlockText(text, offset);
 }
 
+const isHidden = (n: Node): boolean =>
+  n instanceof HTMLElement && !!(n.attributes.getNamedItem("aria-hidden") || n.attributes.getNamedItem("hidden"));
+
+/** A <ruby>'s furigana reading: its <rt> contents joined (<rp> parens dropped). */
+function rubyReading(ruby: Element): string {
+  let reading = "";
+  for (const rt of Array.from(ruby.querySelectorAll("rt"))) reading += rt.textContent ?? "";
+  return reading;
+}
+
+/**
+ * The block's text with each ruby base swapped for its furigana reading, so the
+ * synthesizer voices proper nouns and rare readings the way the book intends
+ * (e.g. 主人公 → しゅじんこう, 夜神月 → やがみライト). Terminators live outside ruby,
+ * so this string carries the same sentence boundaries as the displayed text —
+ * the caller aligns the two by sentence index.
+ */
+function spokenBlockText(block: Node): string {
+  let out = "";
+  const walk = (n: Node): void => {
+    for (const child of Array.from(n.childNodes)) {
+      if (isHidden(child)) continue;
+      if (child.nodeType === Node.TEXT_NODE) {
+        out += (child as Text).data;
+      } else if (isNodeGaiji(child)) {
+        out += " "; // gaiji placeholder, mirroring the displayed walk
+      } else if (child instanceof Element && child.tagName === "RUBY") {
+        out += rubyReading(child) || (child.textContent ?? ""); // no <rt> → keep the base
+      } else if (child instanceof Element && (child.tagName === "RT" || child.tagName === "RP")) {
+        continue;
+      } else {
+        walk(child);
+      }
+    }
+  };
+  walk(block);
+  return out;
+}
+
+/** Splits text into sentence segments at TERMINATORS (terminator kept with its segment). */
+function splitSentences(text: string): string[] {
+  const out: string[] = [];
+  let start = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (TERMINATORS.includes(text[i])) {
+      out.push(text.slice(start, i + 1));
+      start = i + 1;
+    }
+  }
+  if (start < text.length) out.push(text.slice(start));
+  return out;
+}
+
 /** A text node's contribution to the assembled block text, keyed by char offset. */
 interface Piece {
   node: Node;
@@ -104,8 +157,13 @@ function locate(pieces: Piece[], offset: number): { node: Text; offset: number }
 
 /** The sentence around a match, plus a way to build Ranges over sub-slices of it. */
 export interface SentenceContext {
-  /** The sentence (terminator included, trimmed). */
+  /** The sentence as displayed (terminator included, trimmed) — for highlighting. */
   text: string;
+  /**
+   * The same sentence with ruby bases replaced by their furigana readings — what
+   * to synthesize when reading aloud. Equals `text` when the sentence has no ruby.
+   */
+  spoken: string;
   /** Builds a DOM Range over sentence-relative code units [from, to), clamped. */
   rangeForSlice(from: number, to: number): Range | null;
 }
@@ -144,8 +202,15 @@ export function sentenceContextAround(range: Range, contentRoot: Element): Sente
   const text = raw.trim();
   const base = start + lead; // block offset of the sentence's first char
 
+  // The reading-substituted counterpart: the displayed and spoken block texts
+  // share their terminator sequence, so the same sentence sits at the same index.
+  let idx = 0;
+  for (let i = 0; i < start; i++) if (TERMINATORS.includes(blockText[i])) idx++;
+  const spoken = splitSentences(spokenBlockText(block))[idx]?.trim() || text;
+
   return {
     text,
+    spoken,
     rangeForSlice(from, to) {
       if (!text) return null;
       const a = base + Math.max(0, Math.min(from, text.length));

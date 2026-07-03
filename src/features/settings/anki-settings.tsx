@@ -270,17 +270,18 @@ export function AnkiSettings() {
                         {markers.map((m, i) => (
                           <span key={i} className="inline-flex items-center gap-1 rounded-sm border bg-background px-1.5 py-0.5 text-[10px]">
                             {MARKER_LABELS[m] ?? m}
-                            <button
-                              type="button"
+                            <Button
+                              variant="ghost"
+                              size="icon-xs"
                               aria-label={`Remove ${MARKER_LABELS[m] ?? m}`}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 removeMarkerAt(name, i);
                               }}
-                              className="text-muted-foreground hover:text-foreground"
+                              className="size-4 text-muted-foreground hover:bg-transparent hover:text-foreground"
                             >
-                              <X className="size-3 cursor-pointer" />
-                            </button>
+                              <X className="size-3" />
+                            </Button>
                           </span>
                         ))}
                       </div>
@@ -300,15 +301,16 @@ export function AnkiSettings() {
               </p>
               <div className="flex flex-wrap gap-1">
                 {FIELD_MARKERS.map((marker) => (
-                  <button
+                  <Button
                     key={marker}
-                    type="button"
+                    variant="outline"
+                    size="xs"
                     onClick={() => addMarker(marker)}
                     title={`{${marker}}`}
-                    className="rounded-sm border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    className="text-[10px] text-muted-foreground"
                   >
                     {MARKER_LABELS[marker] ?? marker}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </Group>

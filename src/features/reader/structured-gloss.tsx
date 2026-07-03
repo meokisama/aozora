@@ -148,7 +148,12 @@ function renderNode(node: GlossContent | undefined, key: Key, dictId: string): R
   const children = el.content != null ? renderNode(el.content, "c", dictId) : null;
 
   // Links: render as plain text (no navigation target in the popup).
-  if (tag === "a") return <span className="underline decoration-dotted" {...dataAttrs(el.data)}>{children}</span>;
+  if (tag === "a")
+    return (
+      <span className="underline decoration-dotted" {...dataAttrs(el.data)}>
+        {children}
+      </span>
+    );
 
   if (!PASSTHROUGH_TAGS.has(tag)) {
     return el.content != null ? renderNode(el.content, key, dictId) : null;

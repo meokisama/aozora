@@ -1,5 +1,13 @@
 import { ipcMain } from "electron";
-import type { VoicevoxSpeaker, VoicevoxTestResult, VoicevoxSynthesisResult, VoicevoxTimings } from "@/lib/types";
+import type {
+  VoicevoxSpeaker,
+  VoicevoxSpeakerDetail,
+  VoicevoxStyleInfo,
+  VoicevoxTestResult,
+  VoicevoxSynthesisResult,
+  VoicevoxTimings,
+  VoicevoxParams,
+} from "@/lib/types";
 
 /**
  * VOICEVOX Engine IPC. Like the AnkiConnect client (src/main/anki.ts), the
@@ -32,11 +40,13 @@ interface AccentPhrase {
 /**
  * Turns an AudioQuery into a mora timeline on the synthesized WAV's clock. The
  * engine divides every phoneme length (including the pre/post silence and the
- * inter-phrase pauses) by `speedScale`, so we mirror that here. Pauses advance
- * the clock but add no mora — the highlight naturally holds over a comma.
+ * inter-phrase pauses) by `speedScale`, so we mirror that here. Pauses are first
+ * stretched by `pauseLengthScale`, then sped up like everything else; they
+ * advance the clock but add no mora — the highlight naturally holds over a comma.
  */
-function buildTimings(query: Record<string, unknown>, speed: number): VoicevoxTimings {
+function buildTimings(query: Record<string, unknown>, speed: number, pauseScale: number): VoicevoxTimings {
   const s = speed || 1;
+  const p = pauseScale || 1;
   const phrases = (query.accent_phrases as AccentPhrase[] | undefined) ?? [];
   const moras: number[] = [];
   let t = Number(query.prePhonemeLength ?? 0) / s;
@@ -45,9 +55,22 @@ function buildTimings(query: Record<string, unknown>, speed: number): VoicevoxTi
       t += ((m.consonant_length ?? 0) + (m.vowel_length ?? 0)) / s;
       moras.push(t);
     }
-    if (phrase.pause_mora) t += (phrase.pause_mora.vowel_length ?? 0) / s;
+    if (phrase.pause_mora) t += ((phrase.pause_mora.vowel_length ?? 0) * p) / s;
   }
   return { total: t + Number(query.postPhonemeLength ?? 0) / s, moras };
+}
+
+/**
+ * Applies the reader's tuning to a fresh AudioQuery. `pauseLengthScale` is only
+ * set when the engine's query already exposes it — older engines reject unknown
+ * fields on /synthesis, and the field's presence signals support.
+ */
+function applyParams(query: Record<string, unknown>, params: VoicevoxParams): void {
+  if (params.rate) query.speedScale = params.rate; // 0 would be invalid; slider can't reach it
+  query.pitchScale = params.pitch;
+  query.intonationScale = params.intonation;
+  query.volumeScale = params.volume;
+  if ("pauseLengthScale" in query) query.pauseLengthScale = params.pauseLength;
 }
 
 /** Wraps a fetch so an unreachable engine reports a friendly, actionable error. */
@@ -83,21 +106,63 @@ export const registerVoicevoxIpc = (): void => {
     return data.flatMap((sp) => sp.styles.map((st) => ({ name: `${sp.name}（${st.name}）`, styleId: st.id })));
   });
 
+  // Rich voice catalogue for the picker: each speaker with its styles' icons and
+  // preview clips (as data URIs) pulled from /speaker_info. Fetched per speaker in
+  // parallel; a speaker whose info can't be loaded still lists its bare styles.
+  ipcMain.handle("voicevox:voices", async (_event, server: string): Promise<VoicevoxSpeakerDetail[]> => {
+    const base = trimSlash(server);
+    const speakers = (await (await request(`${base}/speakers`)).json()) as Array<{
+      name: string;
+      speaker_uuid: string;
+      styles: Array<{ name: string; id: number }>;
+    }>;
+    return Promise.all(
+      speakers.map(async (sp): Promise<VoicevoxSpeakerDetail> => {
+        const styleName = new Map(sp.styles.map((st) => [st.id, st.name]));
+        let styles: VoicevoxStyleInfo[] = sp.styles.map((st) => ({ styleId: st.id, styleName: st.name, icon: "", samples: [] }));
+        try {
+          const info = (await (await request(`${base}/speaker_info?speaker_uuid=${sp.speaker_uuid}`)).json()) as {
+            style_infos: Array<{ id: number; icon?: string; voice_samples?: string[] }>;
+          };
+          styles = info.style_infos.map((si) => ({
+            styleId: si.id,
+            styleName: styleName.get(si.id) ?? String(si.id),
+            icon: si.icon ? `data:image/png;base64,${si.icon}` : "",
+            samples: (si.voice_samples ?? []).map((s) => `data:audio/wav;base64,${s}`),
+          }));
+        } catch {
+          // /speaker_info failed — keep the bare styles from /speakers.
+        }
+        return { speakerUuid: sp.speaker_uuid, name: sp.name, styles };
+      }),
+    );
+  });
+
+  // Pre-load a voice so the first synthesis after selecting it isn't slow. Best
+  // effort: reachability/unsupported errors are swallowed (feature still works).
+  ipcMain.handle("voicevox:initialize", async (_event, server: string, styleId: number): Promise<void> => {
+    try {
+      await request(`${trimSlash(server)}/initialize_speaker?speaker=${styleId}&skip_reinitialize=true`, { method: "POST" });
+    } catch {
+      // ignore — synthesis will just pay the load cost on first use
+    }
+  });
+
   // Synthesise text to WAV via the audio_query → synthesis pair.
   ipcMain.handle(
     "voicevox:synthesize",
-    async (_event, server: string, text: string, styleId: number, rate: number): Promise<VoicevoxSynthesisResult> => {
+    async (_event, server: string, text: string, styleId: number, params: VoicevoxParams): Promise<VoicevoxSynthesisResult> => {
       try {
         const base = trimSlash(server);
         const q = await request(`${base}/audio_query?text=${encodeURIComponent(text)}&speaker=${styleId}`, { method: "POST" });
         const query = (await q.json()) as Record<string, unknown>;
-        if (rate) query.speedScale = rate;
+        applyParams(query, params);
         const s = await request(`${base}/synthesis?speaker=${styleId}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(query),
         });
-        return { ok: true, audio: new Uint8Array(await s.arrayBuffer()), timings: buildTimings(query, rate) };
+        return { ok: true, audio: new Uint8Array(await s.arrayBuffer()), timings: buildTimings(query, params.rate, params.pauseLength) };
       } catch (err) {
         return { ok: false, error: errMsg(err) };
       }

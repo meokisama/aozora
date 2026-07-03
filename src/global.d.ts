@@ -17,8 +17,10 @@ import type {
   Stats,
   UpdateBookPayload,
   VoicevoxSpeaker,
+  VoicevoxSpeakerDetail,
   VoicevoxSynthesisResult,
   VoicevoxTestResult,
+  VoicevoxParams,
 } from "@/lib/types";
 
 /**
@@ -107,7 +109,9 @@ export interface AnkiApi {
 export interface VoicevoxApi {
   test(server: string): Promise<VoicevoxTestResult>;
   speakers(server: string): Promise<VoicevoxSpeaker[]>;
-  synthesize(server: string, text: string, styleId: number, rate: number): Promise<VoicevoxSynthesisResult>;
+  voices(server: string): Promise<VoicevoxSpeakerDetail[]>;
+  initialize(server: string, styleId: number): Promise<void>;
+  synthesize(server: string, text: string, styleId: number, params: VoicevoxParams): Promise<VoicevoxSynthesisResult>;
 }
 
 export interface ElectronAPI {

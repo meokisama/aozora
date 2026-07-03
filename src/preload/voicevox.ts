@@ -1,5 +1,5 @@
 import { ipcRenderer } from "electron";
-import type { VoicevoxSpeaker, VoicevoxTestResult, VoicevoxSynthesisResult } from "@/lib/types";
+import type { VoicevoxSpeaker, VoicevoxSpeakerDetail, VoicevoxTestResult, VoicevoxSynthesisResult, VoicevoxParams } from "@/lib/types";
 
 /**
  * VOICEVOX API exposed as `window.electronAPI.voicevox`. The renderer owns the
@@ -13,7 +13,13 @@ export const voicevoxApi = {
   /** Available voices (speaker × style), for the settings dropdown. */
   speakers: (server: string): Promise<VoicevoxSpeaker[]> => ipcRenderer.invoke("voicevox:speakers", server),
 
-  /** Synthesises text to WAV bytes with the given voice and speed. */
-  synthesize: (server: string, text: string, styleId: number, rate: number): Promise<VoicevoxSynthesisResult> =>
-    ipcRenderer.invoke("voicevox:synthesize", server, text, styleId, rate),
+  /** Rich voice catalogue (icons + preview clips) for the voice picker. */
+  voices: (server: string): Promise<VoicevoxSpeakerDetail[]> => ipcRenderer.invoke("voicevox:voices", server),
+
+  /** Pre-loads a voice so its first synthesis isn't slow. Best effort. */
+  initialize: (server: string, styleId: number): Promise<void> => ipcRenderer.invoke("voicevox:initialize", server, styleId),
+
+  /** Synthesises text to WAV bytes with the given voice and tuning. */
+  synthesize: (server: string, text: string, styleId: number, params: VoicevoxParams): Promise<VoicevoxSynthesisResult> =>
+    ipcRenderer.invoke("voicevox:synthesize", server, text, styleId, params),
 };
