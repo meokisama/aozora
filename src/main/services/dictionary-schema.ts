@@ -19,7 +19,14 @@ export function applyDictionarySchema(database: Database.Database): void {
       imported_at INTEGER NOT NULL,
       enabled     INTEGER NOT NULL DEFAULT 1,
       priority    INTEGER NOT NULL DEFAULT 0,  -- lower = consulted first
-      styles      TEXT NOT NULL DEFAULT ''     -- archive styles.css (custom structured-content CSS)
+      styles      TEXT NOT NULL DEFAULT '',    -- archive styles.css (custom structured-content CSS)
+      -- Entry counts cached at import time (see migrations/migrate-1) so listing
+      -- dictionaries needn't COUNT(*) five tables per dict on every load.
+      term_count       INTEGER NOT NULL DEFAULT 0,
+      freq_count       INTEGER NOT NULL DEFAULT 0,
+      pitch_count      INTEGER NOT NULL DEFAULT 0,
+      kanji_count      INTEGER NOT NULL DEFAULT 0,
+      kanji_freq_count INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS terms (

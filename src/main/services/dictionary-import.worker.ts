@@ -3,6 +3,7 @@ import Database from "better-sqlite3";
 import type { DictionaryImportProgress } from "@/lib/types";
 import { parseYomitanZip } from "./dictionary-parse.js";
 import { applyDictionarySchema } from "./dictionary-schema.js";
+import { runMigrations, dictionaryMigrations } from "./migrations/index.js";
 import { insertParsedDict } from "./dictionary-insert.js";
 
 /**
@@ -36,6 +37,7 @@ async function run(): Promise<void> {
     post({ type: "progress", payload: { phase: "inserting", title: parsed.title, termsInserted: 0 } });
     database = new Database(dbPath);
     applyDictionarySchema(database);
+    runMigrations(database, dictionaryMigrations); // no-op once the main process has migrated; guards a cold start
     const { id } = insertParsedDict(database, parsed, (p) => post({ type: "progress", payload: p }));
     database.close();
     database = undefined;

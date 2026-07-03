@@ -22,8 +22,10 @@ export function insertParsedDict(
     existing?.priority ?? (database.prepare("SELECT COALESCE(MAX(priority), -1) + 1 AS p FROM dictionaries").get() as { p: number }).p;
 
   const insertDict = database.prepare(
-    `INSERT INTO dictionaries (id, title, revision, imported_at, enabled, priority, styles)
-       VALUES (@id, @title, @revision, @importedAt, 1, @priority, @styles)`,
+    `INSERT INTO dictionaries (id, title, revision, imported_at, enabled, priority, styles,
+                               term_count, freq_count, pitch_count, kanji_count, kanji_freq_count)
+       VALUES (@id, @title, @revision, @importedAt, 1, @priority, @styles,
+               @termCount, @freqCount, @pitchCount, @kanjiCount, @kanjiFreqCount)`,
   );
   const insertTerm = database.prepare(
     `INSERT INTO terms (dict_id, expression, reading, tags, rules, definitions, score, sequence)
@@ -72,7 +74,19 @@ export function insertParsedDict(
 
   const importAll = database.transaction(() => {
     if (existing) database.prepare("DELETE FROM dictionaries WHERE id = ?").run(existing.id);
-    insertDict.run({ id, title: parsed.title, revision: parsed.revision, importedAt: Date.now(), priority: nextPriority, styles: parsed.styles });
+    insertDict.run({
+      id,
+      title: parsed.title,
+      revision: parsed.revision,
+      importedAt: Date.now(),
+      priority: nextPriority,
+      styles: parsed.styles,
+      termCount: parsed.rows.length,
+      freqCount: parsed.freqs.length,
+      pitchCount: parsed.pitches.length,
+      kanjiCount: parsed.kanji.length,
+      kanjiFreqCount: parsed.kanjiFreqs.length,
+    });
     for (const r of parsed.rows) {
       insertTerm.run({
         dictId: id,

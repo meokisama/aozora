@@ -2,6 +2,7 @@ import { app } from "electron";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { applyDictionarySchema } from "./dictionary-schema.js";
+import { runMigrations, dictionaryMigrations } from "./migrations/index.js";
 
 /**
  * SQLite schema + connection for imported Yomitan dictionaries. Kept in its own
@@ -20,6 +21,7 @@ export function getDb(): Database.Database {
   if (db) return db;
   db = new Database(dictionaryDbPath());
   applyDictionarySchema(db);
+  runMigrations(db, dictionaryMigrations);
   return db;
 }
 

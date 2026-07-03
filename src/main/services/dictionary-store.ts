@@ -232,33 +232,16 @@ function queryKanji(database: Database.Database, chars: string[], tagMaps: TagMa
 
 export const dictionaryStore = {
   listDicts(): DictionaryInfo[] {
+    // Counts are cached columns (written at import, backfilled by migrate-1), so
+    // this no longer scans the entry tables — the freeze that COUNT(*) caused.
     const rows = getDb()
-      .prepare(
-        `SELECT d.*,
-                (SELECT COUNT(*) FROM terms t WHERE t.dict_id = d.id) AS term_count,
-                (SELECT COUNT(*) FROM term_meta m WHERE m.dict_id = d.id) AS freq_count,
-                (SELECT COUNT(*) FROM term_pitch p WHERE p.dict_id = d.id) AS pitch_count,
-                (SELECT COUNT(*) FROM kanji k WHERE k.dict_id = d.id) AS kanji_count,
-                (SELECT COUNT(*) FROM kanji_meta km WHERE km.dict_id = d.id) AS kanji_freq_count
-           FROM dictionaries d
-          ORDER BY d.priority ASC, d.imported_at ASC`,
-      )
+      .prepare(`SELECT * FROM dictionaries ORDER BY priority ASC, imported_at ASC`)
       .all() as DictRow[];
     return rows.map(rowToInfo);
   },
 
   getDict(id: string): DictionaryInfo | null {
-    const row = getDb()
-      .prepare(
-        `SELECT d.*,
-                (SELECT COUNT(*) FROM terms t WHERE t.dict_id = d.id) AS term_count,
-                (SELECT COUNT(*) FROM term_meta m WHERE m.dict_id = d.id) AS freq_count,
-                (SELECT COUNT(*) FROM term_pitch p WHERE p.dict_id = d.id) AS pitch_count,
-                (SELECT COUNT(*) FROM kanji k WHERE k.dict_id = d.id) AS kanji_count,
-                (SELECT COUNT(*) FROM kanji_meta km WHERE km.dict_id = d.id) AS kanji_freq_count
-           FROM dictionaries d WHERE d.id = ?`,
-      )
-      .get(id) as DictRow | undefined;
+    const row = getDb().prepare(`SELECT * FROM dictionaries WHERE id = ?`).get(id) as DictRow | undefined;
     return row ? rowToInfo(row) : null;
   },
 
