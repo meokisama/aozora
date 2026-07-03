@@ -11,11 +11,10 @@
 
 ## About
 
-**Aozora 青空** is a desktop EPUB reader made for reading Japanese light novels and manga. It renders Japanese the way it's written, **vertical tategaki or horizontal text** with **ruby furigana** in multiple display modes, and a built-in **[Yomitan dictionary](#dictionary)** turns any word into an instant hover lookup, complete with deinflection, pitch accent, and kanji breakdowns. Everything around the text is built for the long haul: full-text search, bookmarks, footnote popups, an illustration gallery, and a stats page that tracks every session.
+**Aozora 青空** is a desktop EPUB reader made for reading Japanese learners to read light novel and manga with a built-in **[Yomitan hover dictionary](#dictionary)**, **[Anki mining](#anki)**, **[read-aloud TTS](#read-aloud-tts)** with karaoke highlight, full-text search, reading stats, and more.
 
 > **Built for Japanese EPUB.** The parser and reader are tuned for the conventions of
-> these books (tategaki, ruby, image spreads), so that's where Aozora shines. Other EPUBs
-> still open and read fine — they just won't get the Japanese-specific handling.
+> these books. Other EPUBs still open and read fine — they just won't get the Japanese-specific handling.
 
 ![](./preview/preview-0.png)
 ![](./preview/preview-2.png)
@@ -156,7 +155,7 @@ the read-aloud feature.
 - Choose the **Read sentence** hotkey — **Alt** by default, or **Ctrl** / **Shift** (kept
   separate from the dictionary's lookup key so the two gestures never collide).
 
-<video src="https://github.com/user-attachments/assets/cf33655e-7ddc-474c-a11a-2c385d8800c4" controls width="100%"></video>
+<video src="https://github.com/user-attachments/assets/29e5493c-92c6-4ee5-b102-ad7f5a340336" controls width="100%"></video>
 
 Two ways to listen, both in the reader:
 
