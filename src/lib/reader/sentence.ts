@@ -8,7 +8,7 @@
  * so it can be unit-tested; only the live-DOM `sentenceAround` needs a browser.
  */
 
-import { getParagraphNodes, isNodeGaiji } from "@/lib/epub/dom-utils";
+import { getParagraphNodes } from "@/lib/epub/dom-utils";
 import { blockAncestor } from "@/lib/reader/search";
 
 // Japanese + ASCII sentence terminators. A sentence extends up to and including
@@ -77,9 +77,6 @@ export function sentenceAround(range: Range, contentRoot: Element): string {
   return sentenceFromBlockText(text, offset);
 }
 
-const isHidden = (n: Node): boolean =>
-  n instanceof HTMLElement && !!(n.attributes.getNamedItem("aria-hidden") || n.attributes.getNamedItem("hidden"));
-
 /** A <ruby>'s furigana reading: its <rt> contents joined (<rp> parens dropped). */
 function rubyReading(ruby: Element): string {
   let reading = "";
@@ -87,47 +84,31 @@ function rubyReading(ruby: Element): string {
   return reading;
 }
 
-/**
- * The block's text with each ruby base swapped for its furigana reading, so the
- * synthesizer voices proper nouns and rare readings the way the book intends
- * (e.g. 主人公 → しゅじんこう, 夜神月 → やがみライト). Terminators live outside ruby,
- * so this string carries the same sentence boundaries as the displayed text —
- * the caller aligns the two by sentence index.
- */
-function spokenBlockText(block: Node): string {
-  let out = "";
-  const walk = (n: Node): void => {
-    for (const child of Array.from(n.childNodes)) {
-      if (isHidden(child)) continue;
-      if (child.nodeType === Node.TEXT_NODE) {
-        out += (child as Text).data;
-      } else if (isNodeGaiji(child)) {
-        out += " "; // gaiji placeholder, mirroring the displayed walk
-      } else if (child instanceof Element && child.tagName === "RUBY") {
-        out += rubyReading(child) || (child.textContent ?? ""); // no <rt> → keep the base
-      } else if (child instanceof Element && (child.tagName === "RT" || child.tagName === "RP")) {
-        continue;
-      } else {
-        walk(child);
-      }
-    }
-  };
-  walk(block);
-  return out;
+/** A displayed↔spoken correspondence: block-text range [d0,d1) ↔ spoken range [s0,s1). */
+interface Seg {
+  d0: number;
+  d1: number;
+  s0: number;
+  s1: number;
 }
 
-/** Splits text into sentence segments at TERMINATORS (terminator kept with its segment). */
-function splitSentences(text: string): string[] {
-  const out: string[] = [];
-  let start = 0;
-  for (let i = 0; i < text.length; i++) {
-    if (TERMINATORS.includes(text[i])) {
-      out.push(text.slice(start, i + 1));
-      start = i + 1;
+/**
+ * Projects an offset across the displayed↔spoken correspondence. Outside ruby
+ * the two texts are identical, so the mapping is exact; inside a ruby the base
+ * maps onto its reading proportionally (the karaoke highlight sweeps a kanji
+ * word as its reading is voiced).
+ */
+function project(segs: Seg[], x: number, fromSpoken: boolean): number {
+  for (const g of segs) {
+    const [a0, a1, b0, b1] = fromSpoken ? [g.s0, g.s1, g.d0, g.d1] : [g.d0, g.d1, g.s0, g.s1];
+    if (x <= a0) return b0;
+    if (x < a1) {
+      if (a1 - a0 === b1 - b0) return b0 + (x - a0);
+      return b0 + Math.round(((x - a0) / (a1 - a0)) * (b1 - b0));
     }
   }
-  if (start < text.length) out.push(text.slice(start));
-  return out;
+  const last = segs[segs.length - 1];
+  return last ? (fromSpoken ? last.d1 : last.s1) : 0;
 }
 
 /** A text node's contribution to the assembled block text, keyed by char offset. */
@@ -164,6 +145,12 @@ export interface SentenceContext {
    * to synthesize when reading aloud. Equals `text` when the sentence has no ruby.
    */
   spoken: string;
+  /**
+   * Maps a `spoken`-relative offset (0..spoken.length) to the corresponding
+   * `text`-relative offset — exact outside ruby, proportional within a reading.
+   * For the karaoke highlight: characters-spoken → characters-to-paint.
+   */
+  displayedFromSpoken(offset: number): number;
   /** Builds a DOM Range over sentence-relative code units [from, to), clamped. */
   rangeForSlice(from: number, to: number): Range | null;
 }
@@ -202,15 +189,42 @@ export function sentenceContextAround(range: Range, contentRoot: Element): Sente
   const text = raw.trim();
   const base = start + lead; // block offset of the sentence's first char
 
-  // The reading-substituted counterpart: the displayed and spoken block texts
-  // share their terminator sequence, so the same sentence sits at the same index.
-  let idx = 0;
-  for (let i = 0; i < start; i++) if (TERMINATORS.includes(blockText[i])) idx++;
-  const spoken = splitSentences(spokenBlockText(block))[idx]?.trim() || text;
+  // The reading-substituted counterpart, built from the same pieces as
+  // blockText so displayed↔spoken offsets correspond by construction: pieces
+  // under a <ruby> collapse into one segment carrying the furigana reading
+  // (no <rt> → keep the base); everything else maps one-to-one. This is what
+  // the synthesizer voices, so proper nouns and rare readings follow the book
+  // (e.g. 主人公 → しゅじんこう, 夜神月 → やがみライト).
+  const rubyOf = (n: Node): Element | null => {
+    const r = n.parentElement?.closest("ruby") ?? null;
+    return r && block.contains(r) ? r : null;
+  };
+  const segs: Seg[] = [];
+  let spokenBlock = "";
+  for (let i = 0; i < pieces.length; ) {
+    const ruby = rubyOf(pieces[i].node);
+    let j = i + 1;
+    if (ruby) while (j < pieces.length && rubyOf(pieces[j].node) === ruby) j++;
+    const d0 = pieces[i].start;
+    const d1 = pieces[j - 1].start + pieces[j - 1].len;
+    const reading = (ruby && rubyReading(ruby)) || blockText.slice(d0, d1);
+    segs.push({ d0, d1, s0: spokenBlock.length, s1: spokenBlock.length + reading.length });
+    spokenBlock += reading;
+    i = j;
+  }
+
+  // Sentence boundaries live outside ruby, so these project exactly.
+  const sA = project(segs, base, false);
+  const sB = project(segs, base + text.length, false);
+  const spoken = spokenBlock.slice(sA, sB) || text;
 
   return {
     text,
     spoken,
+    displayedFromSpoken(offset) {
+      const at = sA + Math.max(0, Math.min(offset, sB - sA));
+      return Math.max(0, Math.min(project(segs, at, true) - base, text.length));
+    },
     rangeForSlice(from, to) {
       if (!text) return null;
       const a = base + Math.max(0, Math.min(from, text.length));

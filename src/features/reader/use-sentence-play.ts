@@ -76,20 +76,22 @@ export function useSentencePlay({ hostRef, modeRef, enabled, hotkey, fixedLayout
   }, [clearSentencePlay]);
 
   // Reads the given sentence with a karaoke highlight that grows over it in sync
-  // with the VOICEVOX audio (mora-fraction → character count).
+  // with the VOICEVOX audio. Progress arrives as characters spoken of the
+  // synthesized text; with furigana readings on that's the reading-substituted
+  // string, so it's projected back onto the displayed sentence before painting.
   const playSentence = useCallback(
     (sctx: SentenceContext) => {
       clearSentencePlay();
       const s = useTtsStore.getState();
-      const total = sctx.text.length; // highlight maps onto the displayed text
+      const useReadings = s.furiganaReadings;
       setKaraokeHighlight(null);
-      void speakVoicevox(s.furiganaReadings ? sctx.spoken : sctx.text, {
+      void speakVoicevox(useReadings ? sctx.spoken : sctx.text, {
         server: s.voicevoxServer,
         styleId: s.voicevoxSpeaker,
         params: ttsParams(s),
-        onProgress: (f) => {
-          const chars = Math.round(f * total);
-          setKaraokeHighlight(f < 1 && chars > 0 ? sctx.rangeForSlice(0, chars) : null);
+        onProgress: (spoken, total) => {
+          const chars = useReadings ? sctx.displayedFromSpoken(spoken) : spoken;
+          setKaraokeHighlight(spoken < total && chars > 0 ? sctx.rangeForSlice(0, chars) : null);
         },
       }).then((err) => {
         setKaraokeHighlight(null);

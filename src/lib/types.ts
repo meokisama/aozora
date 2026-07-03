@@ -439,14 +439,19 @@ export interface VoicevoxSpeakerDetail {
 export type VoicevoxTestResult = { ok: true; version: string } | { ok: false; error: string };
 
 /**
- * Mora timeline derived from the AudioQuery, for karaoke-style highlighting.
- * Times are seconds on the synthesized WAV's clock (speedScale already applied).
+ * Character timeline derived from the AudioQuery, for karaoke-style
+ * highlighting. Times are seconds on the synthesized WAV's clock (speedScale
+ * already applied).
  */
 export interface VoicevoxTimings {
   /** Total audio duration, including leading/trailing silence. */
   total: number;
-  /** Cumulative end time of each spoken mora; length = number of moras. */
-  moras: number[];
+  /**
+   * Per character of the synthesized text: the second at which that character
+   * has been spoken. Non-decreasing; a silent character (punctuation, spaces)
+   * inherits the preceding character's time.
+   */
+  chars: number[];
 }
 
 /** Result of a synthesis request: the WAV bytes + mora timeline, or an error. */
