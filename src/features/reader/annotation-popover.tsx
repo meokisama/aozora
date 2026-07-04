@@ -84,7 +84,7 @@ export function AnnotationPopover({ anchor, color, note, isNew, onColor, onNote,
             onClick={onDelete}
             aria-label="Delete highlight"
             title="Delete highlight"
-            className="ml-auto flex size-6 items-center justify-center rounded-none text-muted-foreground transition-colors hover:text-destructive"
+            className="ml-auto cursor-pointer flex size-6 items-center justify-center rounded-none text-muted-foreground transition-colors hover:text-destructive"
           >
             <Trash2 className="size-4" />
           </button>

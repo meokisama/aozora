@@ -119,9 +119,6 @@ interface SettingsState {
   sideMargin: number;
   discordRichPresence: boolean;
   discordCover: boolean;
-  /** Enables text-selection highlighting in the reader (off by default: the
-   *  selection popup would otherwise cover text you're only reading). */
-  highlightsEnabled: boolean;
   setFontSize: (fontSize: number) => void;
   setLineHeight: (lineHeight: number) => void;
   setFontFamily: (fontFamily: FontFamily) => void;
@@ -134,7 +131,6 @@ interface SettingsState {
   setSideMargin: (sideMargin: number) => void;
   setDiscordRichPresence: (discordRichPresence: boolean) => void;
   setDiscordCover: (discordCover: boolean) => void;
-  setHighlightsEnabled: (highlightsEnabled: boolean) => void;
   reset: () => void;
 }
 
@@ -152,7 +148,6 @@ type SettingsData = Pick<
   | "sideMargin"
   | "discordRichPresence"
   | "discordCover"
-  | "highlightsEnabled"
 >;
 
 const DEFAULTS: SettingsData = {
@@ -168,7 +163,6 @@ const DEFAULTS: SettingsData = {
   sideMargin: 12, // % per edge
   discordRichPresence: true, // on by default (opt-out); shares the current book to Discord
   discordCover: true, // on by default (opt-out); uploads the cover to a public host (catbox.moe) for the large image
-  highlightsEnabled: false, // off by default (opt-in): the selection popup would cover text otherwise
 };
 
 export const useSettingsStore = create<SettingsState>()(
@@ -187,7 +181,6 @@ export const useSettingsStore = create<SettingsState>()(
       setSideMargin: (sideMargin) => set({ sideMargin }),
       setDiscordRichPresence: (discordRichPresence) => set({ discordRichPresence }),
       setDiscordCover: (discordCover) => set({ discordCover }),
-      setHighlightsEnabled: (highlightsEnabled) => set({ highlightsEnabled }),
       reset: () => set({ ...DEFAULTS }),
     }),
     {

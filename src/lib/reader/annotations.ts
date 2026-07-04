@@ -28,6 +28,8 @@ export const ANNOTATION_COLORS = [
   { key: "pink", label: "Pink", swatch: "#f472b6", wash: "rgba(244, 114, 182, 0.38)" },
   { key: "orange", label: "Orange", swatch: "#fb923c", wash: "rgba(251, 146, 60, 0.42)" },
   { key: "purple", label: "Purple", swatch: "#c084fc", wash: "rgba(192, 132, 252, 0.42)" },
+  { key: "red", label: "Red", swatch: "#f87171", wash: "rgba(248, 113, 113, 0.40)" },
+  { key: "teal", label: "Teal", swatch: "#2dd4bf", wash: "rgba(45, 212, 191, 0.38)" },
 ] as const;
 
 export type AnnotationColorKey = (typeof ANNOTATION_COLORS)[number]["key"];

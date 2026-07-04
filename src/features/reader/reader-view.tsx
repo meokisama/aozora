@@ -11,6 +11,7 @@ import { ReaderToc } from "./reader-toc";
 import { ReaderBookmarks } from "./reader-bookmarks";
 import { ReaderAnnotations } from "./reader-annotations";
 import { AnnotationPopover } from "./annotation-popover";
+import { AnnotationTrigger } from "./annotation-trigger";
 import { ReaderSearch } from "./reader-search";
 import { ReaderGallery } from "./reader-gallery";
 import { collectIllustrations, type Illustration } from "@/lib/reader/illustrations";
@@ -57,6 +58,19 @@ interface AnnoPopoverState {
   id: string | null;
   color: string;
   note: string;
+  startChar: number;
+  endChar: number;
+  text: string;
+}
+
+/**
+ * A pending selection awaiting the highlight button: the small trigger anchors to
+ * `point` (the mouse-release position), and picking it opens the editor against
+ * `rect` (the selection box). No highlight exists until then.
+ */
+interface AnnoTriggerState {
+  point: { x: number; y: number };
+  rect: DOMRect;
   startChar: number;
   endChar: number;
   text: string;
@@ -136,7 +150,6 @@ export function ReaderView() {
   const sideMargin = useSettingsStore((s) => s.sideMargin);
   const discordRichPresence = useSettingsStore((s) => s.discordRichPresence);
   const discordCover = useSettingsStore((s) => s.discordCover);
-  const highlightsEnabled = useSettingsStore((s) => s.highlightsEnabled);
   const customFonts = useFontsStore((s) => s.customFonts);
   const fullscreen = useUiStore((s) => s.fullscreen);
 
@@ -181,6 +194,7 @@ export function ReaderView() {
   const [annotationsOpen, setAnnotationsOpen] = useState(false);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [annoPopover, setAnnoPopover] = useState<AnnoPopoverState | null>(null);
+  const [annoTrigger, setAnnoTrigger] = useState<AnnoTriggerState | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [illustrations, setIllustrations] = useState<Illustration[]>([]);
@@ -293,12 +307,6 @@ export function ReaderView() {
     if (!readyRef.current) return;
     const shadow = hostRef.current?.shadowRoot;
     if (!shadow) return;
-    // Feature off → clear any washes and don't repaint (existing highlights stay
-    // in the DB, ready to reappear when re-enabled).
-    if (!useSettingsStore.getState().highlightsEnabled) {
-      clearAnnotationHighlights();
-      return;
-    }
     if (modeRef.current === "paginated") {
       paintAnnotations(shadow.querySelector(".aoz-page-content"), annotationsRef.current, controllerRef.current?.sectionStart ?? 0);
     } else if (modeRef.current === "continuous") {
@@ -333,6 +341,7 @@ export function ReaderView() {
       markSession(state.char, "paginated");
       clearLookup(); // the matched run scrolled off the page
       setFootnote(null);
+      setAnnoTrigger(null); // the pending selection flipped away
       closeAnnoPopover(); // its anchored selection flipped away
       repaintAnnotations(); // the new section's highlights (previous section's cleared)
       clearTimeout(saveTimerRef.current);
@@ -547,27 +556,40 @@ export function ReaderView() {
     return { root: shadow.querySelector(".aozora-content"), base: 0 };
   }, []);
 
-  // On finishing a text selection, open the highlight editor anchored to it. No
-  // highlight is created until a colour is picked, so plain copy-selections are
-  // untouched. Fixed-layout (manga) has no selectable text and is skipped.
-  const handleMouseUp = useCallback(() => {
-    if (!highlightsEnabled || modeRef.current === "fixed") return;
-    const shadow = hostRef.current?.shadowRoot as (ShadowRoot & { getSelection?: () => Selection | null }) | undefined;
-    const sel = shadow?.getSelection?.() ?? window.getSelection();
-    if (!sel || sel.isCollapsed || sel.rangeCount === 0) return;
-    const range = sel.getRangeAt(0);
-    const { root, base } = currentContentRoot();
-    if (!root || !root.contains(range.commonAncestorContainer)) return;
-    const span = rangeToCharSpan(root, range, base);
-    if (!span) return;
-    const rect = range.getBoundingClientRect();
-    if (!rect.width && !rect.height) return;
-    clearLookup();
-    setFootnote(null);
-    // Fresh selection: no colour pre-selected (empty), so no swatch shows active
-    // until the user picks one — which is also what creates the highlight.
-    setAnnoPopover({ anchor: rect, id: null, color: "", note: "", startChar: span.startChar, endChar: span.endChar, text: span.text });
-  }, [highlightsEnabled, currentContentRoot, clearLookup]);
+  // On finishing a text selection, surface the small highlight trigger anchored at
+  // the mouse-release point (not the full editor — that would cover what you read).
+  // Picking the trigger opens the editor; ignoring it leaves the selection untouched.
+  // Fixed-layout (manga) has no selectable text and is skipped.
+  const handleMouseUp = useCallback(
+    (e: React.MouseEvent) => {
+      if (modeRef.current === "fixed") return;
+      const shadow = hostRef.current?.shadowRoot as (ShadowRoot & { getSelection?: () => Selection | null }) | undefined;
+      const sel = shadow?.getSelection?.() ?? window.getSelection();
+      if (!sel || sel.isCollapsed || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0);
+      const { root, base } = currentContentRoot();
+      if (!root || !root.contains(range.commonAncestorContainer)) return;
+      const span = rangeToCharSpan(root, range, base);
+      if (!span) return;
+      const rect = range.getBoundingClientRect();
+      if (!rect.width && !rect.height) return;
+      clearLookup();
+      setFootnote(null);
+      setAnnoPopover(null);
+      setAnnoTrigger({ point: { x: e.clientX, y: e.clientY }, rect, startChar: span.startChar, endChar: span.endChar, text: span.text });
+    },
+    [currentContentRoot, clearLookup],
+  );
+
+  // Trigger → editor: promote the pending selection into the colour/note editor,
+  // anchored to the selection box. No colour pre-selected (empty), so no swatch
+  // shows active until the user picks one — which is also what creates the highlight.
+  const openAnnoEditor = useCallback(() => {
+    const t = annoTrigger;
+    if (!t) return;
+    setAnnoTrigger(null);
+    setAnnoPopover({ anchor: t.rect, id: null, color: "", note: "", startChar: t.startChar, endChar: t.endChar, text: t.text });
+  }, [annoTrigger]);
 
   // Expose the reader area's pixel size as inherited CSS vars so illustrations
   // can be capped against it, and re-paginate the page-flip reader on resize.
@@ -696,11 +718,10 @@ export function ReaderView() {
   // Repaint whenever the highlight set changes (add / recolour / delete), the
   // content is rebuilt, or the feature is toggled. Continuous ranges persist
   // across scroll/reflow, so this need not run on scroll; paginated section swaps
-  // repaint via onPagedChange. Disabling also dismisses an open editor.
+  // repaint via onPagedChange.
   useEffect(() => {
-    if (!highlightsEnabled) setAnnoPopover(null);
     repaintAnnotations();
-  }, [annotations, parseToken, highlightsEnabled, repaintAnnotations]);
+  }, [annotations, parseToken, repaintAnnotations]);
 
   // --- Render: (re)build the shadow content for the current mode. ------------
   // Runs when parsed content becomes ready and whenever the reading mode toggles
@@ -880,6 +901,7 @@ export function ReaderView() {
     clearLookup(); // the matched run scrolled away
     clearSentencePlay(); // the hovered sentence's box moved
     setFootnote(null);
+    setAnnoTrigger(null); // the pending selection scrolled away
     if (annoPopoverRef.current) closeAnnoPopover(); // its anchored selection scrolled away
     if (rafRef.current) return;
     rafRef.current = requestAnimationFrame(() => {
@@ -965,7 +987,7 @@ export function ReaderView() {
 
     // Not a link: a click landing on an existing highlight opens its editor. Skip
     // while a selection is active (that's a fresh highlight — handleMouseUp owns it).
-    if (!highlightsEnabled || modeRef.current === "fixed") return;
+    if (modeRef.current === "fixed") return;
     const shadow = hostRef.current?.shadowRoot as (ShadowRoot & { getSelection?: () => Selection | null }) | undefined;
     const sel = shadow?.getSelection?.() ?? window.getSelection();
     if (sel && !sel.isCollapsed) return;
@@ -994,6 +1016,7 @@ export function ReaderView() {
   useEffect(() => {
     setFootnote(null);
     setAnnoPopover(null);
+    setAnnoTrigger(null);
   }, [parseToken, readingMode]);
 
   // F11 toggles native fullscreen for distraction-free reading. Leaving the
@@ -1064,11 +1087,9 @@ export function ReaderView() {
         >
           <Bookmark className="size-4" />
         </Button>
-        {highlightsEnabled && (
-          <Button variant="ghost" size="icon" onClick={() => setAnnotationsOpen(true)} disabled={!total || fixedLayout} aria-label="Highlights">
-            <Highlighter className="size-4" />
-          </Button>
-        )}
+        <Button variant="ghost" size="icon" onClick={() => setAnnotationsOpen(true)} disabled={!total || fixedLayout} aria-label="Highlights">
+          <Highlighter className="size-4" />
+        </Button>
         <Button
           variant="ghost"
           size="icon"
@@ -1152,6 +1173,7 @@ export function ReaderView() {
           </button>
         )}
         <FootnotePopup html={footnote?.html ?? null} anchor={footnote?.anchor ?? null} onClose={() => setFootnote(null)} />
+        <AnnotationTrigger point={annoTrigger?.point ?? null} onPick={openAnnoEditor} onClose={() => setAnnoTrigger(null)} />
         <AnnotationPopover
           anchor={annoPopover?.anchor ?? null}
           color={annoPopover?.color ?? DEFAULT_ANNOTATION_COLOR}

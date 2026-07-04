@@ -26,17 +26,11 @@ export function ReaderAnnotations({ open, onOpenChange, annotations, onJump, onR
         </SheetHeader>
         <nav className="flex-1 overflow-y-auto p-2">
           {annotations.length === 0 ? (
-            <p className="px-2 py-8 text-center text-xs text-muted-foreground">
-              No highlights yet. Select text in the reader to highlight it.
-            </p>
+            <p className="px-2 py-8 text-center text-xs text-muted-foreground">No highlights yet. Select text in the reader to highlight it.</p>
           ) : (
             annotations.map((a) => (
               <div key={a.id} className="group flex items-start gap-2 rounded-none px-2 py-1.5 transition-colors hover:bg-accent">
-                <span
-                  className="mt-1 size-2.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: colorSwatch(a.color) }}
-                  aria-hidden
-                />
+                <span className="mt-1 size-2.5 shrink-0 rounded-full" style={{ backgroundColor: colorSwatch(a.color) }} aria-hidden />
                 <button type="button" onClick={() => onJump(a.startChar)} className="min-w-0 flex-1 text-left" title={a.snippet || ""}>
                   <span className="block truncate text-xs">{a.snippet || "(highlight)"}</span>
                   {a.note && <span className="mt-0.5 block truncate text-[11px] italic text-muted-foreground">{a.note}</span>}
@@ -46,7 +40,7 @@ export function ReaderAnnotations({ open, onOpenChange, annotations, onJump, onR
                   type="button"
                   onClick={() => onRemove(a.id)}
                   aria-label="Delete highlight"
-                  className="shrink-0 rounded-none p-1 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                  className="shrink-0 cursor-pointer rounded-none p-1 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
                 >
                   <Trash2 className="size-3.5" />
                 </button>
