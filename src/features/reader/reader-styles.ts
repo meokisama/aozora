@@ -1,5 +1,6 @@
 import { THEMES, type FontFamily, type ThemeName } from "@/stores/settings-store";
 import { resolveFontStack, type CustomFont } from "@/stores/fonts-store";
+import { ANNOTATION_HL_CSS } from "@/lib/reader/annotations";
 
 /** Display rules shared by both reading modes (driven by inherited CSS vars). */
 const SHARED_DISPLAY = `
@@ -65,6 +66,7 @@ export function continuousStyles(vertical: boolean) {
     ${searchHitRule()}
     ${lookupHitRule()}
     ${karaokeHitRule()}
+    ${annotationHitRules()}
     .aozora-content a { color: inherit; }
     /* Force the reader's font over fonts the book hardcodes on its own elements
        (電書協-template novels set font-family on body/p/spans), so it must win
@@ -99,6 +101,7 @@ export function paginatedStyles(vertical: boolean) {
     ${searchHitRule()}
     ${lookupHitRule()}
     ${karaokeHitRule()}
+    ${annotationHitRules()}
     .aoz-page-content p { break-inside: avoid; }
     .aozora-content a { color: inherit; }
     .aozora-content,
@@ -336,6 +339,17 @@ export function lookupHitRule() {
  */
 export function karaokeHitRule() {
   return `::highlight(aoz-tts-karaoke) { background-color: rgba(34, 197, 94, 0.4); color: inherit; } ${clearRt("aoz-tts-karaoke")}`;
+}
+
+/**
+ * Paints user highlights, one `::highlight(aoz-hl-<key>)` per palette colour (see
+ * `lib/reader/annotations`, which registers a Highlight Range per colour). The
+ * washes are kept off furigana readings via {@link clearRt}, like the other hits.
+ */
+export function annotationHitRules() {
+  return ANNOTATION_HL_CSS.map(
+    ({ name, wash }) => `::highlight(${name}) { background-color: ${wash}; color: inherit; } ${clearRt(name)}`,
+  ).join("\n");
 }
 
 /** Writes the reader display settings onto the host as inherited CSS vars. */

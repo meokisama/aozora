@@ -32,6 +32,26 @@ export interface Bookmark {
   createdAt: number;
 }
 
+/**
+ * A highlighted (and optionally annotated) span of a book. Anchored by the same
+ * character-offset model as reading position/bookmarks — `startChar`/`endChar`
+ * survive re-flow and mode switches, so the wash is re-painted from them (via the
+ * CSS Custom Highlight API) rather than stored as fragile DOM ranges. `color` is
+ * one of the reader's palette keys (see `lib/reader/annotations`); `snippet` is
+ * the selected text kept for the management list; `note` is the user's comment.
+ */
+export interface Annotation {
+  id: string;
+  bookId: string;
+  startChar: number;
+  endChar: number;
+  color: string;
+  note: string | null;
+  snippet: string | null;
+  progress: number;
+  createdAt: number;
+}
+
 /** A file chosen via the native picker. */
 export interface PickedFile {
   path: string;
@@ -72,6 +92,23 @@ export interface AddBookmarkPayload {
   charOffset: number;
   progress: number;
   snippet?: string;
+}
+
+export interface AddAnnotationPayload {
+  bookId: string;
+  startChar: number;
+  endChar: number;
+  color: string;
+  note?: string;
+  snippet?: string;
+  progress: number;
+}
+
+/** Partial annotation update; only provided fields are persisted. */
+export interface UpdateAnnotationPayload {
+  id: string;
+  color?: string;
+  note?: string | null;
 }
 
 // --- Reading stats. ---------------------------------------------------------

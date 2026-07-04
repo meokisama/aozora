@@ -1,5 +1,5 @@
 import { ipcRenderer, webUtils } from "electron";
-import type { AddBookPayload, UpdateBookPayload, ProgressUpdate, AddBookmarkPayload } from "@/lib/types";
+import type { AddBookPayload, UpdateBookPayload, ProgressUpdate, AddBookmarkPayload, AddAnnotationPayload, UpdateAnnotationPayload } from "@/lib/types";
 
 /**
  * Library API exposed to the renderer as `window.electronAPI.library`.
@@ -49,4 +49,16 @@ export const libraryApi = {
 
   /** Removes a bookmark by id. */
   removeBookmark: (id: string) => ipcRenderer.invoke("library:remove-bookmark", id),
+
+  /** All highlights/annotations for a book, ordered by reading position. */
+  listAnnotations: (bookId: string) => ipcRenderer.invoke("library:list-annotations", bookId),
+
+  /** Adds a highlight (optionally with a note) over a character span. */
+  addAnnotation: (payload: AddAnnotationPayload) => ipcRenderer.invoke("library:add-annotation", payload),
+
+  /** Updates an annotation's colour and/or note. */
+  updateAnnotation: (payload: UpdateAnnotationPayload) => ipcRenderer.invoke("library:update-annotation", payload),
+
+  /** Removes an annotation by id. */
+  removeAnnotation: (id: string) => ipcRenderer.invoke("library:remove-annotation", id),
 };

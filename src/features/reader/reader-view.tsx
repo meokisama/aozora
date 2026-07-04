@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Bookmark, Images, List, Loader2, Maximize, Minimize, Search, Settings, Volume2 } from "lucide-react";
+import { ArrowLeft, Bookmark, Highlighter, Images, List, Loader2, Maximize, Minimize, Search, Settings, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useReaderStore } from "@/stores/reader-store";
 import { useLibraryStore } from "@/stores/library-store";
@@ -9,6 +9,8 @@ import { useUiStore } from "@/stores/ui-store";
 import { ReaderSettingsPanel } from "./settings-panel";
 import { ReaderToc } from "./reader-toc";
 import { ReaderBookmarks } from "./reader-bookmarks";
+import { ReaderAnnotations } from "./reader-annotations";
+import { AnnotationPopover } from "./annotation-popover";
 import { ReaderSearch } from "./reader-search";
 import { ReaderGallery } from "./reader-gallery";
 import { collectIllustrations, type Illustration } from "@/lib/reader/illustrations";
@@ -24,6 +26,16 @@ import { mergeSpreadSections } from "@/lib/reader/merge-spreads";
 import { FixedLayoutView, type FixedLayoutHandle } from "./fixed-layout-view";
 import { buildSearchIndex, searchIndex, type SearchResult, type SearchIndexEntry } from "@/lib/reader/search";
 import { clearSearchHighlight, highlightSearchResult } from "@/lib/reader/highlight";
+import {
+  paintAnnotations,
+  clearAnnotationHighlights,
+  rangeToCharSpan,
+  charOffsetAt,
+  annotationAtOffset,
+  DEFAULT_ANNOTATION_COLOR,
+} from "@/lib/reader/annotations";
+import { caretRangeFromPoint } from "@/lib/reader/lookup-text";
+import type { Annotation } from "@/lib/types";
 import { useDictionaryStore } from "@/stores/dictionary-store";
 import { useAnkiStore } from "@/stores/anki-store";
 import { useTtsStore } from "@/stores/tts-store";
@@ -35,6 +47,20 @@ import { useHoverDictionary } from "./use-hover-dictionary";
 import { useSentencePlay } from "./use-sentence-play";
 
 const api = () => window.electronAPI.library;
+
+/**
+ * The highlight editor's open state: anchored to a selection (id null, awaiting a
+ * colour pick to be created) or to an existing highlight (id set, editable).
+ */
+interface AnnoPopoverState {
+  anchor: DOMRect;
+  id: string | null;
+  color: string;
+  note: string;
+  startChar: number;
+  endChar: number;
+  text: string;
+}
 
 const FURIGANA_CLASSES = ["aoz-furigana-hide", "aoz-furigana-partial", "aoz-furigana-toggle", "aoz-furigana-full"];
 
@@ -110,6 +136,7 @@ export function ReaderView() {
   const sideMargin = useSettingsStore((s) => s.sideMargin);
   const discordRichPresence = useSettingsStore((s) => s.discordRichPresence);
   const discordCover = useSettingsStore((s) => s.discordCover);
+  const highlightsEnabled = useSettingsStore((s) => s.highlightsEnabled);
   const customFonts = useFontsStore((s) => s.customFonts);
   const fullscreen = useUiStore((s) => s.fullscreen);
 
@@ -131,6 +158,8 @@ export function ReaderView() {
   const readyRef = useRef(false);
   const searchIndexRef = useRef<SearchIndexEntry[] | null>(null); // lazily built on first search
   const footnotesRef = useRef<Map<string, string>>(new Map()); // id → note inner HTML
+  const annotationsRef = useRef<Annotation[]>([]); // mirror of the annotations state, for ref-only callers
+  const annoPopoverRef = useRef<AnnoPopoverState | null>(null); // mirror, so close/save can read without a dep
 
   const dictEnabled = useDictionaryStore((s) => s.enabled);
   const dictModifier = useDictionaryStore((s) => s.modifier);
@@ -149,6 +178,9 @@ export function ReaderView() {
   const [bookmarksOpen, setBookmarksOpen] = useState(false);
   const [bookmarks, setBookmarks] = useState<BookmarkRecord[]>([]);
   const [nameInput, setNameInput] = useState("");
+  const [annotationsOpen, setAnnotationsOpen] = useState(false);
+  const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const [annoPopover, setAnnoPopover] = useState<AnnoPopoverState | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [illustrations, setIllustrations] = useState<Illustration[]>([]);
@@ -163,7 +195,12 @@ export function ReaderView() {
   // Mirrors whether any reader overlay (panel/gallery) is open, so the global
   // page-flip key handler can stand down instead of flipping pages behind it.
   const panelOpenRef = useRef(false);
-  panelOpenRef.current = tocOpen || settingsOpen || bookmarksOpen || searchOpen || galleryOpen;
+  panelOpenRef.current = tocOpen || settingsOpen || bookmarksOpen || searchOpen || galleryOpen || annotationsOpen;
+
+  // Ref mirrors so the paginated onChange callback (bound once at construction)
+  // and the popover close/save handlers can read current values without deps.
+  annotationsRef.current = annotations;
+  annoPopoverRef.current = annoPopover;
 
   const total = totalRef.current;
   // Fixed-layout position is a page ordinal, so the last page (total-1) is 100%;
@@ -249,6 +286,44 @@ export function ReaderView() {
     }
   }, []);
 
+  /** Repaints the highlight washes for whatever region is currently rendered
+   *  (the whole book in continuous mode, the current section in paginated). Reads
+   *  refs only, so it's stable and safe to call from the controller's onChange. */
+  const repaintAnnotations = useCallback(() => {
+    if (!readyRef.current) return;
+    const shadow = hostRef.current?.shadowRoot;
+    if (!shadow) return;
+    // Feature off → clear any washes and don't repaint (existing highlights stay
+    // in the DB, ready to reappear when re-enabled).
+    if (!useSettingsStore.getState().highlightsEnabled) {
+      clearAnnotationHighlights();
+      return;
+    }
+    if (modeRef.current === "paginated") {
+      paintAnnotations(shadow.querySelector(".aoz-page-content"), annotationsRef.current, controllerRef.current?.sectionStart ?? 0);
+    } else if (modeRef.current === "continuous") {
+      paintAnnotations(shadow.querySelector(".aozora-content"), annotationsRef.current, 0);
+    }
+  }, []);
+
+  // Closes the highlight editor, persisting a changed note for an existing one.
+  // Stable (reads refs only) so scroll/flip handlers can dismiss it.
+  const closeAnnoPopover = useCallback(() => {
+    const p = annoPopoverRef.current;
+    if (!p) return;
+    if (p.id) {
+      const current = annotationsRef.current.find((a) => a.id === p.id);
+      const note = p.note.trim();
+      if (current && (current.note ?? "") !== note) {
+        setAnnotations((prev) => prev.map((a) => (a.id === p.id ? { ...a, note: note || null } : a)));
+        api()
+          .updateAnnotation({ id: p.id, note: note || null })
+          .catch(() => {});
+      }
+    }
+    setAnnoPopover(null);
+  }, []);
+
   // Receives position updates from the paginated controller.
   const onPagedChange = useCallback(
     (state: PaginatedState) => {
@@ -258,10 +333,12 @@ export function ReaderView() {
       markSession(state.char, "paginated");
       clearLookup(); // the matched run scrolled off the page
       setFootnote(null);
+      closeAnnoPopover(); // its anchored selection flipped away
+      repaintAnnotations(); // the new section's highlights (previous section's cleared)
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(persist, 800);
     },
-    [persist, markSession, clearLookup],
+    [persist, markSession, clearLookup, repaintAnnotations, closeAnnoPopover],
   );
 
   // Position updates from the fixed-layout viewer. Position is a 0-based page
@@ -350,6 +427,57 @@ export function ReaderView() {
     }
   }, []);
 
+  // --- Highlights (annotations). ---------------------------------------------
+
+  // Picks a colour in the editor: creates the highlight (from a fresh selection)
+  // or recolours the existing one. The highlight only lands in the DB on this
+  // first colour pick, so merely selecting text to copy never persists anything.
+  const handleAnnoColor = useCallback(
+    async (color: string) => {
+      const p = annoPopoverRef.current;
+      if (!p || !book) return;
+      if (p.id) {
+        setAnnotations((prev) => prev.map((a) => (a.id === p.id ? { ...a, color } : a)));
+        setAnnoPopover({ ...p, color });
+        api()
+          .updateAnnotation({ id: p.id, color })
+          .catch(() => {});
+        return;
+      }
+      const totalChars = totalRef.current || 0;
+      const progress = totalChars ? Math.min(1, Math.max(0, p.startChar / totalChars)) : 0;
+      try {
+        const rec = await api().addAnnotation({
+          bookId: book.id,
+          startChar: p.startChar,
+          endChar: p.endChar,
+          color,
+          snippet: p.text.slice(0, 160) || undefined,
+          progress,
+        });
+        if (rec) {
+          setAnnotations((prev) => [...prev, rec].sort((a, b) => a.startChar - b.startChar || a.createdAt - b.createdAt));
+          setAnnoPopover({ ...p, id: rec.id, color });
+          // Drop the text selection so it doesn't sit highlighted under the wash.
+          (hostRef.current?.shadowRoot as ShadowRoot & { getSelection?: () => Selection | null })?.getSelection?.()?.removeAllRanges?.();
+        }
+      } catch (err) {
+        console.error("Failed to add highlight", err);
+      }
+    },
+    [book],
+  );
+
+  const handleRemoveAnnotation = useCallback(async (id: string) => {
+    if (annoPopoverRef.current?.id === id) setAnnoPopover(null);
+    setAnnotations((prev) => prev.filter((a) => a.id !== id));
+    try {
+      await api().removeAnnotation(id);
+    } catch (err) {
+      console.error("Failed to remove highlight", err);
+    }
+  }, []);
+
   // Queries the in-book index, built lazily from the parsed HTML once and reused.
   const runSearch = useCallback((query: string) => {
     setSearchQuery(query);
@@ -409,6 +537,38 @@ export function ReaderView() {
     onDictMouseMove(e);
   };
 
+  /** The content root + section base char for the currently-rendered region. */
+  const currentContentRoot = useCallback((): { root: Element | null; base: number } => {
+    const shadow = hostRef.current?.shadowRoot;
+    if (!shadow) return { root: null, base: 0 };
+    if (modeRef.current === "paginated") {
+      return { root: shadow.querySelector(".aoz-page-content"), base: controllerRef.current?.sectionStart ?? 0 };
+    }
+    return { root: shadow.querySelector(".aozora-content"), base: 0 };
+  }, []);
+
+  // On finishing a text selection, open the highlight editor anchored to it. No
+  // highlight is created until a colour is picked, so plain copy-selections are
+  // untouched. Fixed-layout (manga) has no selectable text and is skipped.
+  const handleMouseUp = useCallback(() => {
+    if (!highlightsEnabled || modeRef.current === "fixed") return;
+    const shadow = hostRef.current?.shadowRoot as (ShadowRoot & { getSelection?: () => Selection | null }) | undefined;
+    const sel = shadow?.getSelection?.() ?? window.getSelection();
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    const { root, base } = currentContentRoot();
+    if (!root || !root.contains(range.commonAncestorContainer)) return;
+    const span = rangeToCharSpan(root, range, base);
+    if (!span) return;
+    const rect = range.getBoundingClientRect();
+    if (!rect.width && !rect.height) return;
+    clearLookup();
+    setFootnote(null);
+    // Fresh selection: no colour pre-selected (empty), so no swatch shows active
+    // until the user picks one — which is also what creates the highlight.
+    setAnnoPopover({ anchor: rect, id: null, color: "", note: "", startChar: span.startChar, endChar: span.endChar, text: span.text });
+  }, [highlightsEnabled, currentContentRoot, clearLookup]);
+
   // Expose the reader area's pixel size as inherited CSS vars so illustrations
   // can be capped against it, and re-paginate the page-flip reader on resize.
   useEffect(() => {
@@ -447,10 +607,13 @@ export function ReaderView() {
     setSections([]);
     searchIndexRef.current = null;
     clearSearchHighlight();
+    clearAnnotationHighlights();
     clearLookup();
     setSearchOpen(false);
     setSearchQuery("");
     setSearchResults({ results: [], total: 0, capped: false });
+    setAnnotations([]);
+    setAnnoPopover(null);
 
     (async () => {
       setStatus("loading");
@@ -511,6 +674,33 @@ export function ReaderView() {
       cancelled = true;
     };
   }, [book]);
+
+  // Load this book's highlights (repainted onto the content by the effect below).
+  useEffect(() => {
+    if (!book) {
+      setAnnotations([]);
+      return;
+    }
+    let cancelled = false;
+    api()
+      .listAnnotations(book.id)
+      .then((list) => {
+        if (!cancelled) setAnnotations(list || []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [book]);
+
+  // Repaint whenever the highlight set changes (add / recolour / delete), the
+  // content is rebuilt, or the feature is toggled. Continuous ranges persist
+  // across scroll/reflow, so this need not run on scroll; paginated section swaps
+  // repaint via onPagedChange. Disabling also dismisses an open editor.
+  useEffect(() => {
+    if (!highlightsEnabled) setAnnoPopover(null);
+    repaintAnnotations();
+  }, [annotations, parseToken, highlightsEnabled, repaintAnnotations]);
 
   // --- Render: (re)build the shadow content for the current mode. ------------
   // Runs when parsed content becomes ready and whenever the reading mode toggles
@@ -574,6 +764,7 @@ export function ReaderView() {
         if (cancelled) return;
         readyRef.current = true;
         setStatus("ready");
+        repaintAnnotations();
       })();
     } else {
       shadow.innerHTML = `<style data-aoz-base>${continuousStyles(vert)}</style><style>${parsed.styleSheet}</style><div class="aozora-content">${html}</div>`;
@@ -590,6 +781,7 @@ export function ReaderView() {
         setCurrentChar(charRef.current);
         readyRef.current = true;
         setStatus("ready");
+        repaintAnnotations();
       });
     }
 
@@ -600,6 +792,7 @@ export function ReaderView() {
       persist();
       readyRef.current = false;
       clearSearchHighlight();
+      clearAnnotationHighlights();
       clearLookup();
       controllerRef.current?.destroy();
       controllerRef.current = null;
@@ -687,6 +880,7 @@ export function ReaderView() {
     clearLookup(); // the matched run scrolled away
     clearSentencePlay(); // the hovered sentence's box moved
     setFootnote(null);
+    if (annoPopoverRef.current) closeAnnoPopover(); // its anchored selection scrolled away
     if (rafRef.current) return;
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = 0;
@@ -751,25 +945,56 @@ export function ReaderView() {
     const path = (e.nativeEvent.composedPath?.() || []) as Element[];
     const anchor = path.find((n) => n?.tagName === "A");
     const href = anchor?.getAttribute("href");
-    if (!href || href[0] !== "#") return;
-    const id = decodeURIComponent(href.slice(1));
-    // A noteref opens the note in a popup instead of jumping away from the prose.
-    const note = footnotesRef.current.get(id);
-    if (note && anchor) {
-      e.preventDefault();
-      clearLookup(); // don't stack a dictionary popup behind it
-      setFootnote({ html: note, anchor: anchor.getBoundingClientRect() });
+    if (href && href[0] === "#") {
+      const id = decodeURIComponent(href.slice(1));
+      // A noteref opens the note in a popup instead of jumping away from the prose.
+      const note = footnotesRef.current.get(id);
+      if (note && anchor) {
+        e.preventDefault();
+        clearLookup(); // don't stack a dictionary popup behind it
+        setFootnote({ html: note, anchor: anchor.getBoundingClientRect() });
+        return;
+      }
+      if (modeRef.current === "paginated") {
+        if (id && controllerRef.current?.jumpToSectionId(id)) e.preventDefault();
+      } else if (id && jumpToReference(id)) {
+        e.preventDefault();
+      }
       return;
     }
-    if (modeRef.current === "paginated") {
-      if (id && controllerRef.current?.jumpToSectionId(id)) e.preventDefault();
-    } else if (id && jumpToReference(id)) {
-      e.preventDefault();
-    }
+
+    // Not a link: a click landing on an existing highlight opens its editor. Skip
+    // while a selection is active (that's a fresh highlight — handleMouseUp owns it).
+    if (!highlightsEnabled || modeRef.current === "fixed") return;
+    const shadow = hostRef.current?.shadowRoot as (ShadowRoot & { getSelection?: () => Selection | null }) | undefined;
+    const sel = shadow?.getSelection?.() ?? window.getSelection();
+    if (sel && !sel.isCollapsed) return;
+    const { root, base } = currentContentRoot();
+    if (!root) return;
+    const caret = caretRangeFromPoint(e.clientX, e.clientY, root);
+    if (!caret) return;
+    const offset = charOffsetAt(root, caret.startContainer, caret.startOffset, base);
+    const hit = annotationAtOffset(annotationsRef.current, offset);
+    if (!hit) return;
+    clearLookup();
+    setFootnote(null);
+    setAnnoPopover({
+      anchor: new DOMRect(e.clientX, e.clientY, 0, 0),
+      id: hit.id,
+      color: hit.color,
+      note: hit.note ?? "",
+      startChar: hit.startChar,
+      endChar: hit.endChar,
+      text: hit.snippet ?? "",
+    });
   };
 
-  // A content rebuild or mode switch invalidates the open note's anchor box.
-  useEffect(() => setFootnote(null), [parseToken, readingMode]);
+  // A content rebuild or mode switch invalidates the open note / highlight-editor
+  // anchor box.
+  useEffect(() => {
+    setFootnote(null);
+    setAnnoPopover(null);
+  }, [parseToken, readingMode]);
 
   // F11 toggles native fullscreen for distraction-free reading. Leaving the
   // reader drops fullscreen so the user can't get stuck with the title bar
@@ -839,6 +1064,11 @@ export function ReaderView() {
         >
           <Bookmark className="size-4" />
         </Button>
+        {highlightsEnabled && (
+          <Button variant="ghost" size="icon" onClick={() => setAnnotationsOpen(true)} disabled={!total || fixedLayout} aria-label="Highlights">
+            <Highlighter className="size-4" />
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon"
@@ -881,6 +1111,7 @@ export function ReaderView() {
             onWheel={handleWheel}
             onScroll={handleScroll}
             onClick={handleContentClick}
+            onMouseUp={handleMouseUp}
             onMouseMove={handleMouseMove}
             onMouseLeave={onDictMouseLeave}
             className={
@@ -921,6 +1152,16 @@ export function ReaderView() {
           </button>
         )}
         <FootnotePopup html={footnote?.html ?? null} anchor={footnote?.anchor ?? null} onClose={() => setFootnote(null)} />
+        <AnnotationPopover
+          anchor={annoPopover?.anchor ?? null}
+          color={annoPopover?.color ?? DEFAULT_ANNOTATION_COLOR}
+          note={annoPopover?.note ?? ""}
+          isNew={!annoPopover?.id}
+          onColor={handleAnnoColor}
+          onNote={(note) => setAnnoPopover((p) => (p ? { ...p, note } : p))}
+          onDelete={annoPopover?.id ? () => handleRemoveAnnotation(annoPopover.id!) : undefined}
+          onClose={closeAnnoPopover}
+        />
       </div>
 
       <ReaderToc open={tocOpen} onOpenChange={setTocOpen} chapters={chapters} activeChapterId={activeChapterId} onJump={handleJump} />
@@ -934,6 +1175,14 @@ export function ReaderView() {
         onAdd={handleAddBookmark}
         onJump={jumpToChar}
         onRemove={handleRemoveBookmark}
+      />
+
+      <ReaderAnnotations
+        open={annotationsOpen}
+        onOpenChange={setAnnotationsOpen}
+        annotations={annotations}
+        onJump={jumpToChar}
+        onRemove={handleRemoveAnnotation}
       />
 
       <ReaderSearch

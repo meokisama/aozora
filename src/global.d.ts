@@ -1,6 +1,8 @@
 import type {
+  AddAnnotationPayload,
   AddBookmarkPayload,
   AddBookPayload,
+  Annotation,
   AnkiAddResult,
   AnkiEndpoint,
   AnkiNote,
@@ -15,6 +17,7 @@ import type {
   ProgressUpdate,
   ReadingSession,
   Stats,
+  UpdateAnnotationPayload,
   UpdateBookPayload,
   VoicevoxSpeaker,
   VoicevoxSpeakerDetail,
@@ -56,6 +59,10 @@ export interface LibraryApi {
   listBookmarks(bookId: string): Promise<Bookmark[]>;
   addBookmark(payload: AddBookmarkPayload): Promise<Bookmark | null>;
   removeBookmark(id: string): Promise<boolean>;
+  listAnnotations(bookId: string): Promise<Annotation[]>;
+  addAnnotation(payload: AddAnnotationPayload): Promise<Annotation | null>;
+  updateAnnotation(payload: UpdateAnnotationPayload): Promise<Annotation | null>;
+  removeAnnotation(id: string): Promise<boolean>;
 }
 
 export interface StatsApi {

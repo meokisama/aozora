@@ -3,7 +3,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { randomUUID } from "node:crypto";
 import { libraryStore } from "./services/library-store.js";
-import type { Book, AddBookPayload, UpdateBookPayload, ProgressUpdate, AddBookmarkPayload } from "@/lib/types";
+import type { Book, AddBookPayload, UpdateBookPayload, ProgressUpdate, AddBookmarkPayload, AddAnnotationPayload, UpdateAnnotationPayload } from "@/lib/types";
 
 const COVER_MAX_WIDTH = 300;
 const COVER_JPEG_QUALITY = 90;
@@ -194,6 +194,34 @@ export const registerLibraryIpc = (): void => {
 
   ipcMain.handle("library:remove-bookmark", (_event, id: string) => {
     libraryStore.removeBookmark(id);
+    return true;
+  });
+
+  // --- Annotations (highlights + notes) ---
+  ipcMain.handle("library:list-annotations", (_event, bookId: string) => libraryStore.listAnnotations(bookId));
+
+  ipcMain.handle("library:add-annotation", (_event, payload: AddAnnotationPayload) => {
+    const { bookId, startChar, endChar, color, note, snippet, progress } = payload;
+    return libraryStore.addAnnotation({
+      id: randomUUID(),
+      bookId,
+      startChar,
+      endChar,
+      color,
+      note,
+      snippet,
+      progress,
+      createdAt: Date.now(),
+    });
+  });
+
+  ipcMain.handle("library:update-annotation", (_event, payload: UpdateAnnotationPayload) => {
+    const { id, color, note } = payload;
+    return libraryStore.updateAnnotation(id, { color, note });
+  });
+
+  ipcMain.handle("library:remove-annotation", (_event, id: string) => {
+    libraryStore.removeAnnotation(id);
     return true;
   });
 };

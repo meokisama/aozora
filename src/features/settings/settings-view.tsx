@@ -148,7 +148,7 @@ export function SettingsView() {
                   <AlertDialogHeader>
                     <AlertDialogTitle>Clear all data?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This deletes every imported book, dictionary, bookmark, and reading statistic, and resets all settings. This cannot be undone.
+                      This deletes every imported book, dictionary, bookmark, highlight, and reading statistic, and resets all settings. This cannot be undone.
                       The app will restart afterward.
                     </AlertDialogDescription>
                   </AlertDialogHeader>

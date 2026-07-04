@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -204,6 +205,8 @@ function ReflowableFields({
   const customFonts = useFontsStore((s) => s.customFonts);
   const importFont = useFontsStore((s) => s.importFromFile);
   const removeFont = useFontsStore((s) => s.remove);
+  const highlightsEnabled = useSettingsStore((s) => s.highlightsEnabled);
+  const setHighlightsEnabled = useSettingsStore((s) => s.setHighlightsEnabled);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const onPickFont = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -349,6 +352,14 @@ function ReflowableFields({
           onValueChange={([v]) => setLineHeight(Math.round(v * 10) / 10)}
         />
       </Field>
+
+      <div className="flex items-start justify-between gap-4 border-t pt-4">
+        <div className="space-y-0.5">
+          <span className="text-xs font-medium">Highlighting</span>
+          <p className="text-[11px] text-muted-foreground">Select text to highlight it. Off by default so the popup never covers what you read.</p>
+        </div>
+        <Switch checked={highlightsEnabled} onCheckedChange={setHighlightsEnabled} aria-label="Enable highlighting" className="mt-0.5 shrink-0" />
+      </div>
     </>
   );
 }

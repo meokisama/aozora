@@ -2,7 +2,7 @@ import { app } from "electron";
 import path from "node:path";
 import fs from "node:fs";
 import Database from "better-sqlite3";
-import type { Book, Bookmark, ProgressUpdate, StatsOverview, DailyActivity, HourlyActivity, PerBookStats } from "@/lib/types";
+import type { Book, Bookmark, Annotation, ProgressUpdate, StatsOverview, DailyActivity, HourlyActivity, PerBookStats } from "@/lib/types";
 
 /**
  * SQLite-backed library store: source of truth for book metadata and reading
@@ -57,6 +57,21 @@ function getDb(): Database.Database {
     );
     CREATE INDEX IF NOT EXISTS idx_bookmarks_book ON bookmarks(book_id);
 
+    -- Highlighted / annotated spans, anchored by character offset (like
+    -- bookmarks) so they survive re-flow. Cascade-deleted with their book.
+    CREATE TABLE IF NOT EXISTS annotations (
+      id          TEXT PRIMARY KEY,
+      book_id     TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+      start_char  INTEGER NOT NULL,
+      end_char    INTEGER NOT NULL,
+      color       TEXT    NOT NULL DEFAULT 'yellow',
+      note        TEXT,
+      snippet     TEXT,
+      progress    REAL    NOT NULL DEFAULT 0,
+      created_at  INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_annotations_book ON annotations(book_id);
+
     -- One row per reading session; the time-series behind the stats page (books
     -- keeps only the latest position). book_id is SET NULL (not cascade) on book
     -- removal so totals/streaks survive a deleted book.
@@ -100,6 +115,18 @@ interface BookmarkRow {
   created_at: number;
 }
 
+interface AnnotationRow {
+  id: string;
+  book_id: string;
+  start_char: number;
+  end_char: number;
+  color: string;
+  note: string | null;
+  snippet: string | null;
+  progress: number;
+  created_at: number;
+}
+
 /** Named-parameter bag for prepared statements. */
 type SqlParams = Record<string, string | number | null>;
 
@@ -136,6 +163,22 @@ function rowToBookmark(row: BookmarkRow | undefined): Bookmark | null {
   };
 }
 
+/** Maps an annotation DB row to the camelCase shape the renderer consumes. */
+function rowToAnnotation(row: AnnotationRow | undefined): Annotation | null {
+  if (!row) return null;
+  return {
+    id: row.id,
+    bookId: row.book_id,
+    startChar: row.start_char,
+    endChar: row.end_char,
+    color: row.color,
+    note: row.note ?? null,
+    snippet: row.snippet ?? null,
+    progress: row.progress,
+    createdAt: row.created_at,
+  };
+}
+
 interface InsertBookInput {
   id: string;
   title: string;
@@ -153,6 +196,18 @@ interface AddBookmarkInput {
   charOffset?: number;
   progress?: number;
   snippet?: string | null;
+  createdAt: number;
+}
+
+interface AddAnnotationInput {
+  id: string;
+  bookId: string;
+  startChar: number;
+  endChar: number;
+  color: string;
+  note?: string | null;
+  snippet?: string | null;
+  progress?: number;
   createdAt: number;
 }
 
@@ -299,6 +354,62 @@ export const libraryStore = {
 
   removeBookmark(id: string): void {
     getDb().prepare("DELETE FROM bookmarks WHERE id = ?").run(id);
+  },
+
+  // --- Annotations (highlights + notes, per book, in reading order). --------
+
+  listAnnotations(bookId: string): Annotation[] {
+    const rows = getDb()
+      .prepare("SELECT * FROM annotations WHERE book_id = ? ORDER BY start_char ASC, created_at ASC")
+      .all(bookId) as AnnotationRow[];
+    return rows.map(rowToAnnotation) as Annotation[];
+  },
+
+  getAnnotation(id: string): Annotation | null {
+    return rowToAnnotation(getDb().prepare("SELECT * FROM annotations WHERE id = ?").get(id) as AnnotationRow | undefined);
+  },
+
+  addAnnotation({ id, bookId, startChar, endChar, color, note, snippet, progress, createdAt }: AddAnnotationInput): Annotation | null {
+    getDb()
+      .prepare(
+        `INSERT INTO annotations (id, book_id, start_char, end_char, color, note, snippet, progress, created_at)
+         VALUES (@id, @bookId, @startChar, @endChar, @color, @note, @snippet, @progress, @createdAt)`,
+      )
+      .run({
+        id,
+        bookId,
+        startChar,
+        endChar,
+        color,
+        note: note ?? null,
+        snippet: snippet ?? null,
+        progress: progress ?? 0,
+        createdAt,
+      });
+    return this.getAnnotation(id);
+  },
+
+  /** Updates an annotation's colour and/or note; only provided fields are written. */
+  updateAnnotation(id: string, { color, note }: { color?: string; note?: string | null }): Annotation | null {
+    const sets: string[] = [];
+    const params: SqlParams = { id };
+    if (color !== undefined) {
+      sets.push("color = @color");
+      params.color = color;
+    }
+    if (note !== undefined) {
+      sets.push("note = @note");
+      params.note = note;
+    }
+    if (!sets.length) return this.getAnnotation(id);
+    getDb()
+      .prepare(`UPDATE annotations SET ${sets.join(", ")} WHERE id = @id`)
+      .run(params);
+    return this.getAnnotation(id);
+  },
+
+  removeAnnotation(id: string): void {
+    getDb().prepare("DELETE FROM annotations WHERE id = ?").run(id);
   },
 
   // --- Reading sessions (time-series for the stats page). -------------------
