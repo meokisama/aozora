@@ -17,6 +17,9 @@ const DEFAULTS: AnkiConfig = {
   deck: "",
   model: "",
   fields: {},
+  kanjiDeck: "",
+  kanjiModel: "",
+  kanjiFields: {},
   tags: ["aozora"],
   duplicateBehavior: "prevent",
   screenshot: true,
@@ -32,6 +35,11 @@ interface AnkiState extends AnkiConfig {
   setModel: (model: string) => void;
   setFields: (fields: Record<string, string>) => void;
   setField: (name: string, template: string) => void;
+  setKanjiDeck: (deck: string) => void;
+  /** Switching kanji model clears the kanji field map. */
+  setKanjiModel: (model: string) => void;
+  setKanjiFields: (fields: Record<string, string>) => void;
+  setKanjiField: (name: string, template: string) => void;
   setTags: (tags: string[]) => void;
   setDuplicateBehavior: (duplicateBehavior: AnkiDuplicateBehavior) => void;
   setScreenshot: (screenshot: boolean) => void;
@@ -39,8 +47,10 @@ interface AnkiState extends AnkiConfig {
   reset: () => void;
   /** The connection fields, for a main-process call. */
   endpoint: () => AnkiEndpoint;
-  /** True once enabled and pointed at a deck + model — enough to mine. */
+  /** True once enabled and pointed at a deck + model — enough to mine terms. */
   isConfigured: () => boolean;
+  /** True once enabled and pointed at a kanji deck + model — enough to mine kanji. */
+  isKanjiConfigured: () => boolean;
 }
 
 export const useAnkiStore = create<AnkiState>()(
@@ -54,6 +64,10 @@ export const useAnkiStore = create<AnkiState>()(
       setModel: (model) => set({ model, fields: {} }),
       setFields: (fields) => set({ fields }),
       setField: (name, template) => set((s) => ({ fields: { ...s.fields, [name]: template } })),
+      setKanjiDeck: (kanjiDeck) => set({ kanjiDeck }),
+      setKanjiModel: (kanjiModel) => set({ kanjiModel, kanjiFields: {} }),
+      setKanjiFields: (kanjiFields) => set({ kanjiFields }),
+      setKanjiField: (name, template) => set((s) => ({ kanjiFields: { ...s.kanjiFields, [name]: template } })),
       setTags: (tags) => set({ tags }),
       setDuplicateBehavior: (duplicateBehavior) => set({ duplicateBehavior }),
       setScreenshot: (screenshot) => set({ screenshot }),
@@ -66,6 +80,10 @@ export const useAnkiStore = create<AnkiState>()(
       isConfigured: () => {
         const { enabled, deck, model, fields } = get();
         return enabled && !!deck && !!model && Object.keys(fields).length > 0;
+      },
+      isKanjiConfigured: () => {
+        const { enabled, kanjiDeck, kanjiModel, kanjiFields } = get();
+        return enabled && !!kanjiDeck && !!kanjiModel && Object.keys(kanjiFields).length > 0;
       },
     }),
     {

@@ -77,6 +77,55 @@ export function sentenceAround(range: Range, contentRoot: Element): string {
   return sentenceFromBlockText(text, offset);
 }
 
+/** The sentence around a match, split around the matched run for Anki cloze fields. */
+export interface SentenceCloze {
+  /** The whole sentence (terminator included, trimmed). */
+  sentence: string;
+  /** Sentence text before the matched run. */
+  prefix: string;
+  /** The matched run itself (the surface form under the cursor). */
+  body: string;
+  /** Sentence text after the matched run. */
+  suffix: string;
+}
+
+/**
+ * Like `sentenceAround`, but also splits the sentence around the matched run so
+ * callers can build Anki cloze fields ({cloze-prefix}{cloze-body}{cloze-suffix}).
+ * `body` is the live match text; `prefix`/`suffix` are the surrounding sentence.
+ */
+export function sentenceClozeAround(range: Range, contentRoot: Element): SentenceCloze {
+  const body = range.toString();
+  const startNode = range.startContainer;
+  const block = blockAncestor(startNode, contentRoot);
+  const nodes = getParagraphNodes(block);
+
+  let text = "";
+  let offset = -1;
+  for (const node of nodes) {
+    if (node.nodeType !== Node.TEXT_NODE) {
+      text += " "; // gaiji image — a single placeholder so offsets stay sane
+      continue;
+    }
+    if (node === startNode) offset = text.length + range.startOffset;
+    text += (node as Text).data;
+  }
+
+  // Match node not in this block: fall back to the whole block as the sentence.
+  if (offset < 0) {
+    const sentence = text.trim();
+    return { sentence, prefix: "", body, suffix: sentence.startsWith(body) ? sentence.slice(body.length) : "" };
+  }
+
+  const [start, end] = sentenceBounds(text, offset);
+  const bodyEnd = Math.min(offset + body.length, end);
+  // Leading/trailing whitespace of the sentence belongs to no cloze part, so it
+  // is trimmed off the ends (matching sentenceFromBlockText's trim()).
+  const prefix = text.slice(start, offset).replace(/^\s+/, "");
+  const suffix = text.slice(bodyEnd, end).replace(/\s+$/, "");
+  return { sentence: prefix + body + suffix, prefix, body, suffix };
+}
+
 /** A <ruby>'s furigana reading: its <rt> contents joined (<rp> parens dropped). */
 function rubyReading(ruby: Element): string {
   let reading = "";

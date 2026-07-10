@@ -79,7 +79,7 @@ function getProlongedHiragana(previousCharacter: string): string | null {
 }
 
 /** Folds katakana onto hiragana so the reading and term-kana compare equal. */
-function convertKatakanaToHiragana(text: string, keepProlongedSoundMarks = false): string {
+export function convertKatakanaToHiragana(text: string, keepProlongedSoundMarks = false): string {
   let result = "";
   const offset = HIRAGANA_CONVERSION_RANGE[0] - KATAKANA_CONVERSION_RANGE[0];
   for (let char of text) {

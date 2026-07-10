@@ -392,6 +392,12 @@ export interface AnkiConfig extends AnkiEndpoint {
   model: string;
   /** Anki field name → template string containing {markers}. */
   fields: Record<string, string>;
+  /** Target deck for kanji cards (blank disables kanji mining). */
+  kanjiDeck: string;
+  /** Note type for kanji cards. */
+  kanjiModel: string;
+  /** Kanji note field name → template string containing {markers}. */
+  kanjiFields: Record<string, string>;
   tags: string[];
   duplicateBehavior: AnkiDuplicateBehavior;
   screenshot: boolean;

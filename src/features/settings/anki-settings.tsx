@@ -8,10 +8,10 @@ import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useAnkiStore } from "@/stores/anki-store";
-import { FIELD_MARKERS } from "@/lib/dictionary/anki-note";
+import { FIELD_MARKERS, KANJI_FIELD_MARKERS } from "@/lib/dictionary/anki-note";
 import type { AnkiDuplicateBehavior } from "@/lib/types";
 
-// Human labels for the field markers offered per Anki field.
+// Human labels for the term field markers offered per Anki field.
 const MARKER_LABELS: Record<string, string> = {
   expression: "Word",
   reading: "Reading",
@@ -20,14 +20,40 @@ const MARKER_LABELS: Record<string, string> = {
   glossary: "Definition (HTML)",
   "glossary-plain": "Definition (text)",
   sentence: "Sentence",
-  "pitch-accents": "Pitch accent",
+  "cloze-prefix": "Cloze prefix",
+  "cloze-body": "Cloze body",
+  "cloze-suffix": "Cloze suffix",
+  "pitch-accents": "Pitch accent (number)",
+  "pitch-accent-graphs": "Pitch accent (graph)",
   frequencies: "Frequency",
+  tags: "Tags",
+  "part-of-speech": "Part of speech",
+  dictionary: "Dictionary",
   "document-title": "Book title",
   "document-author": "Book author",
   screenshot: "Screenshot",
 };
 
-/** Guesses a sensible marker for an Anki field from its name (à la Yomitan). */
+// Human labels for the kanji field markers.
+const KANJI_MARKER_LABELS: Record<string, string> = {
+  character: "Character",
+  onyomi: "On'yomi",
+  kunyomi: "Kun'yomi",
+  glossary: "Meanings",
+  "stroke-count": "Stroke count",
+  frequencies: "Frequency",
+  tags: "Tags",
+  dictionary: "Dictionary",
+  sentence: "Sentence",
+  "cloze-prefix": "Cloze prefix",
+  "cloze-body": "Cloze body",
+  "cloze-suffix": "Cloze suffix",
+  "document-title": "Book title",
+  "document-author": "Book author",
+  screenshot: "Screenshot",
+};
+
+/** Guesses a sensible term marker for an Anki field from its name (à la Yomitan). */
 function guessMarker(fieldName: string, isFirst: boolean): string {
   const n = fieldName.toLowerCase();
   if (/sentence|example|context/.test(n)) return "sentence";
@@ -41,6 +67,20 @@ function guessMarker(fieldName: string, isFirst: boolean): string {
   return isFirst ? "expression" : "";
 }
 
+/** Guesses a sensible kanji marker for an Anki field from its name. */
+function guessKanjiMarker(fieldName: string, isFirst: boolean): string {
+  const n = fieldName.toLowerCase();
+  if (/sentence|example|context/.test(n)) return "sentence";
+  if (/on.?yomi|on.?reading/.test(n)) return "onyomi";
+  if (/kun.?yomi|kun.?reading/.test(n)) return "kunyomi";
+  if (/stroke/.test(n)) return "stroke-count";
+  if (/freq/.test(n)) return "frequencies";
+  if (/image|picture|screenshot/.test(n)) return "screenshot";
+  if (/meaning|definition|gloss|keyword|back|english/.test(n)) return "glossary";
+  if (/character|kanji|front|target|word/.test(n)) return "character";
+  return isFirst ? "character" : "";
+}
+
 /** A titled group matching the settings page's section styling. */
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -52,9 +92,118 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
 }
 
 /**
+ * Field → markers editor: a field's mapping is edited as an ordered list of
+ * marker chips. The stored template is the markers joined by <br>, so multiple
+ * markers stack on the card. Shared by the term and kanji note-type sections.
+ */
+function FieldMappingEditor({
+  fieldNames,
+  fields,
+  markers,
+  labels,
+  setField,
+}: {
+  fieldNames: string[];
+  fields: Record<string, string>;
+  markers: string[];
+  labels: Record<string, string>;
+  setField: (name: string, template: string) => void;
+}) {
+  const [activeField, setActiveField] = useState<string | null>(null);
+
+  const markersOf = (template: string | undefined): string[] =>
+    template ? [...template.matchAll(/\{([\w-]+)\}/g)].map((m) => m[1]).filter((m) => markers.includes(m)) : [];
+
+  const writeMarkers = (name: string, ms: string[]) => setField(name, ms.map((m) => `{${m}}`).join("<br>"));
+
+  const addMarker = (marker: string) => {
+    const name = activeField && fieldNames.includes(activeField) ? activeField : fieldNames[0];
+    if (!name) return;
+    writeMarkers(name, [...markersOf(fields[name]), marker]);
+    setActiveField(name);
+  };
+
+  const removeMarkerAt = (name: string, index: number) => {
+    const next = markersOf(fields[name]);
+    next.splice(index, 1);
+    writeMarkers(name, next);
+  };
+
+  if (!fieldNames.length) return null;
+
+  return (
+    <>
+      <div className="divide-y border">
+        {fieldNames.map((name) => {
+          const chips = markersOf(fields[name]);
+          const active = activeField === name;
+          return (
+            <div
+              key={name}
+              onClick={() => setActiveField(name)}
+              className={cn("flex cursor-pointer items-start gap-2 px-3 py-2", active && "bg-accent/40")}
+            >
+              <span className="w-24 shrink-0 truncate pt-1 text-xs font-medium" title={name}>
+                {name}
+              </span>
+              <div className="flex min-h-7 flex-1 flex-wrap items-center gap-1 rounded-sm px-1 py-0.5">
+                {chips.length === 0 && <span className="text-[11px] text-muted-foreground">empty</span>}
+                {chips.map((m, i) => (
+                  <span key={i} className="inline-flex items-center gap-1 rounded-sm border bg-background px-1.5 py-0.5 text-[10px]">
+                    {labels[m] ?? m}
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label={`Remove ${labels[m] ?? m}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeMarkerAt(name, i);
+                      }}
+                      className="size-4 text-muted-foreground hover:bg-transparent hover:text-foreground"
+                    >
+                      <X className="size-3" />
+                    </Button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="text-[11px] text-muted-foreground">
+        {activeField ? (
+          <>
+            Click a marker to add it to <span className="font-medium text-foreground">{activeField}</span>.
+          </>
+        ) : (
+          "Select a field above, then click markers to add them."
+        )}
+      </p>
+      <div className="flex flex-wrap gap-1">
+        {markers.map((marker) => (
+          <Button
+            key={marker}
+            variant="outline"
+            size="xs"
+            onClick={() => addMarker(marker)}
+            title={`{${marker}}`}
+            className="text-[10px] text-muted-foreground"
+          >
+            {labels[marker] ?? marker}
+          </Button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/**
  * Anki mining configuration: connection, target deck/note-type, and the mapping
- * from Anki fields to Aozora's card markers. The main process is a stateless
- * AnkiConnect client, so we fetch deck/model/field lists on demand.
+ * from Anki fields to Aozora's card markers. Terms and kanji have their own
+ * deck/note-type/field mapping (Yomitan keeps the two note types separate). The
+ * main process is a stateless AnkiConnect client, so we fetch deck/model/field
+ * lists on demand.
  */
 export function AnkiSettings() {
   const enabled = useAnkiStore((s) => s.enabled);
@@ -63,6 +212,9 @@ export function AnkiSettings() {
   const deck = useAnkiStore((s) => s.deck);
   const model = useAnkiStore((s) => s.model);
   const fields = useAnkiStore((s) => s.fields);
+  const kanjiDeck = useAnkiStore((s) => s.kanjiDeck);
+  const kanjiModel = useAnkiStore((s) => s.kanjiModel);
+  const kanjiFields = useAnkiStore((s) => s.kanjiFields);
   const tags = useAnkiStore((s) => s.tags);
   const duplicateBehavior = useAnkiStore((s) => s.duplicateBehavior);
   const screenshot = useAnkiStore((s) => s.screenshot);
@@ -75,6 +227,10 @@ export function AnkiSettings() {
   const setModel = useAnkiStore((s) => s.setModel);
   const setFields = useAnkiStore((s) => s.setFields);
   const setField = useAnkiStore((s) => s.setField);
+  const setKanjiDeck = useAnkiStore((s) => s.setKanjiDeck);
+  const setKanjiModel = useAnkiStore((s) => s.setKanjiModel);
+  const setKanjiFields = useAnkiStore((s) => s.setKanjiFields);
+  const setKanjiField = useAnkiStore((s) => s.setKanjiField);
   const setTags = useAnkiStore((s) => s.setTags);
   const setDuplicateBehavior = useAnkiStore((s) => s.setDuplicateBehavior);
   const setScreenshot = useAnkiStore((s) => s.setScreenshot);
@@ -83,6 +239,7 @@ export function AnkiSettings() {
   const [decks, setDecks] = useState<string[]>([]);
   const [models, setModels] = useState<string[]>([]);
   const [modelFields, setModelFields] = useState<string[]>([]);
+  const [kanjiModelFields, setKanjiModelFields] = useState<string[]>([]);
   const [testing, setTesting] = useState(false);
   const [connected, setConnected] = useState(false);
 
@@ -122,7 +279,7 @@ export function AnkiSettings() {
     })();
   }, [enabled, loadLists]);
 
-  // Fetch the chosen model's fields; auto-map them the first time (empty map).
+  // Fetch the chosen term model's fields; auto-map them the first time (empty map).
   useEffect(() => {
     if (!enabled || !model) {
       setModelFields([]);
@@ -151,35 +308,44 @@ export function AnkiSettings() {
     };
   }, [enabled, model, server, apiKey, setFields]);
 
+  // Fetch the chosen kanji model's fields; auto-map them the first time.
+  useEffect(() => {
+    if (!enabled || !kanjiModel) {
+      setKanjiModelFields([]);
+      return;
+    }
+    let alive = true;
+    void window.electronAPI.anki
+      .fields({ server, apiKey }, kanjiModel)
+      .then((names) => {
+        if (!alive) return;
+        setKanjiModelFields(names);
+        if (Object.keys(useAnkiStore.getState().kanjiFields).length === 0 && names.length) {
+          const auto: Record<string, string> = {};
+          names.forEach((name, i) => {
+            const marker = guessKanjiMarker(name, i === 0);
+            auto[name] = marker ? `{${marker}}` : "";
+          });
+          setKanjiFields(auto);
+        }
+      })
+      .catch(() => {
+        if (alive) setKanjiModelFields([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [enabled, kanjiModel, server, apiKey, setKanjiFields]);
+
   // Show the stored value even if the live list hasn't loaded (or is empty).
   const deckOptions = deck && !decks.includes(deck) ? [deck, ...decks] : decks;
   const modelOptions = model && !models.includes(model) ? [model, ...models] : models;
+  const kanjiDeckOptions = kanjiDeck && !decks.includes(kanjiDeck) ? [kanjiDeck, ...decks] : decks;
+  const kanjiModelOptions = kanjiModel && !models.includes(kanjiModel) ? [kanjiModel, ...models] : models;
   // Fall back to the saved mapping's fields when the live field list hasn't
   // arrived yet, so returning to this tab still shows the configured mapping.
   const fieldNames = modelFields.length ? modelFields : Object.keys(fields);
-
-  // A field's mapping is edited as an ordered list of marker chips. The template
-  // stored is the markers joined by <br>, so multiple markers stack on the card
-  // (a single marker has no trailing separator).
-  const [activeField, setActiveField] = useState<string | null>(null);
-
-  const markersOf = (template: string | undefined): string[] =>
-    template ? [...template.matchAll(/\{([\w-]+)\}/g)].map((m) => m[1]).filter((m) => FIELD_MARKERS.includes(m)) : [];
-
-  const writeMarkers = (name: string, markers: string[]) => setField(name, markers.map((m) => `{${m}}`).join("<br>"));
-
-  const addMarker = (marker: string) => {
-    const name = activeField && fieldNames.includes(activeField) ? activeField : fieldNames[0];
-    if (!name) return;
-    writeMarkers(name, [...markersOf(fields[name]), marker]);
-    setActiveField(name);
-  };
-
-  const removeMarkerAt = (name: string, index: number) => {
-    const next = markersOf(fields[name]);
-    next.splice(index, 1);
-    writeMarkers(name, next);
-  };
+  const kanjiFieldNames = kanjiModelFields.length ? kanjiModelFields : Object.keys(kanjiFields);
 
   return (
     <div className="space-y-5 p-4">
@@ -218,7 +384,7 @@ export function AnkiSettings() {
             />
           </Group>
 
-          <Group title="Target">
+          <Group title="Vocabulary cards">
             <div className="grid grid-cols-2 gap-2">
               <Select value={deck || undefined} onValueChange={setDeck}>
                 <SelectTrigger className="w-full">
@@ -248,73 +414,47 @@ export function AnkiSettings() {
             {!connected && decks.length === 0 && (
               <p className="text-[11px] text-muted-foreground">Test the connection to load your decks and note types.</p>
             )}
+            <FieldMappingEditor fieldNames={fieldNames} fields={fields} markers={FIELD_MARKERS} labels={MARKER_LABELS} setField={setField} />
           </Group>
 
-          {fieldNames.length > 0 && (
-            <Group title="Field mapping">
-              <div className="divide-y border">
-                {fieldNames.map((name) => {
-                  const markers = markersOf(fields[name]);
-                  const active = activeField === name;
-                  return (
-                    <div
-                      key={name}
-                      onClick={() => setActiveField(name)}
-                      className={cn("flex cursor-pointer items-start gap-2 px-3 py-2", active && "bg-accent/40")}
-                    >
-                      <span className="w-24 shrink-0 truncate pt-1 text-xs font-medium" title={name}>
-                        {name}
-                      </span>
-                      <div className={cn("flex min-h-7 flex-1 flex-wrap items-center gap-1 rounded-sm px-1 py-0.5")}>
-                        {markers.length === 0 && <span className="text-[11px] text-muted-foreground">empty</span>}
-                        {markers.map((m, i) => (
-                          <span key={i} className="inline-flex items-center gap-1 rounded-sm border bg-background px-1.5 py-0.5 text-[10px]">
-                            {MARKER_LABELS[m] ?? m}
-                            <Button
-                              variant="ghost"
-                              size="icon-xs"
-                              aria-label={`Remove ${MARKER_LABELS[m] ?? m}`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removeMarkerAt(name, i);
-                              }}
-                              className="size-4 text-muted-foreground hover:bg-transparent hover:text-foreground"
-                            >
-                              <X className="size-3" />
-                            </Button>
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <p className="text-[11px] text-muted-foreground">
-                {activeField ? (
-                  <>
-                    Click a marker to add it to <span className="font-medium text-foreground">{activeField}</span>.
-                  </>
-                ) : (
-                  "Select a field above, then click markers to add them."
-                )}
-              </p>
-              <div className="flex flex-wrap gap-1">
-                {FIELD_MARKERS.map((marker) => (
-                  <Button
-                    key={marker}
-                    variant="outline"
-                    size="xs"
-                    onClick={() => addMarker(marker)}
-                    title={`{${marker}}`}
-                    className="text-[10px] text-muted-foreground"
-                  >
-                    {MARKER_LABELS[marker] ?? marker}
-                  </Button>
-                ))}
-              </div>
-            </Group>
-          )}
+          <Group title="Kanji cards (optional)">
+            <p className="text-[11px] text-muted-foreground">
+              Pick a deck and note type to enable the Anki button on the popup&apos;s kanji breakdown. Leave blank to disable.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Select value={kanjiDeck || undefined} onValueChange={setKanjiDeck}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Kanji deck" />
+                </SelectTrigger>
+                <SelectContent>
+                  {kanjiDeckOptions.map((d) => (
+                    <SelectItem key={d} value={d}>
+                      {d}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={kanjiModel || undefined} onValueChange={setKanjiModel}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Kanji note type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {kanjiModelOptions.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {m}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <FieldMappingEditor
+              fieldNames={kanjiFieldNames}
+              fields={kanjiFields}
+              markers={KANJI_FIELD_MARKERS}
+              labels={KANJI_MARKER_LABELS}
+              setField={setKanjiField}
+            />
+          </Group>
 
           <Group title="Options">
             <div className="flex items-center justify-between gap-4">

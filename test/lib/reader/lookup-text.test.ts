@@ -65,6 +65,26 @@ describe("extractRunAt", () => {
     expect(extractRunAt(rt, 0, el)).toBeNull();
   });
 
+  it("drops zero-width / invisible characters from the scanned run", () => {
+    const ZWSP = "​"; // zero-width space (some EPUBs embed these for line control)
+    const SHY = "­"; // soft hyphen
+    const BOM = "﻿"; // byte-order mark
+    const el = root(`<p>食${ZWSP}べ${ZWSP}る</p>`);
+    expect(extractRunAt(textNodes(el)[0], 0, el)?.text).toBe("食べる");
+
+    const el2 = root(`<p>今${SHY}日${BOM}は</p>`);
+    expect(extractRunAt(textNodes(el2)[0], 0, el2)?.text).toBe("今日は");
+  });
+
+  it("keeps the highlight Range correct when a zero-width char is skipped", () => {
+    const ZWSP = "​";
+    const el = root(`<p>食${ZWSP}べる</p>`);
+    const run = extractRunAt(textNodes(el)[0], 0, el)!;
+    expect(run.text).toBe("食べる");
+    // Highlight the first 2 kept chars; the range spans the skipped U+200B in between.
+    expect(run.rangeForLength(2)?.toString()).toBe(`食${ZWSP}べ`);
+  });
+
   it("builds a Range over the matched prefix, across ruby", () => {
     const el = root("<p>今日は<ruby>漢<rt>かん</rt>字</ruby>だ</p>");
     const node = textNodes(el)[0];

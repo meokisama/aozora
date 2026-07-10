@@ -131,6 +131,8 @@ export function ReaderView() {
   const close = useReaderStore((s) => s.close);
   const applyProgress = useLibraryStore((s) => s.applyProgress);
   const ankiEnabled = useAnkiStore((s) => s.enabled);
+  // Kanji cards need their own note type; only offer the button once it's set up.
+  const ankiKanjiEnabled = useAnkiStore((s) => s.enabled && !!s.kanjiDeck && !!s.kanjiModel && Object.keys(s.kanjiFields).length > 0);
   const ttsEnabled = useTtsStore((s) => s.enabled);
   const sentenceHotkey = useTtsStore((s) => s.sentenceHotkey);
   const voicevoxSpeaker = useTtsStore((s) => s.voicevoxSpeaker);
@@ -269,6 +271,7 @@ export function ReaderView() {
     capturing,
     clearLookup,
     mineEntry,
+    mineKanji,
     onMouseMove: onDictMouseMove,
     onMouseLeave: onDictMouseLeave,
     onPopupLayout,
@@ -1154,6 +1157,7 @@ export function ReaderView() {
           onMouseEnter={onPopupEnter}
           onMouseLeave={onPopupLeave}
           onMine={ankiEnabled ? mineEntry : undefined}
+          onMineKanji={ankiKanjiEnabled ? mineKanji : undefined}
           onSpeak={ttsEnabled ? speakText : undefined}
           hiddenForCapture={capturing}
         />

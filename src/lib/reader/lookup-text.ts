@@ -19,6 +19,14 @@ import { blockAncestor } from "@/lib/reader/search";
 /** The main-process lookup caps the scan at 24 code units; match it here. */
 export const MAX_SCAN_LENGTH = 24;
 
+// Invisible characters that some EPUBs embed for line-break control. They render
+// as nothing, so a term looks normal but the scanned run would carry a character
+// no dictionary entry has → a silent lookup miss. Dropped from the scanned text
+// (matching Yomitan's dom-text-scanner): U+00AD soft hyphen, U+200B/C zero-width
+// space/non-joiner, U+FEFF byte-order mark.
+const ZERO_WIDTH = new Set([0x00ad, 0x200b, 0x200c, 0xfeff]);
+const isZeroWidth = (ch: string): boolean => ZERO_WIDTH.has(ch.charCodeAt(0));
+
 /** One contiguous slice of a live text node contributing to the scanned run. */
 interface Segment {
   node: Text;
@@ -63,7 +71,8 @@ function buildRange(segments: Segment[], length: number): Range | null {
  * Reads the text run beginning at (`startNode`, `startOffset`), walking forward
  * through the block's text nodes (furigana and hidden nodes already excluded by
  * `getParagraphNodes`) until `maxLength` code units are collected or the block
- * ends. A gaiji image ends the run — a dictionary term can't span an image.
+ * ends. Zero-width / invisible characters are dropped from the run. A gaiji image
+ * ends the run — a dictionary term can't span an image.
  * Returns null when the start node isn't part of the readable text (e.g. the
  * cursor is over furigana or whitespace).
  *
@@ -83,10 +92,26 @@ export function extractRunAt(startNode: Text, startOffset: number, contentRoot: 
     const data = (node as Text).data;
     const from = i === startIdx ? startOffset : 0;
     if (from >= data.length) continue;
-    const slice = data.slice(from, from + (maxLength - text.length));
-    if (!slice) continue;
-    segments.push({ node: node as Text, start: from, length: slice.length });
-    text += slice;
+
+    // Walk the node char by char so zero-width characters can be dropped from the
+    // scanned text while still tracking their DOM position: each run of kept chars
+    // becomes one segment, split wherever a zero-width char is skipped. `buildRange`
+    // then still maps a match length back to a live Range (the skipped char, if it
+    // falls inside the range, is highlighted along with it — it's invisible anyway).
+    let segStart = -1; // source offset where the current kept run began
+    let pos = from;
+    for (; pos < data.length && text.length < maxLength; pos++) {
+      if (isZeroWidth(data[pos])) {
+        if (segStart >= 0) {
+          segments.push({ node: node as Text, start: segStart, length: pos - segStart });
+          segStart = -1;
+        }
+        continue;
+      }
+      if (segStart < 0) segStart = pos;
+      text += data[pos];
+    }
+    if (segStart >= 0) segments.push({ node: node as Text, start: segStart, length: pos - segStart });
   }
 
   if (!text) return null;

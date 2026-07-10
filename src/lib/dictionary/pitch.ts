@@ -75,3 +75,60 @@ for (let i = 0; i + 2 < KANA_DIACRITICS.length; i += 3) {
 export function getKanaDiacriticInfo(character: string): Diacritic | null {
   return DIACRITIC_MAP.get(character) ?? null;
 }
+
+const escapeXml = (s: string): string =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+/**
+ * OJAD-style pitch-accent graph as a self-contained inline SVG *string* (for Anki
+ * cards / any non-React consumer). Mirrors the reader's `PitchAccent` component:
+ * morae as high/low dots joined by a line, an open circle for the following
+ * particle, devoiced morae ringed and nasal morae marked. Uses currentColor so it
+ * inherits the surrounding text colour. Returns "" for an empty reading.
+ */
+export function pitchAccentSvg(reading: string, position: number | string, nasal: number[] = [], devoice: number[] = []): string {
+  const MARGIN = 11;
+  const STEP = 22;
+  const HIGH_Y = 8;
+  const LOW_Y = 24;
+  const TEXT_Y = 47;
+  const GLYPH_CY = 42;
+  const DOT_R = 4;
+  const HEIGHT = 54;
+  const ANNOT = "#ef4444";
+
+  const morae = getKanaMorae(reading);
+  const ii = morae.length;
+  if (ii === 0) return "";
+
+  const nasalSet = new Set(nasal);
+  const devoiceSet = new Set(devoice);
+  const cx = (i: number): number => MARGIN + i * STEP;
+  const cy = (i: number): number => (isMoraPitchHigh(i, position) ? HIGH_Y : LOW_Y);
+
+  const pts = Array.from({ length: ii + 1 }, (_, i) => ({ x: cx(i), y: cy(i) }));
+  const linePath = "M" + pts.map((p) => `${p.x} ${p.y}`).join(" L");
+  const width = MARGIN * 2 + ii * STEP;
+
+  const parts: string[] = [`<path d="${linePath}" fill="none" stroke="currentColor" stroke-width="1.25" opacity="0.7"/>`];
+  pts.forEach((p, i) => {
+    parts.push(
+      i < ii
+        ? `<circle cx="${p.x}" cy="${p.y}" r="${DOT_R}" fill="currentColor"/>`
+        : `<circle cx="${p.x}" cy="${p.y}" r="${DOT_R}" fill="none" stroke="currentColor" stroke-width="1.25"/>`,
+    );
+  });
+  morae.forEach((m, i) => {
+    const isNasal = nasalSet.has(i + 1); // nasal/devoice positions are 1-based
+    const isDevoiced = devoiceSet.has(i + 1);
+    const base = getKanaDiacriticInfo(m[0]);
+    const glyph = isNasal && base ? base.character + m.slice(1) : m;
+    if (isDevoiced) {
+      parts.push(`<circle cx="${cx(i)}" cy="${GLYPH_CY}" r="9.5" fill="none" stroke="${ANNOT}" stroke-width="1" stroke-dasharray="1.5 1.5"/>`);
+    }
+    parts.push(`<text x="${cx(i)}" y="${TEXT_Y}" text-anchor="middle" font-size="15" fill="currentColor">${escapeXml(glyph)}</text>`);
+    if (isNasal) parts.push(`<circle cx="${cx(i) + 7}" cy="34" r="2.4" fill="${ANNOT}"/>`);
+  });
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${HEIGHT}" viewBox="0 0 ${width} ${HEIGHT}">${parts.join("")}</svg>`;
+}

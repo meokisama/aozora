@@ -1,12 +1,15 @@
 import { describe, it, expect } from "vitest";
-import type { AnkiConfig, DictionaryEntry } from "@/lib/types";
+import type { AnkiConfig, DictionaryEntry, KanjiEntry } from "@/lib/types";
 import {
   SCREENSHOT_SENTINEL,
   glossToHtml,
   glossToText,
   cardDataFromEntry,
+  cardDataFromKanji,
   renderField,
+  renderKanjiField,
   buildNote,
+  buildKanjiNote,
   type AnkiCardContext,
 } from "@/lib/dictionary/anki-note";
 
@@ -27,17 +30,34 @@ const entry = (over: Partial<DictionaryEntry> = {}): DictionaryEntry => ({
   ...over,
 });
 
-const config = (fields: Record<string, string>): AnkiConfig => ({
+const config = (fields: Record<string, string>, over: Partial<AnkiConfig> = {}): AnkiConfig => ({
   enabled: true,
   server: "http://127.0.0.1:8765",
   apiKey: "",
   deck: "Mining",
   model: "Basic",
   fields,
+  kanjiDeck: "Kanji",
+  kanjiModel: "KanjiNote",
+  kanjiFields: {},
   tags: ["aozora"],
   duplicateBehavior: "prevent",
   screenshot: false,
   screenshotQuality: 90,
+  ...over,
+});
+
+const kanji = (over: Partial<KanjiEntry> = {}): KanjiEntry => ({
+  dictId: "k1",
+  dictTitle: "KANJIDIC",
+  character: "食",
+  onyomi: ["ショク", "ジキ"],
+  kunyomi: ["く.う", "た.べる"],
+  meanings: ["eat", "food"],
+  tags: [],
+  stats: { strokes: 9, grade: 2 },
+  frequencies: [],
+  ...over,
 });
 
 describe("glossToText / glossToHtml", () => {
@@ -137,5 +157,74 @@ describe("buildNote", () => {
   it("sets allowDuplicate when the config allows duplicates", () => {
     const note = buildNote({ ...config({ Front: "{expression}" }), duplicateBehavior: "allow" }, cardDataFromEntry(entry(), ctx));
     expect(note.options.allowDuplicate).toBe(true);
+  });
+});
+
+describe("term markers — tags / part-of-speech / dictionary / pitch graph", () => {
+  const withTags = entry({
+    byDict: [
+      {
+        dictId: "d1",
+        dictTitle: "JMdict",
+        tags: [
+          { name: "v1", category: "partOfSpeech", notes: "ichidan verb", order: 0 },
+          { name: "vt", category: "partOfSpeech", notes: "transitive", order: 1 },
+          { name: "news", category: "frequent", notes: "", order: 2 },
+        ],
+        glosses: ["to eat"],
+      },
+    ],
+  });
+
+  it("joins tag names, filters parts of speech, and lists the source dictionary", () => {
+    const data = cardDataFromEntry(withTags, ctx);
+    expect(renderField("{tags}", data)).toBe("v1 vt news");
+    expect(renderField("{part-of-speech}", data)).toBe("v1 vt");
+    expect(renderField("{dictionary}", data)).toBe("JMdict");
+  });
+
+  it("renders a pitch-accent graph as an inline SVG (empty without pitch data)", () => {
+    expect(renderField("{pitch-accent-graphs}", cardDataFromEntry(entry(), ctx))).toBe("");
+    const withPitch = cardDataFromEntry(
+      entry({ pitches: [{ dictId: "p", dictTitle: "P", reading: "たべる", position: 2, nasal: [], devoice: [] }] }),
+      ctx,
+    );
+    const svg = renderField("{pitch-accent-graphs}", withPitch);
+    expect(svg.startsWith("<svg")).toBe(true);
+    expect(svg).toContain("</svg>");
+  });
+});
+
+describe("cloze markers", () => {
+  it("uses the supplied cloze split", () => {
+    const data = cardDataFromEntry(entry(), { ...ctx, cloze: { prefix: "私はパンを", body: "食べる", suffix: "。" } });
+    expect(renderField("{cloze-prefix}", data)).toBe("私はパンを");
+    expect(renderField("{cloze-body}", data)).toBe("食べる");
+    expect(renderField("{cloze-suffix}", data)).toBe("。");
+  });
+
+  it("falls back to the whole expression as the body when no cloze is given", () => {
+    const data = cardDataFromEntry(entry(), ctx);
+    expect(renderField("{cloze-prefix}{cloze-body}{cloze-suffix}", data)).toBe("食べる");
+  });
+});
+
+describe("kanji cards", () => {
+  it("fills kanji markers from a kanji entry", () => {
+    const data = cardDataFromKanji(kanji(), ctx);
+    expect(renderKanjiField("{character}", data)).toBe("食");
+    expect(renderKanjiField("{onyomi}", data)).toBe("ショク、ジキ");
+    expect(renderKanjiField("{kunyomi}", data)).toBe("く.う、た.べる");
+    expect(renderKanjiField("{glossary}", data)).toBe("eat, food");
+    expect(renderKanjiField("{stroke-count}", data)).toBe("9");
+    expect(renderKanjiField("{dictionary}", data)).toBe("KANJIDIC");
+  });
+
+  it("builds a kanji note against the kanji deck/model/fields", () => {
+    const note = buildKanjiNote(config({}, { kanjiFields: { Front: "{character}", Back: "{glossary}" } }), cardDataFromKanji(kanji(), ctx));
+    expect(note.deckName).toBe("Kanji");
+    expect(note.modelName).toBe("KanjiNote");
+    expect(note.fields).toEqual({ Front: "食", Back: "eat, food" });
+    expect(note.tags).toEqual(["aozora", "Test_Book"]);
   });
 });

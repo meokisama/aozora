@@ -1,7 +1,7 @@
 import { utilityProcess } from "electron";
 import path from "node:path";
 import Database from "better-sqlite3";
-import { deinflect, conditionFlagsForPartsOfSpeech, conditionsMatch, type Deinflection } from "@/lib/dictionary/deinflect";
+import { deinflectVariants, conditionFlagsForPartsOfSpeech, conditionsMatch, type Deinflection } from "@/lib/dictionary/deinflect";
 import type {
   DictionaryInfo,
   DictionaryEntry,
@@ -325,7 +325,7 @@ export const dictionaryStore = {
     const maxLen = Math.min(text.length, 24);
     for (let len = maxLen; len >= 1; len--) {
       const prefix = text.slice(0, len);
-      const candidates = deinflect(prefix);
+      const candidates = deinflectVariants(prefix);
 
       // term -> candidates that deinflect to it (each carries its POS conditions).
       const candsByTerm = new Map<string, Deinflection[]>();

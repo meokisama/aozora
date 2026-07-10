@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Check, Loader2, Plus, Volume2 } from "lucide-react";
-import type { DictionaryEntry, LookupResult } from "@/lib/types";
+import type { DictionaryEntry, KanjiEntry, LookupResult } from "@/lib/types";
 import type { MineStatus } from "@/lib/dictionary/anki-note";
 import { useAnchoredPosition } from "./use-anchored-position";
 import { downstepNumber } from "@/lib/dictionary/pitch";
@@ -43,6 +43,8 @@ interface Props {
   onLayout?: (rect: { left: number; top: number; right: number; bottom: number }) => void;
   /** Mines an entry to Anki. Absent (or returning) hides the per-entry Anki button. */
   onMine?: (entry: DictionaryEntry) => Promise<MineStatus>;
+  /** Mines a kanji to Anki. Absent hides the per-kanji Anki button. */
+  onMineKanji?: (kanji: KanjiEntry) => Promise<MineStatus>;
   /** Reads a headword aloud (its reading). Absent hides the per-entry speaker button. */
   onSpeak?: (text: string) => void;
   /** Kept mounted but visually hidden while a mining screenshot is captured, so
@@ -104,12 +106,16 @@ function Furigana({ expression, reading }: { expression: string; reading: string
   );
 }
 
-export function DictionaryPopup({ result, anchor, onMouseEnter, onMouseLeave, onLayout, onMine, onSpeak, hiddenForCapture }: Props) {
+export function DictionaryPopup({ result, anchor, onMouseEnter, onMouseLeave, onLayout, onMine, onMineKanji, onSpeak, hiddenForCapture }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const pos = useAnchoredPosition(ref, anchor, result, onLayout);
-  // Per-entry mining status, reset whenever the looked-up word changes.
+  // Per-entry / per-kanji mining status, reset whenever the looked-up word changes.
   const [mined, setMined] = useState<Record<number, MineStatus | "loading">>({});
-  useEffect(() => setMined({}), [result]);
+  const [kanjiMined, setKanjiMined] = useState<Record<number, MineStatus | "loading">>({});
+  useEffect(() => {
+    setMined({});
+    setKanjiMined({});
+  }, [result]);
 
   if (!result || (!result.entries.length && !result.kanji.length) || !anchor) return null;
 
@@ -117,6 +123,12 @@ export function DictionaryPopup({ result, anchor, onMouseEnter, onMouseLeave, on
     if (!onMine) return;
     setMined((m) => ({ ...m, [i]: "loading" }));
     void onMine(entry).then((status) => setMined((m) => ({ ...m, [i]: status })));
+  };
+
+  const mineK = (kanji: KanjiEntry, i: number) => {
+    if (!onMineKanji) return;
+    setKanjiMined((m) => ({ ...m, [i]: "loading" }));
+    void onMineKanji(kanji).then((status) => setKanjiMined((m) => ({ ...m, [i]: status })));
   };
 
   return (
@@ -205,7 +217,12 @@ export function DictionaryPopup({ result, anchor, onMouseEnter, onMouseLeave, on
       {result.kanji.length > 0 && (
         <div className="space-y-3 border-t bg-muted/30 p-3">
           {result.kanji.map((k, i) => (
-            <KanjiCard key={`${k.dictId}-${k.character}-${i}`} kanji={k} />
+            <div key={`${k.dictId}-${k.character}-${i}`} className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <KanjiCard kanji={k} />
+              </div>
+              {onMineKanji && <MineButton status={kanjiMined[i]} onClick={() => mineK(k, i)} />}
+            </div>
           ))}
         </div>
       )}
