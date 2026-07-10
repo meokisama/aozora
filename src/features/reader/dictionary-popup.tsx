@@ -167,7 +167,7 @@ export function DictionaryPopup({ result, anchor, onMouseEnter, onMouseLeave, on
               <div className="mt-1.5 space-y-0.5">
                 {entry.pitches.map((p, pi) => (
                   <div key={`${p.dictId}-${pi}`} className="flex items-center gap-2">
-                    <PitchAccent reading={p.reading} position={p.position} />
+                    <PitchAccent reading={p.reading} position={p.position} nasal={p.nasal} devoice={p.devoice} />
                     <span className="text-[10px] text-muted-foreground tabular-nums">[{downstepNumber(p.position)}]</span>
                     <span className="max-w-24 truncate text-[10px] text-muted-foreground/60" title={p.dictTitle}>
                       {p.dictTitle}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getKanaMorae, isMoraPitchHigh, getDownstepPositions, downstepNumber } from "@/lib/dictionary/pitch";
+import { getKanaMorae, isMoraPitchHigh, getDownstepPositions, downstepNumber, getKanaDiacriticInfo } from "@/lib/dictionary/pitch";
 
 describe("getKanaMorae", () => {
   it("treats each full kana as its own mora", () => {
@@ -67,5 +67,22 @@ describe("downstepNumber", () => {
 
   it("derives the first downstep from an HL string", () => {
     expect(downstepNumber("LHHL")).toBe(3);
+  });
+});
+
+describe("getKanaDiacriticInfo", () => {
+  it("recovers the base kana + type for a voiced (dakuten) kana", () => {
+    expect(getKanaDiacriticInfo("が")).toEqual({ character: "か", type: "dakuten" });
+    expect(getKanaDiacriticInfo("ガ")).toEqual({ character: "カ", type: "dakuten" });
+    expect(getKanaDiacriticInfo("ど")).toEqual({ character: "と", type: "dakuten" });
+  });
+
+  it("recovers the base kana for a semi-voiced (handakuten) kana", () => {
+    expect(getKanaDiacriticInfo("ぱ")).toEqual({ character: "は", type: "handakuten" });
+  });
+
+  it("returns null for a plain kana with no diacritic", () => {
+    expect(getKanaDiacriticInfo("か")).toBeNull();
+    expect(getKanaDiacriticInfo("あ")).toBeNull();
   });
 });

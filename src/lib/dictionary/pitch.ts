@@ -51,3 +51,27 @@ export function getDownstepPositions(pitchString: string): number[] {
 export function downstepNumber(position: number | string): number {
   return typeof position === "string" ? getDownstepPositions(position)[0] : position;
 }
+
+// Diacritic → base-kana map for rendering nasalised morae (鼻濁音). Ported from
+// Yomitan (ja/japanese.js): triples of base·dakuten·handakuten ("-" = none). A
+// nasal mora is drawn with its dakuten stripped (が→か) plus a nasal marker, so
+// we need to recover the base character.
+const KANA_DIACRITICS =
+  "うゔ-かが-きぎ-くぐ-けげ-こご-さざ-しじ-すず-せぜ-そぞ-ただ-ちぢ-つづ-てで-とど-はばぱひびぴふぶぷへべぺほぼぽ" +
+  "ワヷ-ヰヸ-ウヴ-ヱヹ-ヲヺ-カガ-キギ-クグ-ケゲ-コゴ-サザ-シジ-スズ-セゼ-ソゾ-タダ-チヂ-ツヅ-テデ-トド-ハバパヒビピフブプヘベペホボポ";
+
+type Diacritic = { character: string; type: "dakuten" | "handakuten" };
+
+const DIACRITIC_MAP = new Map<string, Diacritic>();
+for (let i = 0; i + 2 < KANA_DIACRITICS.length; i += 3) {
+  const base = KANA_DIACRITICS[i];
+  const dakuten = KANA_DIACRITICS[i + 1];
+  const handakuten = KANA_DIACRITICS[i + 2];
+  DIACRITIC_MAP.set(dakuten, { character: base, type: "dakuten" });
+  if (handakuten !== "-") DIACRITIC_MAP.set(handakuten, { character: base, type: "handakuten" });
+}
+
+/** Base kana + diacritic type for a voiced/semi-voiced kana (が→か dakuten), or null. */
+export function getKanaDiacriticInfo(character: string): Diacritic | null {
+  return DIACRITIC_MAP.get(character) ?? null;
+}
