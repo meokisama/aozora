@@ -199,11 +199,10 @@ function FieldMappingEditor({
 }
 
 /**
- * Anki mining configuration: connection, target deck/note-type, and the mapping
- * from Anki fields to Aozora's card markers. Terms and kanji have their own
- * deck/note-type/field mapping (Yomitan keeps the two note types separate). The
- * main process is a stateless AnkiConnect client, so we fetch deck/model/field
- * lists on demand.
+ * Anki mining config: connection, target deck/note-type, and the mapping from
+ * Anki fields to Aozora's card markers. Terms and kanji keep separate
+ * deck/note-type/field mappings (à la Yomitan). The main process is a stateless
+ * AnkiConnect client, so deck/model/field lists are fetched on demand.
  */
 export function AnkiSettings() {
   const enabled = useAnkiStore((s) => s.enabled);

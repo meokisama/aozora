@@ -53,26 +53,52 @@ export function sentenceFromBlockText(text: string, offset: number): string {
   return text.slice(start, end).trim();
 }
 
+/** The block-text walk shared by all three sentence extractors. */
+interface BlockAssembly {
+  /** The block ancestor of the match. */
+  block: Element;
+  /** Per-node contributions (gaiji → a 1-char placeholder), for range building. */
+  pieces: Piece[];
+  /** Assembled block text (gaiji collapsed to a single space). */
+  text: string;
+  /** Char offset of the match within `text`, or -1 if the start node isn't in the block. */
+  offset: number;
+}
+
+/**
+ * Walks a match's block once, assembling its text (furigana/hidden nodes already
+ * excluded by `getParagraphNodes`, gaiji collapsed to one space so offsets stay
+ * sane) and locating the match within it. The single source the sentence
+ * extractors below build on.
+ */
+function assembleBlock(range: Range, contentRoot: Element): BlockAssembly {
+  const startNode = range.startContainer;
+  const block = blockAncestor(startNode, contentRoot);
+  const nodes = getParagraphNodes(block);
+
+  const pieces: Piece[] = [];
+  let text = "";
+  let offset = -1;
+  for (const node of nodes) {
+    if (node.nodeType !== Node.TEXT_NODE) {
+      pieces.push({ node, isText: false, start: text.length, len: 1 });
+      text += " ";
+      continue;
+    }
+    if (node === startNode) offset = text.length + range.startOffset;
+    const data = (node as Text).data;
+    pieces.push({ node, isText: true, start: text.length, len: data.length });
+    text += data;
+  }
+  return { block, pieces, text, offset };
+}
+
 /**
  * Resolves the sentence around a matched DOM Range within the reader's content.
  * Falls back to the whole block's text when the match node can't be located.
  */
 export function sentenceAround(range: Range, contentRoot: Element): string {
-  const startNode = range.startContainer;
-  const block = blockAncestor(startNode, contentRoot);
-  const nodes = getParagraphNodes(block);
-
-  let text = "";
-  let offset = -1;
-  for (const node of nodes) {
-    if (node.nodeType !== Node.TEXT_NODE) {
-      text += " "; // gaiji image — a single placeholder so offsets stay sane
-      continue;
-    }
-    if (node === startNode) offset = text.length + range.startOffset;
-    text += (node as Text).data;
-  }
-
+  const { text, offset } = assembleBlock(range, contentRoot);
   if (offset < 0) return text.trim(); // match node not in this block: whole block
   return sentenceFromBlockText(text, offset);
 }
@@ -96,20 +122,7 @@ export interface SentenceCloze {
  */
 export function sentenceClozeAround(range: Range, contentRoot: Element): SentenceCloze {
   const body = range.toString();
-  const startNode = range.startContainer;
-  const block = blockAncestor(startNode, contentRoot);
-  const nodes = getParagraphNodes(block);
-
-  let text = "";
-  let offset = -1;
-  for (const node of nodes) {
-    if (node.nodeType !== Node.TEXT_NODE) {
-      text += " "; // gaiji image — a single placeholder so offsets stay sane
-      continue;
-    }
-    if (node === startNode) offset = text.length + range.startOffset;
-    text += (node as Text).data;
-  }
+  const { text, offset } = assembleBlock(range, contentRoot);
 
   // Match node not in this block: fall back to the whole block as the sentence.
   if (offset < 0) {
@@ -211,24 +224,7 @@ export interface SentenceContext {
  * playback without highlighting.
  */
 export function sentenceContextAround(range: Range, contentRoot: Element): SentenceContext | null {
-  const startNode = range.startContainer;
-  const block = blockAncestor(startNode, contentRoot);
-  const nodes = getParagraphNodes(block);
-
-  const pieces: Piece[] = [];
-  let blockText = "";
-  let matchOffset = -1;
-  for (const node of nodes) {
-    if (node.nodeType !== Node.TEXT_NODE) {
-      pieces.push({ node, isText: false, start: blockText.length, len: 1 });
-      blockText += " "; // gaiji image — a single placeholder so offsets stay sane
-      continue;
-    }
-    if (node === startNode) matchOffset = blockText.length + range.startOffset;
-    const data = (node as Text).data;
-    pieces.push({ node, isText: true, start: blockText.length, len: data.length });
-    blockText += data;
-  }
+  const { block, pieces, text: blockText, offset: matchOffset } = assembleBlock(range, contentRoot);
 
   if (matchOffset < 0) return null;
 

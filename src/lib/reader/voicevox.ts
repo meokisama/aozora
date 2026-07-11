@@ -7,11 +7,10 @@
  * the caller to map onto the on-screen text.
  *
  * Web Audio rather than an <audio> element because of clock skew: a media
- * element's `currentTime` runs as soon as samples are handed to the audio
- * pipeline, ahead of the sound actually leaving the speakers (device/Bluetooth
- * latency, easily 100–300 ms) — enough to light the first karaoke characters
- * before the voice is heard. The AudioContext clock plus its reported
- * `outputLatency` lets us track the sample currently reaching the listener.
+ * element's `currentTime` runs ahead of the sound leaving the speakers
+ * (device/Bluetooth latency, easily 100–300 ms) — enough to light the first
+ * karaoke characters before the voice is heard. The AudioContext clock plus its
+ * `outputLatency` tracks the sample currently reaching the listener.
  */
 
 import type { VoicevoxParams, VoicevoxTimings } from "@/lib/types";

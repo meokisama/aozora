@@ -3,9 +3,8 @@ import { persist } from "zustand/middleware";
 import type { AnkiConfig, AnkiDuplicateBehavior, AnkiEndpoint } from "@/lib/types";
 
 /**
- * Anki mining config, persisted in the renderer (like reader prefs). The main
- * process is a stateless AnkiConnect client, so `endpoint()` bundles the two
- * connection fields to pass on each call.
+ * Anki mining config, persisted in the renderer. The main process is a stateless
+ * AnkiConnect client, so `endpoint()` bundles the connection fields for each call.
  */
 
 export const DEFAULT_ANKI_SERVER = "http://127.0.0.1:8765";

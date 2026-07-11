@@ -28,7 +28,9 @@ interface Props {
  */
 export function AnnotationPopover({ anchor, color, note, isNew, onColor, onNote, onDelete, onClose }: Props) {
   const ref = useRef<HTMLDivElement>(null);
-  const pos = useAnchoredPosition(ref, anchor, note);
+  // The editor is fixed-size (2-row, non-resizable textarea), so re-place only
+  // when the anchor or the delete-button's presence changes — not per keystroke.
+  const pos = useAnchoredPosition(ref, anchor, isNew);
 
   useEffect(() => {
     if (!anchor) return;

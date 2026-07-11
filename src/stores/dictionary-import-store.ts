@@ -2,14 +2,12 @@ import { create } from "zustand";
 import type { DictionaryImportProgress } from "@/lib/types";
 
 /**
- * Live state of an in-flight dictionary import. Kept in a store (not the
- * Dictionaries view's local state) so it survives navigating away — the work
- * runs in the main process regardless of which view is mounted, and any view
- * (or the title bar) can reflect "importing + %". Ephemeral, so not persisted.
+ * Live state of an in-flight dictionary import. In a store (not the view's local
+ * state) so it survives navigating away — the work runs in the main process and
+ * any view can reflect "importing + %". Ephemeral, not persisted.
  *
- * `importing` is bracketed by begin()/finish() around the import call; progress
- * events only refine the status line and percent. done/error also drop
- * `importing` so the flag never sticks if begin/finish are ever bypassed.
+ * `importing` is bracketed by begin()/finish(); progress events only refine the
+ * status line. done/error also drop it so the flag never sticks if bypassed.
  */
 interface DictionaryImportState {
   importing: boolean;

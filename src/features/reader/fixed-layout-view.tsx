@@ -75,9 +75,8 @@ export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProp
 
   // Authored pixel size of a page, cached per ordinal. Resolution order mirrors
   // bibi: SVG viewBox → book viewport → the bitmap's own size (width/height attrs,
-  // else its natural size once loaded; see layout's onload). A lone manga page that
-  // is just an <img> with none of the above used to fall straight to a portrait
-  // guess and scale to the wrong aspect — now it's measured.
+  // else its natural size once loaded; see layout's onload). Ensures a lone <img>
+  // manga page is measured rather than falling to a wrong-aspect portrait guess.
   const pageViewport = useCallback(
     (page: SpreadPage): Viewport => {
       const cached = viewportsRef.current.get(page.ordinal);

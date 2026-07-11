@@ -88,8 +88,14 @@ export function highlightSearchResult(rootEl: Element | null, charOffset: number
   let from = 0;
   let idx: number;
   let matchIdx = -1;
+  // Accumulate the Japanese-char count as occurrences advance (matches fall on
+  // codepoint boundaries), rather than re-counting the prefix from 0 each hit.
+  let prevIdx = 0;
+  let jpAcc = 0;
   while ((idx = hay.indexOf(q, from)) !== -1) {
-    if (baseChar + block.charBefore + countJapanese(block.text.slice(0, idx)) === charOffset) {
+    jpAcc += countJapanese(block.text.slice(prevIdx, idx));
+    prevIdx = idx;
+    if (baseChar + block.charBefore + jpAcc === charOffset) {
       matchIdx = idx;
       break;
     }

@@ -84,7 +84,6 @@ export function TitleBar({ brand = "Aozora 青空", tagline = "青空の下で�
             <Info className="size-3.5" />
           </ControlButton>
 
-          {/* Divider between app actions and the window controls. */}
           <span aria-hidden className="mx-1 h-4 w-px self-center bg-border" />
 
           <ControlButton aria-label="Minimize" onClick={() => win()?.minimize()}>

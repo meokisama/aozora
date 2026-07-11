@@ -52,10 +52,9 @@ export function downstepNumber(position: number | string): number {
   return typeof position === "string" ? getDownstepPositions(position)[0] : position;
 }
 
-// Diacritic → base-kana map for rendering nasalised morae (鼻濁音). Ported from
-// Yomitan (ja/japanese.js): triples of base·dakuten·handakuten ("-" = none). A
-// nasal mora is drawn with its dakuten stripped (が→か) plus a nasal marker, so
-// we need to recover the base character.
+// Diacritic → base-kana map for rendering nasalised morae (鼻濁音): triples of
+// base·dakuten·handakuten ("-" = none). A nasal mora is drawn with its dakuten
+// stripped (が→か) plus a marker, so we must recover the base character.
 const KANA_DIACRITICS =
   "うゔ-かが-きぎ-くぐ-けげ-こご-さざ-しじ-すず-せぜ-そぞ-ただ-ちぢ-つづ-てで-とど-はばぱひびぴふぶぷへべぺほぼぽ" +
   "ワヷ-ヰヸ-ウヴ-ヱヹ-ヲヺ-カガ-キギ-クグ-ケゲ-コゴ-サザ-シジ-スズ-セゼ-ソゾ-タダ-チヂ-ツヅ-テデ-トド-ハバパヒビピフブプヘベペホボポ";

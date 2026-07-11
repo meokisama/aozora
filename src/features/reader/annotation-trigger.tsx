@@ -15,10 +15,10 @@ const GAP = 8; // offset from the cursor
 const MARGIN = 8; // min gap from the viewport edge
 
 /**
- * The unobtrusive first step of highlighting: a single button that surfaces at the
- * end of a fresh text selection. Clicking it opens the colour/note editor; ignoring
- * it (reading on, clicking away, Escape) leaves the text untouched. This is what
- * lets highlighting stay always-on without a full popup covering what you read.
+ * The unobtrusive first step of highlighting: a button that surfaces at the end of
+ * a fresh selection. Clicking it opens the colour/note editor; ignoring it (reading
+ * on, clicking away, Escape) leaves the text untouched — so highlighting stays
+ * always-on without a full popup covering what you read.
  */
 export function AnnotationTrigger({ point, onPick, onClose }: Props) {
   const ref = useRef<HTMLButtonElement>(null);

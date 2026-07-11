@@ -1,17 +1,15 @@
 /**
  * User highlights (and notes), painted via the CSS Custom Highlight API.
  *
- * Highlights are anchored by the reader's character-offset model — the same
- * `getParagraphNodes` + `getCharacterCount` walk that reading position, bookmarks
- * and search use — so a `[startChar, endChar)` span survives re-flow, font
- * changes and continuous↔paginated switches. Nothing is stored as a DOM range;
- * ranges are rebuilt from the offsets against the live shadow tree each time the
- * content re-renders (a paginated section swap, a mode toggle), then registered
- * with `CSS.highlights` under one name per colour (`aoz-hl-<key>`).
+ * Anchored by the reader's character-offset model — the same `getParagraphNodes` +
+ * `getCharacterCount` walk as reading position, bookmarks and search — so a
+ * `[startChar, endChar)` span survives re-flow, font changes and
+ * continuous↔paginated switches. Nothing is stored as a DOM range; ranges are
+ * rebuilt from the offsets against the live shadow tree on every re-render, then
+ * registered with `CSS.highlights` under one name per colour (`aoz-hl-<key>`).
  *
- * The offset↔range mapping is the inverse of `lib/reader/highlight.ts`'s search
- * placement: `rangeToCharSpan` reads a selection back into offsets, `paint`
- * turns stored offsets back into ranges.
+ * Inverse of `highlight.ts`'s search placement: `rangeToCharSpan` reads a
+ * selection into offsets, `paint` turns stored offsets back into ranges.
  */
 
 import { getParagraphNodes, getCharacterCount, isNodeGaiji, countJapanese } from "@/lib/epub/dom-utils";
@@ -53,12 +51,12 @@ export interface CharSpan {
 }
 
 /**
- * The global character offset of a DOM boundary `(node, offset)` within `root`.
- * Walks the readable nodes in document order (matching the char model): the count
- * before the boundary's own text node plus the Japanese-char count of the text
- * preceding `offset` inside it. Element/whitespace boundaries snap to the start
- * of the next readable node (via a document-order comparison). `baseChar` is the
- * rendered region's global start (0 continuous, the section start paginated).
+ * Global character offset of a DOM boundary `(node, offset)` within `root`.
+ * Walks readable nodes in document order (matching the char model): count before
+ * the boundary's text node plus the Japanese-char count preceding `offset` inside
+ * it. Element/whitespace boundaries snap to the next readable node's start.
+ * `baseChar` is the rendered region's global start (0 continuous, section start
+ * paginated).
  */
 export function charOffsetAt(root: Element, node: Node, offset: number, baseChar: number): number {
   const nodes = getParagraphNodes(root);
@@ -121,26 +119,47 @@ function rawIndexForJp(text: string, need: number, skipLeading: boolean): number
   return i;
 }
 
+/** Cumulative char count *before* each node (`cum[i]`), plus the region total.
+ *  Computed once per walk so `getCharacterCount` (a regex count) runs a single
+ *  time per node rather than once per node per annotation-boundary. */
+function cumulativeCounts(nodes: Node[]): { cum: number[]; total: number } {
+  const cum = new Array<number>(nodes.length);
+  let acc = 0;
+  for (let i = 0; i < nodes.length; i++) {
+    cum[i] = acc;
+    acc += getCharacterCount(nodes[i]);
+  }
+  return { cum, total: acc };
+}
+
 /** Resolves a global char offset to a DOM boundary within a precomputed node
  *  list, for building a paint range. `isStart` skips leading punctuation so the
- *  wash begins on a glyph. Clamps below the region to its start, beyond to end. */
-function boundaryForOffset(nodes: Node[], target: number, baseChar: number, isStart: boolean): { node: Node; offset: number } | null {
+ *  wash begins on a glyph. Clamps below the region to its start, beyond to end.
+ *  `cum`/`total` come from `cumulativeCounts` so no per-node recount happens. */
+function boundaryForOffset(
+  nodes: Node[],
+  cum: number[],
+  total: number,
+  target: number,
+  baseChar: number,
+  isStart: boolean,
+): { node: Node; offset: number } | null {
   const local = target - baseChar;
-  let cum = 0;
   let lastText: Text | null = null;
-  for (const n of nodes) {
-    const w = getCharacterCount(n);
+  for (let i = 0; i < nodes.length; i++) {
+    const n = nodes[i];
+    const c = cum[i];
+    const w = (i + 1 < cum.length ? cum[i + 1] : total) - c;
     if (n.nodeType === Node.TEXT_NODE) {
-      if (local <= cum + w) {
-        return { node: n, offset: rawIndexForJp(n.textContent || "", local - cum, isStart) };
+      if (local <= c + w) {
+        return { node: n, offset: rawIndexForJp(n.textContent || "", local - c, isStart) };
       }
       lastText = n as Text;
-    } else if (isNodeGaiji(n) && local <= cum) {
+    } else if (isNodeGaiji(n) && local <= c) {
       // A gaiji image counts as one char; place the boundary just before it.
       const parent = n.parentNode;
       if (parent) return { node: parent, offset: Array.prototype.indexOf.call(parent.childNodes, n) };
     }
-    cum += w;
   }
   if (lastText) return { node: lastText, offset: (lastText.textContent || "").length };
   return null;
@@ -148,9 +167,9 @@ function boundaryForOffset(nodes: Node[], target: number, baseChar: number, isSt
 
 /** Builds a live Range for `[startChar, endChar)` over precomputed nodes, or null
  *  if the span doesn't intersect the region (both ends clamp to the same point). */
-function rangeForSpan(nodes: Node[], startChar: number, endChar: number, baseChar: number): Range | null {
-  const s = boundaryForOffset(nodes, startChar, baseChar, true);
-  const e = boundaryForOffset(nodes, endChar, baseChar, false);
+function rangeForSpan(nodes: Node[], cum: number[], total: number, startChar: number, endChar: number, baseChar: number): Range | null {
+  const s = boundaryForOffset(nodes, cum, total, startChar, baseChar, true);
+  const e = boundaryForOffset(nodes, cum, total, endChar, baseChar, false);
   if (!s || !e) return null;
   const range = document.createRange();
   try {
@@ -166,7 +185,9 @@ function rangeForSpan(nodes: Node[], startChar: number, endChar: number, baseCha
  *  fresh). Exposed for reuse/testing; `paintAnnotations` walks once and shares
  *  the node list across all spans instead. */
 export function charSpanToRange(root: Element, startChar: number, endChar: number, baseChar = 0): Range | null {
-  return rangeForSpan(getParagraphNodes(root), startChar, endChar, baseChar);
+  const nodes = getParagraphNodes(root);
+  const { cum, total } = cumulativeCounts(nodes);
+  return rangeForSpan(nodes, cum, total, startChar, endChar, baseChar);
 }
 
 /**
@@ -180,8 +201,9 @@ export function paintAnnotations(root: Element | null, annotations: Annotation[]
   const byColor = new Map<string, Range[]>();
   if (root) {
     const nodes = getParagraphNodes(root); // walk once; reused for every span
+    const { cum, total } = cumulativeCounts(nodes); // count each node once, not per span
     for (const a of annotations) {
-      const range = rangeForSpan(nodes, a.startChar, a.endChar, baseChar);
+      const range = rangeForSpan(nodes, cum, total, a.startChar, a.endChar, baseChar);
       if (!range) continue;
       const list = byColor.get(a.color);
       if (list) list.push(range);

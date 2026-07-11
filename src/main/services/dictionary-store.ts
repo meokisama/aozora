@@ -105,7 +105,28 @@ function splitTagNames(s: string | null): string[] {
 /** Per-dictionary tag bank: dictId -> (tag name -> definition). */
 type TagMaps = Map<string, Map<string, DictionaryTag>>;
 
-/** Loads the tag banks of all enabled dictionaries (small; one query per lookup). */
+/**
+ * Tag banks + enabled count are invariant between import/remove/enable, but the
+ * lookup path (every hover) needs both. Cache them at module scope and rebuild
+ * lazily after `invalidateLookupCache()`, sparing each hover a JOIN + a COUNT.
+ */
+let tagMapsCache: TagMaps | null = null;
+let enabledCountCache: number | null = null;
+
+function invalidateLookupCache(): void {
+  tagMapsCache = null;
+  enabledCountCache = null;
+}
+
+function getTagMaps(database: Database.Database): TagMaps {
+  return (tagMapsCache ??= loadTagMaps(database));
+}
+
+function getEnabledCount(database: Database.Database): number {
+  return (enabledCountCache ??= (database.prepare("SELECT COUNT(*) AS c FROM dictionaries WHERE enabled = 1").get() as { c: number }).c);
+}
+
+/** Loads the tag banks of all enabled dictionaries (small; built once, then cached). */
 function loadTagMaps(database: Database.Database): TagMaps {
   const maps: TagMaps = new Map();
   const rows = database
@@ -246,11 +267,9 @@ export const dictionaryStore = {
   },
 
   /**
-   * Imports a Yomitan dictionary ZIP (by file path), streaming `onProgress`.
-   * Parsing + insertion run in a forked utility process so the UI stays
-   * responsive; this connection only reads the result back once it commits
-   * (WAL makes the worker's write visible here). Replaces any existing
-   * dictionary with the same title (re-import = upgrade).
+   * Imports a Yomitan dictionary ZIP, streaming `onProgress`. The forked worker
+   * parses + inserts; this connection reads the result back once it commits (WAL
+   * makes the write visible here). Re-import of the same title replaces it.
    */
   async importDict(filePath: string, onProgress?: (p: DictionaryImportProgress) => void): Promise<DictionaryInfo> {
     if (importInFlight) throw new Error("A dictionary import is already in progress.");
@@ -258,6 +277,7 @@ export const dictionaryStore = {
     try {
       const id = await runImportWorker(filePath, onProgress);
       onProgress?.({ phase: "done" });
+      invalidateLookupCache();
       return this.getDict(id)!;
     } finally {
       importInFlight = false;
@@ -266,6 +286,7 @@ export const dictionaryStore = {
 
   removeDict(id: string): void {
     getDb().prepare("DELETE FROM dictionaries WHERE id = ?").run(id);
+    invalidateLookupCache();
   },
 
   /**
@@ -296,6 +317,7 @@ export const dictionaryStore = {
     getDb()
       .prepare("UPDATE dictionaries SET enabled = ? WHERE id = ?")
       .run(enabled ? 1 : 0, id);
+    invalidateLookupCache();
     return this.getDict(id);
   },
 
@@ -317,10 +339,9 @@ export const dictionaryStore = {
     if (!text) return empty;
     const database = getDb();
 
-    const enabledCount = (database.prepare("SELECT COUNT(*) AS c FROM dictionaries WHERE enabled = 1").get() as { c: number }).c;
-    if (!enabledCount) return empty;
+    if (!getEnabledCount(database)) return empty;
 
-    const tagMaps = loadTagMaps(database); // shared by term + kanji tag resolution
+    const tagMaps = getTagMaps(database); // shared by term + kanji tag resolution
 
     const maxLen = Math.min(text.length, 24);
     for (let len = maxLen; len >= 1; len--) {

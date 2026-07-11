@@ -169,11 +169,18 @@ export function searchIndex(
   for (const blk of index) {
     let from = 0;
     let idx: number;
+    // Accumulate the Japanese-char count as matches advance instead of
+    // re-counting the prefix from 0 each hit (was O(matches × blockLen)). Match
+    // boundaries fall on codepoint boundaries, so this is exactly additive.
+    let prevIdx = 0;
+    let jpAcc = 0;
     while ((idx = blk.normalized.indexOf(q, from)) !== -1) {
       total += 1;
       if (results.length < max) {
+        jpAcc += countJapanese(blk.text.slice(prevIdx, idx));
+        prevIdx = idx;
         results.push({
-          charOffset: blk.charBefore + countJapanese(blk.text.slice(0, idx)),
+          charOffset: blk.charBefore + jpAcc,
           ...makeSnippet(blk.text, idx, q.length),
         });
       }

@@ -51,6 +51,11 @@ const selfClosingContentTags = [
   "title",
 ];
 
+// Precompiled once: XHTML lets these content tags self-close (`<p/>`), which HTML
+// parsing mishandles, so each self-closing form is expanded to an explicit pair.
+// Compiling per spine item (there can be hundreds) was pure waste.
+const selfClosingContentTagRes = selfClosingContentTags.map((tag) => ({ tag, re: new RegExp(`<${tag}[^>]+?>`, "gim") }));
+
 /**
  * Flattens the EPUB spine into one detached <div> tree (a wrapper per spine
  * item, id `aoz-<idref>`), replaces image references with dummy data-URIs
@@ -96,7 +101,8 @@ export function generateHtml(data: Record<string, string | Blob>, contents: OpfC
   const result = document.createElement("div");
 
   let mainChapters: Section[] = [];
-  const selfClosingContentTagsToFix = [...selfClosingContentTags, "a"];
+  // The blob key set is invariant across spine items — build it once, not per item.
+  const blobKeys = new Set(blobLocations);
 
   // Table of contents → main chapters
   if (tocData.type && tocData.content) {
@@ -178,13 +184,8 @@ export function generateHtml(data: Record<string, string | Blob>, contents: OpfC
     } else {
       let contentToParse = (data[htmlHref] as string) || "";
 
-      for (const tagMatch of selfClosingContentTagsToFix) {
-        const matches = contentToParse.match(new RegExp(`<${tagMatch}[^>]+?>`, "gim")) || [];
-        for (const match of matches) {
-          if (match.endsWith("/>")) {
-            contentToParse = contentToParse.replace(match, `${match.slice(0, -2)}></${tagMatch}>`);
-          }
-        }
+      for (const { tag, re } of selfClosingContentTagRes) {
+        contentToParse = contentToParse.replace(re, (m) => (m.endsWith("/>") ? `${m.slice(0, -2)}></${tag}>` : m));
       }
 
       contentToParse = contentToParse
@@ -210,13 +211,11 @@ export function generateHtml(data: Record<string, string | Blob>, contents: OpfC
       bodyClass = body.className || "";
 
       // Resolve each image reference against its spine item's folder to the blob
-      // key (manifest href), then swap a packed image for its dummy placeholder
-      // *on the element itself*. We deliberately do NOT string-replace the key
-      // across the whole HTML: flat numeric filenames like `1.jpg` are substrings
-      // of `11.jpg` / `21.jpg` / `110.jpg`, so a global replaceAll chews the key
-      // out of already-substituted dummies, nesting them into broken URLs (and
-      // could even hit such a string in prose). Per-element matching is exact.
-      const blobKeys = new Set(blobLocations);
+      // key (manifest href), then swap the packed image for its dummy placeholder
+      // *on the element itself*. Deliberately NOT a whole-HTML string replace: flat
+      // numeric filenames like `1.jpg` are substrings of `11.jpg`/`110.jpg`, so a
+      // global replaceAll chews the key out of already-substituted dummies (or hits
+      // such a string in prose). Per-element matching is exact.
       for (const elm of [...body.querySelectorAll("image,img")]) {
         const attributes = elm.tagName.toLowerCase() === "image" ? elm.getAttributeNames().filter((attr) => attr.endsWith("href")) : ["src"];
         for (const attr of attributes) {

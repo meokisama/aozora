@@ -80,7 +80,6 @@ export class PaginatedController {
   contentW: number;
   contentH: number;
 
-  paragraphPos: number[];
   pageStartChar: number[];
   sectionAccChar: number[];
   charCount: number;
@@ -105,7 +104,6 @@ export class PaginatedController {
     this.contentH = 0;
 
     // Per-section paragraph stats (recomputed on each section render / reflow).
-    this.paragraphPos = [];
     this.pageStartChar = [0];
 
     // Cumulative character count at the end of each section (counting is
@@ -236,16 +234,16 @@ export class PaginatedController {
     const scrollSize = this.scrollEl[this.scrollSizeProp];
     this.totalPages = Math.max(1, Math.ceil(scrollSize / screen));
 
-    this.paragraphPos = new Array(nodes.length);
     const pageFirstChar: number[] = new Array(this.totalPages);
 
     let acc = 0;
+    let prevPos = 0; // a zero-size node (e.g. an empty wrapper) inherits the last edge
     for (let i = 0; i < nodes.length; i += 1) {
       const node = nodes[i];
       const r = nodeRect(node);
       const size = this.vertical ? r.height : r.width;
-      const pos = size <= 0 ? this.paragraphPos[i - 1] || 0 : this.vertical ? r.top - contentRect.top : r.left - contentRect.left;
-      this.paragraphPos[i] = pos;
+      const pos = size <= 0 ? prevPos : this.vertical ? r.top - contentRect.top : r.left - contentRect.left;
+      prevPos = pos;
 
       // floor, not round: a paragraph whose leading edge is in the latter half
       // of a column still *begins* on that column's page. Rounding it forward

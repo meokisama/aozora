@@ -18,10 +18,9 @@ const MAX_ZOOM = 4;
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(v, hi));
 
 /**
- * Full-screen illustration viewer: a large centred image
- * with prev/next navigation, a thumbnail filmstrip, wheel-to-zoom + drag-to-pan,
- * download, and keyboard controls. "Read from here" jumps the reader to where
- * the image sits in the text.
+ * Full-screen illustration viewer: a large centred image with prev/next navigation,
+ * a thumbnail filmstrip, wheel-to-zoom + drag-to-pan, download, and keyboard
+ * controls. "Read from here" jumps the reader to where the image sits in the text.
  */
 export function ReaderGallery({ open, onOpenChange, illustrations, total, onSelect }: Props) {
   const [index, setIndex] = useState(0);

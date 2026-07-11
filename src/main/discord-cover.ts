@@ -19,10 +19,9 @@ import { libraryStore } from "./services/library-store.js";
  */
 
 /**
- * Discord renders the large image small; letting its client shrink the stored
- * 300px cover pixelates it. So we downscale to about this width ourselves (good
- * filter) before upload. Bump it and stored URLs re-resolve automatically — the
- * width is part of the cache key.
+ * Downscale covers to ~this width ourselves before upload — letting Discord's
+ * client shrink the stored 300px cover pixelates it. Bumping it re-resolves
+ * stored URLs automatically (width is part of the cache key).
  */
 const DISCORD_COVER_WIDTH = 100;
 

@@ -16,10 +16,6 @@ import {
   WRITING_MODES,
   PAGE_COLUMNS_OPTIONS,
   SIDE_MARGIN_RANGE,
-  type FontFamily,
-  type ReadingMode,
-  type FuriganaMode,
-  type WritingMode,
 } from "@/stores/settings-store";
 import { useFontsStore } from "@/stores/fonts-store";
 
@@ -50,6 +46,13 @@ const segmented = {
   className: "w-full",
 } as const;
 
+// ToggleGroup lets you click the active item to clear it; ignore empty updates
+// so a value stays selected.
+const guard =
+  <T extends string>(setter: (next: T) => void) =>
+  (next: T) =>
+    next && setter(next);
+
 /** Reader settings drawer. Changes apply live (the reader subscribes to the
  *  store) and persist across sessions. */
 interface Props {
@@ -62,34 +65,14 @@ interface Props {
 }
 
 export function ReaderSettingsPanel({ open, onOpenChange, fixedLayout = false, vertical = true }: Props) {
-  const fontSize = useSettingsStore((s) => s.fontSize);
-  const lineHeight = useSettingsStore((s) => s.lineHeight);
-  const fontFamily = useSettingsStore((s) => s.fontFamily);
+  // The parent owns only the settings shown for every book (theme, manga spread,
+  // reset); the reflowable-only fields live in ReflowableFields, which reads them
+  // from the store itself so they aren't threaded through as props.
   const theme = useSettingsStore((s) => s.theme);
-  const readingMode = useSettingsStore((s) => s.readingMode);
-  const writingMode = useSettingsStore((s) => s.writingMode);
-  const furiganaMode = useSettingsStore((s) => s.furiganaMode);
   const mangaSpread = useSettingsStore((s) => s.mangaSpread);
-  const pageColumns = useSettingsStore((s) => s.pageColumns);
-  const sideMargin = useSettingsStore((s) => s.sideMargin);
-  const setFontSize = useSettingsStore((s) => s.setFontSize);
-  const setLineHeight = useSettingsStore((s) => s.setLineHeight);
-  const setFontFamily = useSettingsStore((s) => s.setFontFamily);
   const setTheme = useSettingsStore((s) => s.setTheme);
-  const setReadingMode = useSettingsStore((s) => s.setReadingMode);
-  const setFuriganaMode = useSettingsStore((s) => s.setFuriganaMode);
   const setMangaSpread = useSettingsStore((s) => s.setMangaSpread);
-  const setWritingMode = useSettingsStore((s) => s.setWritingMode);
-  const setPageColumns = useSettingsStore((s) => s.setPageColumns);
-  const setSideMargin = useSettingsStore((s) => s.setSideMargin);
   const reset = useSettingsStore((s) => s.reset);
-
-  // ToggleGroup lets you click the active item to clear it; ignore empty updates
-  // so a value stays selected.
-  const guard =
-    <T extends string>(setter: (next: T) => void) =>
-    (next: T) =>
-      next && setter(next);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -123,28 +106,7 @@ export function ReaderSettingsPanel({ open, onOpenChange, fixedLayout = false, v
               </ToggleGroup>
             </Field>
           ) : (
-            <ReflowableFields
-              {...{
-                vertical,
-                readingMode,
-                setReadingMode,
-                writingMode,
-                setWritingMode,
-                pageColumns,
-                setPageColumns,
-                sideMargin,
-                setSideMargin,
-                fontFamily,
-                setFontFamily,
-                furiganaMode,
-                setFuriganaMode,
-                fontSize,
-                setFontSize,
-                lineHeight,
-                setLineHeight,
-                guard,
-              }}
-            />
+            <ReflowableFields vertical={vertical} />
           )}
         </div>
 
@@ -159,48 +121,26 @@ export function ReaderSettingsPanel({ open, onOpenChange, fixedLayout = false, v
   );
 }
 
-interface ReflowableFieldsProps {
-  vertical: boolean;
-  readingMode: ReadingMode;
-  setReadingMode: (mode: ReadingMode) => void;
-  writingMode: WritingMode;
-  setWritingMode: (mode: WritingMode) => void;
-  pageColumns: number;
-  setPageColumns: (columns: number) => void;
-  sideMargin: number;
-  setSideMargin: (margin: number) => void;
-  fontFamily: FontFamily;
-  setFontFamily: (family: FontFamily) => void;
-  furiganaMode: FuriganaMode;
-  setFuriganaMode: (mode: FuriganaMode) => void;
-  fontSize: number;
-  setFontSize: (size: number) => void;
-  lineHeight: number;
-  setLineHeight: (height: number) => void;
-  guard: <T extends string>(setter: (next: T) => void) => (next: T) => void;
-}
+/** The settings only meaningful for reflowable (text) books. Reads its own store
+ *  slice; `vertical` (the effective direction) gates the horizontal-only rows. */
+function ReflowableFields({ vertical }: { vertical: boolean }) {
+  const fontSize = useSettingsStore((s) => s.fontSize);
+  const lineHeight = useSettingsStore((s) => s.lineHeight);
+  const fontFamily = useSettingsStore((s) => s.fontFamily);
+  const readingMode = useSettingsStore((s) => s.readingMode);
+  const writingMode = useSettingsStore((s) => s.writingMode);
+  const furiganaMode = useSettingsStore((s) => s.furiganaMode);
+  const pageColumns = useSettingsStore((s) => s.pageColumns);
+  const sideMargin = useSettingsStore((s) => s.sideMargin);
+  const setFontSize = useSettingsStore((s) => s.setFontSize);
+  const setLineHeight = useSettingsStore((s) => s.setLineHeight);
+  const setFontFamily = useSettingsStore((s) => s.setFontFamily);
+  const setReadingMode = useSettingsStore((s) => s.setReadingMode);
+  const setFuriganaMode = useSettingsStore((s) => s.setFuriganaMode);
+  const setWritingMode = useSettingsStore((s) => s.setWritingMode);
+  const setPageColumns = useSettingsStore((s) => s.setPageColumns);
+  const setSideMargin = useSettingsStore((s) => s.setSideMargin);
 
-/** The settings only meaningful for reflowable (text) books. */
-function ReflowableFields({
-  vertical,
-  readingMode,
-  setReadingMode,
-  writingMode,
-  setWritingMode,
-  pageColumns,
-  setPageColumns,
-  sideMargin,
-  setSideMargin,
-  fontFamily,
-  setFontFamily,
-  furiganaMode,
-  setFuriganaMode,
-  fontSize,
-  setFontSize,
-  lineHeight,
-  setLineHeight,
-  guard,
-}: ReflowableFieldsProps) {
   const customFonts = useFontsStore((s) => s.customFonts);
   const importFont = useFontsStore((s) => s.importFromFile);
   const removeFont = useFontsStore((s) => s.remove);

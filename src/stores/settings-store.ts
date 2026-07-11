@@ -161,8 +161,8 @@ const DEFAULTS: SettingsData = {
   writingMode: "auto",
   pageColumns: 0, // auto
   sideMargin: 12, // % per edge
-  discordRichPresence: true, // on by default (opt-out); shares the current book to Discord
-  discordCover: true, // on by default (opt-out); uploads the cover to a public host (catbox.moe) for the large image
+  discordRichPresence: true, // opt-out; shares the current book to Discord
+  discordCover: true, // opt-out; uploads the cover to a public host (catbox.moe) for the large image
 };
 
 export const useSettingsStore = create<SettingsState>()(

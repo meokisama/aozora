@@ -93,11 +93,10 @@ export function extractRunAt(startNode: Text, startOffset: number, contentRoot: 
     const from = i === startIdx ? startOffset : 0;
     if (from >= data.length) continue;
 
-    // Walk the node char by char so zero-width characters can be dropped from the
-    // scanned text while still tracking their DOM position: each run of kept chars
-    // becomes one segment, split wherever a zero-width char is skipped. `buildRange`
-    // then still maps a match length back to a live Range (the skipped char, if it
-    // falls inside the range, is highlighted along with it — it's invisible anyway).
+    // Walk char by char so zero-width chars drop from the scanned text while their
+    // DOM position is tracked: each run of kept chars is one segment, split at each
+    // skipped char, so `buildRange` still maps a match length back to a live Range
+    // (a skipped char inside the range is painted too — it's invisible anyway).
     let segStart = -1; // source offset where the current kept run began
     let pos = from;
     for (; pos < data.length && text.length < maxLength; pos++) {

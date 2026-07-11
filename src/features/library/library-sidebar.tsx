@@ -52,8 +52,8 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 /**
  * The app's left rail: brand, status nav, links, and an author browser derived
- * from the books (no stored taxonomy). Reads the library and owns nav/filter
- * state via the stores, so every page can render it unchanged.
+ * from the books (no stored taxonomy). Owns nav/filter state via the stores so
+ * every page renders it unchanged.
  */
 export function LibrarySidebar() {
   const books = useLibraryStore((s) => s.books);
@@ -66,8 +66,7 @@ export function LibrarySidebar() {
 
   const inLibrary = view === "library";
 
-  // Status counts for the nav labels, over the whole library. Derived with
-  // useMemo (never returned straight from a store selector).
+  // Status counts for the nav labels. useMemo — never returned straight from a store selector.
   const counts = useMemo(() => {
     const c = { all: books.length, favorites: 0, reading: 0, finished: 0, unread: 0 };
     for (const b of books) {

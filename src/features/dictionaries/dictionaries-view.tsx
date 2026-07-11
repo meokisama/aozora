@@ -109,9 +109,9 @@ function SortableDictRow({
 
 /**
  * Dictionary management page (beside the shared sidebar): hover-lookup behaviour
- * (persisted in useDictionaryStore) and the imported Yomitan dictionaries
- * (import, enable, reorder consult priority, remove). The dictionaries and lookup
- * engine live in the main process; this view drives them over IPC and mirrors the list.
+ * and the imported Yomitan dictionaries (import, enable, reorder consult
+ * priority, remove). The dictionaries and lookup engine live in the main
+ * process; this view drives them over IPC and mirrors the list.
  */
 export function DictionariesView() {
   const enabled = useDictionaryStore((s) => s.enabled);

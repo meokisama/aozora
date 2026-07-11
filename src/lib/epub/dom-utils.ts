@@ -34,13 +34,12 @@ function isInlineGlyphImage(img: Element): boolean {
 }
 
 /**
- * Tags context-detected gaiji with `aoz-gaiji`. Calibre/KFX conversions give gaiji
- * arbitrary class names (e.g. `class_s8x`, sized `width:1em` by the book's own CSS),
- * so class alone (`isElementGaiji`) misses them — they then get blown up by the
- * illustration cap and pollute the gallery. The marker class makes every consumer
- * correct at once: the reader's `img:not([class*="gaiji"])` rule skips them (book CSS
- * sizes the glyph), the gallery excludes them, and they count as one character. This
- * mirrors bibi, which never overrides inline image sizing in the first place.
+ * Tags context-detected gaiji with `aoz-gaiji`. Calibre/KFX give gaiji arbitrary
+ * class names (`class_s8x`, sized by book CSS), so `isElementGaiji` misses them and
+ * the illustration cap blows them up + pollutes the gallery. The marker makes every
+ * consumer correct at once: the reader's `img:not([class*="gaiji"])` rule skips them,
+ * the gallery excludes them, they count as one character. Mirrors bibi, which never
+ * overrides inline image sizing.
  */
 export function tagGaijiImages(root: Element): void {
   for (const img of Array.from(root.querySelectorAll("img,image"))) {

@@ -1,13 +1,13 @@
 /**
- * Injects each imported dictionary's custom CSS (its `styles.css`) into the
- * document, scoped to that dictionary so it only styles glosses tagged with the
- * matching `data-aoz-dict` marker — never the rest of the app.
+ * Injects each imported dictionary's custom `styles.css`, `@scope`d to that
+ * dictionary's `data-aoz-dict` marker so it only styles that dict's glosses —
+ * never the rest of the app.
  *
- * Yomitan dictionaries like Jitendex carry no inline styling; their layout
- * (tag badges, cross-reference/example boxes, list markers) lives entirely in
- * `styles.css`, which targets the `data-sc-*` attributes the structured-content
- * renderer emits. The popup renders outside the reader's shadow root, so the
- * sheet is scoped here with `@scope` rather than relying on shadow isolation.
+ * Yomitan dictionaries (e.g. Jitendex) carry no inline styling; their layout
+ * (tag badges, cross-reference boxes, list markers) lives entirely in
+ * `styles.css`, targeting the `data-sc-*` attributes the structured-content
+ * renderer emits. `@scope` is used rather than shadow isolation because the popup
+ * renders outside the reader's shadow root.
  */
 
 const STYLE_ATTR = "data-aoz-dict-style";

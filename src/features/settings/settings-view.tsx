@@ -44,10 +44,9 @@ function SettingRow({ label, description, children }: { label: string; descripti
 }
 
 /**
- * App-wide preferences (beside the shared sidebar), grouped into sections so the
- * page scales as more settings land. Each control reads/writes the same store
- * that owns the pref, so changes stay in sync with the rest of the app (e.g. the
- * theme toggle mirrors the title bar).
+ * App-wide preferences (beside the shared sidebar), grouped into sections. Each
+ * control reads/writes the store that owns the pref, so changes stay in sync
+ * app-wide (e.g. the theme toggle mirrors the title bar).
  */
 export function SettingsView() {
   const theme = useSettingsStore((s) => s.theme);

@@ -49,10 +49,8 @@ import { useSentencePlay } from "./use-sentence-play";
 
 const api = () => window.electronAPI.library;
 
-/**
- * The highlight editor's open state: anchored to a selection (id null, awaiting a
- * colour pick to be created) or to an existing highlight (id set, editable).
- */
+/** Highlight editor state: anchored to a fresh selection (id null, awaiting a
+ *  colour pick) or an existing highlight (id set, editable). */
 interface AnnoPopoverState {
   anchor: DOMRect;
   id: string | null;
@@ -63,11 +61,9 @@ interface AnnoPopoverState {
   text: string;
 }
 
-/**
- * A pending selection awaiting the highlight button: the small trigger anchors to
- * `point` (the mouse-release position), and picking it opens the editor against
- * `rect` (the selection box). No highlight exists until then.
- */
+/** Pending selection awaiting the highlight button: the trigger anchors to `point`
+ *  (mouse-release), picking it opens the editor against `rect` (selection box). No
+ *  highlight exists until then. */
 interface AnnoTriggerState {
   point: { x: number; y: number };
   rect: DOMRect;
@@ -182,8 +178,7 @@ export function ReaderView() {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [parseToken, setParseToken] = useState(0); // bumped when parsed content is ready
   const [fixedLayout, setFixedLayout] = useState(false); // manga / fixed-layout book
-  // Effective writing direction = the Writing Mode setting ("auto" follows the
-  // EPUB's PPD/CSS; "horizontal"/"vertical" force it). Drives the host overflow axis.
+  // Effective writing direction (see resolveVertical); drives the host overflow axis.
   const [vertical, setVertical] = useState(true);
   const [sections, setSections] = useState<Section[]>([]);
   const [currentChar, setCurrentChar] = useState(0);
@@ -353,8 +348,8 @@ export function ReaderView() {
     [persist, markSession, clearLookup, repaintAnnotations, closeAnnoPopover],
   );
 
-  // Position updates from the fixed-layout viewer. Position is a 0-based page
-  // ordinal; progress reaches 1 on the last page so finished manga read complete.
+  // Position updates from the fixed-layout viewer: a 0-based page ordinal. Progress
+  // reaches 1 on the last page so finished manga count as read.
   const onFixedChange = useCallback(
     (ordinal: number, totalPages: number) => {
       charRef.current = ordinal;
@@ -559,10 +554,9 @@ export function ReaderView() {
     return { root: shadow.querySelector(".aozora-content"), base: 0 };
   }, []);
 
-  // On finishing a text selection, surface the small highlight trigger anchored at
-  // the mouse-release point (not the full editor — that would cover what you read).
-  // Picking the trigger opens the editor; ignoring it leaves the selection untouched.
-  // Fixed-layout (manga) has no selectable text and is skipped.
+  // Finishing a selection surfaces the highlight trigger at the mouse-release point
+  // (not the full editor, which would cover what you read). Picking it opens the
+  // editor; ignoring it leaves the selection. Fixed-layout has no selectable text.
   const handleMouseUp = useCallback(
     (e: React.MouseEvent) => {
       if (modeRef.current === "fixed") return;
@@ -585,8 +579,8 @@ export function ReaderView() {
   );
 
   // Trigger → editor: promote the pending selection into the colour/note editor,
-  // anchored to the selection box. No colour pre-selected (empty), so no swatch
-  // shows active until the user picks one — which is also what creates the highlight.
+  // anchored to the selection box. No colour pre-selected, so picking one is what
+  // creates the highlight.
   const openAnnoEditor = useCallback(() => {
     const t = annoTrigger;
     if (!t) return;
@@ -1022,9 +1016,8 @@ export function ReaderView() {
     setAnnoTrigger(null);
   }, [parseToken, readingMode]);
 
-  // F11 toggles native fullscreen for distraction-free reading. Leaving the
-  // reader drops fullscreen so the user can't get stuck with the title bar
-  // hidden on a page that has no toggle.
+  // F11 toggles native fullscreen. Leaving the reader drops it so the user can't
+  // get stuck with the title bar hidden on a page that has no toggle.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "F11") {
