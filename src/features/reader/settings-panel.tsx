@@ -13,6 +13,9 @@ import {
   FONT_FAMILIES,
   FURIGANA_MODES,
   MANGA_SPREAD_MODES,
+  FIXED_READING_MODES,
+  FIXED_DIRECTIONS,
+  FIXED_SCROLL_AXES,
   WRITING_MODES,
   PAGE_COLUMNS_OPTIONS,
   SIDE_MARGIN_RANGE,
@@ -70,8 +73,14 @@ export function ReaderSettingsPanel({ open, onOpenChange, fixedLayout = false, v
   // from the store itself so they aren't threaded through as props.
   const theme = useSettingsStore((s) => s.theme);
   const mangaSpread = useSettingsStore((s) => s.mangaSpread);
+  const fixedReadingMode = useSettingsStore((s) => s.fixedReadingMode);
+  const fixedDirection = useSettingsStore((s) => s.fixedDirection);
+  const fixedScrollAxis = useSettingsStore((s) => s.fixedScrollAxis);
   const setTheme = useSettingsStore((s) => s.setTheme);
   const setMangaSpread = useSettingsStore((s) => s.setMangaSpread);
+  const setFixedReadingMode = useSettingsStore((s) => s.setFixedReadingMode);
+  const setFixedDirection = useSettingsStore((s) => s.setFixedDirection);
+  const setFixedScrollAxis = useSettingsStore((s) => s.setFixedScrollAxis);
   const reset = useSettingsStore((s) => s.reset);
 
   return (
@@ -96,15 +105,51 @@ export function ReaderSettingsPanel({ open, onOpenChange, fixedLayout = false, v
           {/* Fixed-layout (manga) books only expose the page-spread layout;
               font/furigana/flow settings don't apply to image pages. */}
           {fixedLayout ? (
-            <Field label="Page Layout">
-              <ToggleGroup {...segmented} value={mangaSpread} onValueChange={guard(setMangaSpread)}>
-                {MANGA_SPREAD_MODES.map((m) => (
-                  <ToggleGroupItem key={m.value} value={m.value} className="flex-1">
-                    {m.label}
-                  </ToggleGroupItem>
-                ))}
-              </ToggleGroup>
-            </Field>
+            <>
+              <Field label="Direction">
+                <ToggleGroup {...segmented} value={fixedDirection} onValueChange={guard(setFixedDirection)}>
+                  {FIXED_DIRECTIONS.map((m) => (
+                    <ToggleGroupItem key={m.value} value={m.value} className="flex-1">
+                      {m.label}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+              </Field>
+
+              <Field label="Reading Mode">
+                <ToggleGroup {...segmented} value={fixedReadingMode} onValueChange={guard(setFixedReadingMode)}>
+                  {FIXED_READING_MODES.map((m) => (
+                    <ToggleGroupItem key={m.value} value={m.value} className="flex-1">
+                      {m.label}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+              </Field>
+
+              {fixedReadingMode === "continuous" && (
+                <Field label="Scroll Axis">
+                  <ToggleGroup {...segmented} value={fixedScrollAxis} onValueChange={guard(setFixedScrollAxis)}>
+                    {FIXED_SCROLL_AXES.map((m) => (
+                      <ToggleGroupItem key={m.value} value={m.value} className="flex-1">
+                        {m.label}
+                      </ToggleGroupItem>
+                    ))}
+                  </ToggleGroup>
+                </Field>
+              )}
+
+              {fixedReadingMode !== "continuous" && (
+                <Field label="Page Layout">
+                  <ToggleGroup {...segmented} value={mangaSpread} onValueChange={guard(setMangaSpread)}>
+                    {MANGA_SPREAD_MODES.map((m) => (
+                      <ToggleGroupItem key={m.value} value={m.value} className="flex-1">
+                        {m.label}
+                      </ToggleGroupItem>
+                    ))}
+                  </ToggleGroup>
+                </Field>
+              )}
+            </>
           ) : (
             <ReflowableFields vertical={vertical} />
           )}
