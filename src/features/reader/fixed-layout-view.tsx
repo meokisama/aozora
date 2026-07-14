@@ -134,6 +134,9 @@ export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProp
     [bookViewport],
   );
 
+  const onPageInfoChangeRef = useRef(onPageInfoChange);
+  onPageInfoChangeRef.current = onPageInfoChange;
+
   const emit = useCallback(() => {
     const views = viewsRef.current;
     if (!views.length) return;
@@ -141,8 +144,8 @@ export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProp
     const first = view?.items[0]?.ordinal ?? 0;
     ordinalRef.current = first;
     onChange?.(first, pages.length);
-    onPageInfoChange?.({ currentPage: first + 1, totalPages: pages.length });
-  }, [onChange, pages.length, onPageInfoChange]);
+    onPageInfoChangeRef.current?.({ currentPage: first + 1, totalPages: pages.length });
+  }, [onChange, pages.length]);
 
   function scrollToTarget(scroll: Element, target: Element) {
     if (scrollAxis === "vertical") {

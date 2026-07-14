@@ -1194,7 +1194,6 @@ export function ReaderView() {
               bookViewport={fixedDataRef.current.bookViewport}
               initialOrdinal={book.exploredCharCount || 0}
               onChange={onFixedChange}
-              onPageInfoChange={(info) => setPageInfo({ page: info.currentPage - 1, totalPages: info.totalPages })}
             />
           )
         ) : (
