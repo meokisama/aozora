@@ -1,4 +1,5 @@
 import path from "path-browserify";
+import { BlobReader, BlobWriter, ZipReader } from "@zip.js/zip.js";
 import { create } from "zustand";
 import { extractEpubMetadata } from "@/lib/epub/metadata";
 import { deleteCachedBook } from "@/lib/reader-cache";
@@ -51,7 +52,22 @@ async function importPaths(files: PickedFile[], set: LibrarySet): Promise<Import
         const isCbz = file.name.toLowerCase().endsWith(".cbz");
         let meta: { title: string; author: string | null; language: string | null; coverBytes: ArrayBuffer | null; coverMime: string | null };
         if (isCbz) {
-          meta = { title: path.basename(file.name, ".cbz"), author: null, language: null, coverBytes: null, coverMime: null };
+          const title = path.basename(file.name, ".cbz");
+          let coverBytes: ArrayBuffer | null = null;
+          let coverMime: string | null = null;
+          try {
+            const reader = new ZipReader(new BlobReader(blob));
+            const entries = await reader.getEntries();
+            const IMAGE_EXTS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".avif"]);
+            const firstImage = entries.find((e) => !e.directory && IMAGE_EXTS.has(path.extname(e.filename).toLowerCase()));
+            if (firstImage) {
+              const imageBlob = await (firstImage as import("@zip.js/zip.js").FileEntry).getData(new BlobWriter());
+              coverBytes = await imageBlob.arrayBuffer();
+              coverMime = imageBlob.type || "image/jpeg";
+            }
+            await reader.close();
+          } catch {}
+          meta = { title, author: null, language: null, coverBytes, coverMime };
         } else {
           meta = await extractEpubMetadata(blob);
         }

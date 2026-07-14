@@ -195,7 +195,7 @@ export function LibraryView() {
     ? importProgress && importProgress.total > 1
       ? `Importing ${importProgress.current}/${importProgress.total}…`
       : "Importing…"
-    : "Import EPUB";
+    : "Import books";
 
   const importButton = (
     <Button onClick={handleImport} disabled={importing}>

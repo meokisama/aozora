@@ -690,6 +690,40 @@ export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProp
     }
   }, [readingMode, scrollAxis]);
 
+  // Keyboard navigation for the fixed-layout reader.
+  useEffect(() => {
+    const rtl = direction === "rtl";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.altKey || e.ctrlKey || e.metaKey || e.repeat) return;
+      switch (e.code) {
+        case "ArrowLeft":
+        case "KeyA":
+          flip(rtl ? 1 : -1);
+          break;
+        case "ArrowRight":
+        case "KeyD":
+          flip(rtl ? -1 : 1);
+          break;
+        case "ArrowDown":
+        case "PageDown":
+          flip(1);
+          break;
+        case "ArrowUp":
+        case "PageUp":
+          flip(-1);
+          break;
+        case "Space":
+          flip(e.shiftKey ? -1 : 1);
+          break;
+        default:
+          return;
+      }
+      e.preventDefault();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [direction, flip]);
+
   const wheelTsRef = useRef(0);
   const onWheel = (e: React.WheelEvent) => {
     if (readingMode !== "paginated") return;
