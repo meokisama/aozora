@@ -180,8 +180,8 @@ export function LibraryView() {
     setDragging(false);
     const files = e.dataTransfer.files;
     if (!files?.length) return;
-    if (!Array.from(files).some((f) => f.name.toLowerCase().endsWith(".epub"))) {
-      toast.error("Only EPUB files can be imported");
+    if (!Array.from(files).some((f) => /\.(epub|cbz)$/i.test(f.name))) {
+      toast.error("Only EPUB and CBZ files can be imported");
       return;
     }
     try {

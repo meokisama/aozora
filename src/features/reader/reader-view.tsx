@@ -17,6 +17,7 @@ import { ReaderGallery } from "./reader-gallery";
 import { collectIllustrations, type Illustration } from "@/lib/reader/illustrations";
 import { applyReaderVars, continuousStyles, paginatedStyles } from "./reader-styles";
 import { parseBook, type ParsedBook, type FixedLayoutPage } from "@/lib/epub/parse-book";
+import { parseCbz } from "@/lib/parse-cbz";
 import type { Section } from "@/lib/epub/generate-html";
 import type { Bookmark as BookmarkRecord } from "@/lib/types";
 import { buildReaderHtml } from "@/lib/epub/format-html";
@@ -666,7 +667,9 @@ export function ReaderView() {
         let parsed = await getCachedBook(book.id);
         if (!parsed) {
           const bytes = await api().readBook(book.id);
-          parsed = await parseBook(new Blob([bytes as BlobPart]), setLoadProgress);
+          const blob = new Blob([bytes as BlobPart]);
+          const isCbz = book.filePath.toLowerCase().endsWith(".cbz");
+          parsed = isCbz ? await parseCbz(blob, setLoadProgress) : await parseBook(blob, setLoadProgress);
           await putCachedBook(book.id, parsed);
         } else {
           setLoadProgress(100);

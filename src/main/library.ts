@@ -74,9 +74,13 @@ export const registerLibraryIpc = (): void => {
   ipcMain.handle("library:pick-files", async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     const result = await dialog.showOpenDialog(win!, {
-      title: "Import EPUB",
+      title: "Import Book",
       properties: ["openFile", "multiSelections"],
-      filters: [{ name: "EPUB", extensions: ["epub"] }],
+      filters: [
+        { name: "Books", extensions: ["epub", "cbz"] },
+        { name: "EPUB", extensions: ["epub"] },
+        { name: "CBZ", extensions: ["cbz"] },
+      ],
     });
     if (result.canceled) return [];
     return result.filePaths.map((p) => ({
@@ -91,14 +95,15 @@ export const registerLibraryIpc = (): void => {
     return fs.readFileSync(filePath);
   });
 
-  // Copies the original .epub into the managed library, persists metadata + cover.
+  // Copies the original file into the managed library, persists metadata + cover.
   ipcMain.handle("library:add-book", (_event, payload: AddBookPayload) => {
     const { sourcePath, title, author, language, coverBytes, coverMime, fileSize } = payload;
     const id = randomUUID();
     const dir = path.join(libraryStore.getBooksDir(), id);
     fs.mkdirSync(dir, { recursive: true });
 
-    const filePath = path.join(dir, "book.epub");
+    const ext = path.extname(sourcePath).toLowerCase();
+    const filePath = path.join(dir, `book${ext === ".cbz" ? ".cbz" : ".epub"}`);
     fs.copyFileSync(sourcePath, filePath);
 
     let coverPath: string | null = null;
@@ -112,7 +117,7 @@ export const registerLibraryIpc = (): void => {
 
     const book = libraryStore.insertBook({
       id,
-      title: title || path.basename(sourcePath, ".epub"),
+      title: title || path.basename(sourcePath, path.extname(sourcePath)),
       author: author || null,
       language: language || null,
       filePath,

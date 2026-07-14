@@ -1,3 +1,4 @@
+import path from "path-browserify";
 import { create } from "zustand";
 import { extractEpubMetadata } from "@/lib/epub/metadata";
 import { deleteCachedBook } from "@/lib/reader-cache";
@@ -46,13 +47,19 @@ async function importPaths(files: PickedFile[], set: LibrarySet): Promise<Import
       set({ importProgress: { current: done + 1, total: files.length } });
       try {
         const bytes = await api().readFile(file.path);
-        const blob = new Blob([bytes as BlobPart]);
-        const meta = await extractEpubMetadata(blob);
+        const blob = new Blob([bytes as unknown as BlobPart]);
+        const isCbz = file.name.toLowerCase().endsWith(".cbz");
+        let meta: { title: string; author: string | null; language: string | null; coverBytes: ArrayBuffer | null; coverMime: string | null };
+        if (isCbz) {
+          meta = { title: path.basename(file.name, ".cbz"), author: null, language: null, coverBytes: null, coverMime: null };
+        } else {
+          meta = await extractEpubMetadata(blob);
+        }
         await api().addBook({
           sourcePath: file.path,
           title: meta.title,
-          author: meta.author,
-          language: meta.language,
+          author: meta.author ?? undefined,
+          language: meta.language ?? undefined,
           coverBytes: meta.coverBytes ?? undefined,
           coverMime: meta.coverMime ?? undefined,
           fileSize: file.size,
@@ -103,10 +110,10 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     return importPaths(files, set);
   },
 
-  /** Imports dropped files, keeping only .epub entries. */
+  /** Imports dropped files, keeping only .epub and .cbz entries. */
   importDroppedFiles: async (fileList) => {
     const files = Array.from(fileList)
-      .filter((f) => f.name.toLowerCase().endsWith(".epub"))
+      .filter((f) => /\.(epub|cbz)$/i.test(f.name))
       .map((f) => ({ path: api().getPathForFile(f), name: f.name, size: f.size }));
     if (!files.length) return { added: 0, failed: [] };
     return importPaths(files, set);
