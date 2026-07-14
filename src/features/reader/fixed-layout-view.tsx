@@ -623,64 +623,66 @@ export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProp
       const onScroll = () => handleScrollRef.current();
       el.addEventListener("scroll", onScroll, { passive: true });
 
+      const htmlEl = el as HTMLElement;
       const onWheel = (e: WheelEvent) => {
         if (scrollAxis === "horizontal") {
-          (el as HTMLElement).scrollLeft += e.deltaY;
+          htmlEl.scrollLeft += e.deltaY;
           e.preventDefault();
         }
       };
-      el.addEventListener("wheel", onWheel, { passive: false });
+      htmlEl.addEventListener("wheel", onWheel as EventListener, { passive: false });
 
       let dragState: { prevX: number; prevY: number } | null = null;
       const onDragStart = (e: MouseEvent) => {
         if (e.button !== 0) return;
         e.preventDefault();
         dragState = { prevX: e.clientX, prevY: e.clientY };
-        (el as HTMLElement).style.cursor = "grabbing";
-        (el as HTMLElement).style.userSelect = "none";
+        htmlEl.style.cursor = "grabbing";
+        htmlEl.style.userSelect = "none";
       };
       const onDragMove = (e: MouseEvent) => {
         if (!dragState) return;
-        (el as HTMLElement).scrollLeft -= e.clientX - dragState.prevX;
-        (el as HTMLElement).scrollTop -= e.clientY - dragState.prevY;
+        htmlEl.scrollLeft -= e.clientX - dragState.prevX;
+        htmlEl.scrollTop -= e.clientY - dragState.prevY;
         dragState.prevX = e.clientX;
         dragState.prevY = e.clientY;
       };
       const onDragEnd = () => {
         if (!dragState) return;
         dragState = null;
-        (el as HTMLElement).style.cursor = "";
-        (el as HTMLElement).style.userSelect = "";
+        htmlEl.style.cursor = "";
+        htmlEl.style.userSelect = "";
       };
-      el.addEventListener("mousedown", onDragStart);
-      window.addEventListener("mousemove", onDragMove);
+      htmlEl.addEventListener("mousedown", onDragStart as EventListener);
+      window.addEventListener("mousemove", onDragMove as EventListener);
       window.addEventListener("mouseup", onDragEnd);
-      el.addEventListener("mouseleave", onDragEnd);
+      htmlEl.addEventListener("mouseleave", onDragEnd);
 
       return () => {
-        el.removeEventListener("scroll", onScroll);
-        el.removeEventListener("wheel", onWheel);
-        el.removeEventListener("mousedown", onDragStart);
-        window.removeEventListener("mousemove", onDragMove);
+        htmlEl.removeEventListener("scroll", onScroll);
+        htmlEl.removeEventListener("wheel", onWheel as EventListener);
+        htmlEl.removeEventListener("mousedown", onDragStart as EventListener);
+        window.removeEventListener("mousemove", onDragMove as EventListener);
         window.removeEventListener("mouseup", onDragEnd);
-        el.removeEventListener("mouseleave", onDragEnd);
+        htmlEl.removeEventListener("mouseleave", onDragEnd);
         if (dragState) {
           (el as HTMLElement).style.cursor = "";
           (el as HTMLElement).style.userSelect = "";
         }
       };
     } else {
-      const el = stageRef.current;
+      const el = stageRef.current as HTMLElement | null;
       if (!el) return;
 
-      const onWheel = (e: WheelEvent) => {
-        flipRef.current(e.deltaY > 0 ? 1 : -1);
-        e.preventDefault();
+      const onPaginatedWheel = (e: Event) => {
+        const we = e as WheelEvent;
+        flipRef.current(we.deltaY > 0 ? 1 : -1);
+        we.preventDefault();
       };
-      el.addEventListener("wheel", onWheel, { passive: false });
+      el.addEventListener("wheel", onPaginatedWheel, { passive: false });
 
       return () => {
-        el.removeEventListener("wheel", onWheel);
+        el.removeEventListener("wheel", onPaginatedWheel);
       };
     }
   }, [readingMode, scrollAxis]);
