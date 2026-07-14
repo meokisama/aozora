@@ -154,6 +154,67 @@ export function fixedLayoutStyles() {
 }
 
 /**
+ * Continuous (scroll) fixed-layout reader CSS. Renders all pages in a strip;
+ * the scroll container handles navigation while the inner flexbox rows lay
+ * spreads side by side (or stacked, for vertical scroll).
+ */
+export function fixedContinuousStyles() {
+  return `
+    :host { display: block; height: 100%; }
+    .aoz-fxl-cont {
+      box-sizing: border-box;
+      height: 100%;
+      width: 100%;
+      overscroll-behavior: none;
+      background: var(--reader-bg, #faf8f4);
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .aoz-fxl-inner {
+      display: flex;
+      align-items: center;
+      min-width: 100%;
+      width: fit-content;
+      overflow: visible;
+    }
+    .aoz-fxl-inner-column {
+      flex-direction: column;
+      align-items: stretch;
+      width: 100%;
+      height: auto;
+      min-height: 100%;
+    }
+    .aoz-fxl-inner > .aoz-fxl-spread {
+      flex: 0 0 auto;
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: center;
+      touch-action: revert;
+    }
+    .aoz-fxl-inner-column > .aoz-fxl-spread {
+      width: 100%;
+    }
+    .aoz-fxl-page { position: relative; overflow: hidden; flex: 0 0 auto; }
+    .aoz-fxl-blank { flex: 0 0 auto; }
+    .aoz-fxl-canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
+    .aoz-fxl-canvas .aoz-book-html-wrapper,
+    .aoz-fxl-canvas .aoz-book-body-wrapper {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+    .aoz-fxl-canvas svg,
+    .aoz-fxl-canvas img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+  `;
+}
+
+/**
  * Illustration sizing, shared by both modes. Capped against the reader's pixel
  * size (--reader-w/--reader-h; padV/padH budget the content padding) since the
  * book's percentage max-* can't resolve through the auto-height/inline wrappers.

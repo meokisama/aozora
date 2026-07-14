@@ -15,6 +15,9 @@ export type ThemeName = "sepia" | "dark";
 export type ReadingMode = "continuous" | "paginated";
 export type FuriganaMode = "show" | "hide" | "partial" | "toggle" | "full";
 export type MangaSpread = "auto" | "single" | "double";
+export type FixedReadingMode = "paginated" | "continuous";
+export type FixedDirection = "auto" | "ltr" | "rtl";
+export type FixedScrollAxis = "horizontal" | "vertical";
 export type WritingMode = "auto" | "horizontal" | "vertical";
 
 /** CSS font-family stacks per built-in font. `mincho` rides on system faces (Yu
@@ -100,6 +103,22 @@ export const MANGA_SPREAD_MODES: { value: MangaSpread; label: string }[] = [
  * `horizontal`/`vertical` writes an explicit global override that applies to
  * every book until switched back to `auto`.
  */
+export const FIXED_READING_MODES: { value: FixedReadingMode; label: string }[] = [
+  { value: "paginated", label: "Paginated" },
+  { value: "continuous", label: "Continuous" },
+];
+
+export const FIXED_DIRECTIONS: { value: FixedDirection; label: string }[] = [
+  { value: "auto", label: "Auto" },
+  { value: "ltr", label: "LTR" },
+  { value: "rtl", label: "RTL" },
+];
+
+export const FIXED_SCROLL_AXES: { value: FixedScrollAxis; label: string }[] = [
+  { value: "horizontal", label: "Horizontal" },
+  { value: "vertical", label: "Vertical" },
+];
+
 export const WRITING_MODES: { value: WritingMode; label: string }[] = [
   { value: "auto", label: "Auto" },
   { value: "horizontal", label: "Horizontal" },
@@ -114,6 +133,9 @@ interface SettingsState {
   readingMode: ReadingMode;
   furiganaMode: FuriganaMode;
   mangaSpread: MangaSpread;
+  fixedReadingMode: FixedReadingMode;
+  fixedDirection: FixedDirection;
+  fixedScrollAxis: FixedScrollAxis;
   writingMode: WritingMode;
   pageColumns: number;
   sideMargin: number;
@@ -126,6 +148,9 @@ interface SettingsState {
   setReadingMode: (readingMode: ReadingMode) => void;
   setFuriganaMode: (furiganaMode: FuriganaMode) => void;
   setMangaSpread: (mangaSpread: MangaSpread) => void;
+  setFixedReadingMode: (fixedReadingMode: FixedReadingMode) => void;
+  setFixedDirection: (fixedDirection: FixedDirection) => void;
+  setFixedScrollAxis: (fixedScrollAxis: FixedScrollAxis) => void;
   setWritingMode: (writingMode: WritingMode) => void;
   setPageColumns: (pageColumns: number) => void;
   setSideMargin: (sideMargin: number) => void;
@@ -143,6 +168,9 @@ type SettingsData = Pick<
   | "readingMode"
   | "furiganaMode"
   | "mangaSpread"
+  | "fixedReadingMode"
+  | "fixedDirection"
+  | "fixedScrollAxis"
   | "writingMode"
   | "pageColumns"
   | "sideMargin"
@@ -158,6 +186,9 @@ const DEFAULTS: SettingsData = {
   readingMode: "paginated",
   furiganaMode: "show",
   mangaSpread: "auto",
+  fixedReadingMode: "paginated",
+  fixedDirection: "auto",
+  fixedScrollAxis: "horizontal",
   writingMode: "auto",
   pageColumns: 0, // auto
   sideMargin: 12, // % per edge
@@ -176,6 +207,9 @@ export const useSettingsStore = create<SettingsState>()(
       setReadingMode: (readingMode) => set({ readingMode }),
       setFuriganaMode: (furiganaMode) => set({ furiganaMode }),
       setMangaSpread: (mangaSpread) => set({ mangaSpread }),
+      setFixedReadingMode: (fixedReadingMode) => set({ fixedReadingMode }),
+      setFixedDirection: (fixedDirection) => set({ fixedDirection }),
+      setFixedScrollAxis: (fixedScrollAxis) => set({ fixedScrollAxis }),
       setWritingMode: (writingMode) => set({ writingMode }),
       setPageColumns: (pageColumns) => set({ pageColumns }),
       setSideMargin: (sideMargin) => set({ sideMargin }),
