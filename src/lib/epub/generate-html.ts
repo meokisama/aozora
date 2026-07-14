@@ -61,7 +61,7 @@ const selfClosingContentTagRes = selfClosingContentTags.map((tag) => ({ tag, re:
  * item, id `aoz-<idref>`), replaces image references with dummy data-URIs
  * carrying the original path, and derives the chapter sections + total char count.
  */
-export function generateHtml(data: Record<string, string | Blob>, contents: OpfContents, _contentsDirectory: string): GeneratedHtml {
+export function generateHtml(data: Record<string, string | Blob>, contents: OpfContents, _contentsDirectory: string, onProgress?: (pct: number) => void): GeneratedHtml {
   const manifestItems = getManifestItems(contents);
   const fallbackData = new Map<string, string>();
   let navKey = "";
@@ -159,8 +159,10 @@ export function generateHtml(data: Record<string, string | Blob>, contents: OpfC
   // whole-file in-content links (e.g. an embedded TOC page) resolve to a target.
   const hrefToWrapperId = new Map<string, string>();
 
+  const totalItems = itemRefs.length;
   // Flatten each spine item
-  itemRefs.forEach((item) => {
+  itemRefs.forEach((item, idx) => {
+    onProgress?.(Math.round(((idx + 1) / totalItems) * 100));
     let itemIdRef = item["@_idref"];
     let htmlHref = itemIdToHtmlRef[itemIdRef];
     if (!htmlHref && fallbackData.has(itemIdRef)) {

@@ -27,17 +27,18 @@ export interface ParsedBook {
 
 /**
  * Parses an EPUB blob into the reader payload: flattened HTML, combined
- * stylesheet, image blobs (keyed by path), chapter sections, char count. This is
- * the expensive step; results are cached in IndexedDB by the caller.
- *
- * Fixed-layout books (manga/comics) produce the same flattened HTML plus extra
- * fields describing how to render the wrappers as spreads: page order +
- * `page-spread` sides (`pages`), progression direction (`ppd`), and base viewport.
+ * stylesheet, image blobs (keyed by path), chapter sections, char count.
+ * Reports progress via onProgress (0-100).
  */
-export async function parseBook(blob: Blob): Promise<ParsedBook> {
-  const { contents, contentsDirectory, result } = await extractEpub(blob);
-  const { element, characters, sections } = generateHtml(result, contents, contentsDirectory);
+export async function parseBook(blob: Blob, onProgress?: (pct: number) => void): Promise<ParsedBook> {
+  const { contents, contentsDirectory, result } = await extractEpub(blob, (pct) => onProgress?.(Math.round(pct * 0.4)));
+  onProgress?.(40);
+  await new Promise((r) => setTimeout(r, 0));
+  const { element, characters, sections } = generateHtml(result, contents, contentsDirectory, (pct) => onProgress?.(40 + Math.round(pct * 0.4)));
+  onProgress?.(80);
+  await new Promise((r) => setTimeout(r, 0));
   const styleSheet = generateStyleSheet(result, contents);
+  onProgress?.(85);
 
   const blobs: Record<string, Blob> = {};
   for (const [key, value] of Object.entries(result)) {
@@ -46,11 +47,6 @@ export async function parseBook(blob: Blob): Promise<ParsedBook> {
 
   const elementHtml = element.innerHTML;
   const ppd = getPageProgressionDirection(contents);
-  // Vertical (tategaki) detection. PPD=rtl and the 電書協 `vrtl` class are strong
-  // signals. Calibre/KFX conversions instead declare `writing-mode: vertical-rl`
-  // on arbitrary paragraph classes (no `vrtl`, sometimes no PPD), so also consult
-  // the book stylesheet — but only when PPD isn't an explicit `ltr`, so a
-  // horizontal book with a stray vertical caption isn't flipped wholesale.
   const cssDeclaresVertical = /(?:-webkit-|-epub-)?writing-mode\s*:\s*(?:vertical-[rl]l|tb-[rl]l)/i.test(styleSheet);
   const vertical = ppd === "rtl" || /\bvrtl\b/.test(elementHtml) || (ppd !== "ltr" && cssDeclaresVertical);
 
@@ -62,7 +58,6 @@ export async function parseBook(blob: Blob): Promise<ParsedBook> {
   let bookViewport: { width: number; height: number } | null = null;
   let spreadPairs: string[][] | null = null;
   if (fixedLayout) {
-    // Wholly fixed-layout (manga) → dedicated FixedLayoutView renders it.
     bookViewport = getBookViewport(contents);
     let ordinal = 0;
     pages = spine.map((p) => ({
@@ -72,9 +67,6 @@ export async function parseBook(blob: Blob): Promise<ParsedBook> {
       ordinal: ordinal++,
     }));
   } else {
-    // Reflowable book that may embed fixed-layout image pages (light novel with
-    // manga-style colour spreads). Pre-compute which spine wrappers pair into a
-    // two-page spread; reflowable text pages never pair.
     const packageLayout = getRenditionLayout(contents);
     const flow = spine.map((p) => ({
       idref: p.idref,
@@ -89,6 +81,7 @@ export async function parseBook(blob: Blob): Promise<ParsedBook> {
     }
   }
 
+  onProgress?.(90);
   return {
     elementHtml,
     styleSheet,

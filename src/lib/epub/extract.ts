@@ -14,11 +14,12 @@ export interface ExtractedEpub {
  * Fully unzips an EPUB: reads container.xml → the OPF, then every manifest item.
  * Image items are returned as Blobs, text items (XHTML/CSS/NCX) as strings.
  */
-export async function extractEpub(blob: Blob): Promise<ExtractedEpub> {
+export async function extractEpub(blob: Blob, onProgress?: (pct: number) => void): Promise<ExtractedEpub> {
   const reader = new ZipReader(new BlobReader(blob));
   try {
     const entries = await reader.getEntries();
     if (!entries.length) throw new Error("Invalid EPUB: empty archive");
+    onProgress?.(10);
 
     const fileMap = new Map(entries.map((e) => [e.filename, e]));
 
@@ -28,6 +29,7 @@ export async function extractEpub(blob: Blob): Promise<ExtractedEpub> {
     const rootFiles = container.container.rootfiles.rootfile;
     const rootFile = Array.isArray(rootFiles) ? rootFiles[0] : rootFiles;
     const opfPath = rootFile["@_full-path"];
+    onProgress?.(15);
 
     const opfEntry = fileMap.get(opfPath);
     if (!opfEntry || opfEntry.directory) throw new Error(`Invalid EPUB: missing OPF at ${opfPath}`);
@@ -37,17 +39,21 @@ export async function extractEpub(blob: Blob): Promise<ExtractedEpub> {
     const contentsDirectory = path.dirname(opfPath);
     const result: Record<string, string | Blob> = { [opfPath]: opfXml };
 
-    await Promise.all(
-      getManifestItems(contents).map(async (item) => {
-        const href = item["@_href"];
-        const entry = fileMap.get(path.join(contentsDirectory, href)) || fileMap.get(href);
-        if (!entry || entry.directory) return;
+    const items = getManifestItems(contents);
+    const total = items.length;
 
-        const mediaType = item["@_media-type"] || "";
-        result[href] = mediaType.startsWith("image/") ? await entry.getData<Blob>(new BlobWriter(mediaType)) : await entry.getData(new TextWriter());
-      }),
-    );
+    for (let i = 0; i < total; i++) {
+      const item = items[i];
+      const href = item["@_href"];
+      const entry = fileMap.get(path.join(contentsDirectory, href)) || fileMap.get(href);
+      if (!entry || entry.directory) continue;
 
+      const mediaType = item["@_media-type"] || "";
+      result[href] = mediaType.startsWith("image/") ? await entry.getData<Blob>(new BlobWriter(mediaType)) : await entry.getData(new TextWriter());
+      onProgress?.(15 + Math.round(((i + 1) / total) * 45));
+    }
+
+    onProgress?.(60);
     return { contents, contentsDirectory, result };
   } finally {
     await reader.close();

@@ -177,12 +177,14 @@ export function ReaderView() {
   const dictModifier = useDictionaryStore((s) => s.modifier);
 
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [loadProgress, setLoadProgress] = useState(0);
   const [parseToken, setParseToken] = useState(0); // bumped when parsed content is ready
   const [fixedLayout, setFixedLayout] = useState(false); // manga / fixed-layout book
   // Effective writing direction (see resolveVertical); drives the host overflow axis.
   const [vertical, setVertical] = useState(true);
   const [sections, setSections] = useState<Section[]>([]);
   const [currentChar, setCurrentChar] = useState(0);
+  const [sectionIndex, setSectionIndex] = useState(0);
   const [pageInfo, setPageInfo] = useState<{ page: number; totalPages: number } | null>(null); // paginated mode
   const [tocOpen, setTocOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -216,9 +218,28 @@ export function ReaderView() {
   annoPopoverRef.current = annoPopover;
 
   const total = totalRef.current;
-  // Fixed-layout position is a page ordinal, so the last page (total-1) is 100%;
-  // reflowable position is a character offset out of the total.
-  const progressPct = total ? Math.round((fixedLayout && total > 1 ? currentChar / (total - 1) : currentChar / total) * 100) : 0;
+  const VIRTUAL_CHARS = 1000;
+  const progressPct = (() => {
+    if (!total) return 0;
+    if (fixedLayout) {
+      return total > 1 ? Math.round((currentChar / (total - 1)) * 100) : 0;
+    }
+    // Mixed books: assign virtual character weight to image-only sections
+    // so the progress bar doesn't stall on full-page spreads.
+    const imgTotal = sections.filter((s) => !s.characters).length;
+    if (!imgTotal) {
+      return Math.round((currentChar / total) * 100);
+    }
+    const secIdx = sectionIndex ?? 0;
+    const imgPast = sections.slice(0, secIdx).filter((s) => !s.characters).length;
+    let imgFrac = 0;
+    if (secIdx < sections.length && !sections[secIdx]?.characters && (pageInfo?.totalPages ?? 1) > 1) {
+      imgFrac = ((pageInfo?.page ?? 0)) / ((pageInfo?.totalPages ?? 1) - 1);
+    }
+    const effectiveChar = currentChar + (imgPast + imgFrac) * VIRTUAL_CHARS;
+    const effectiveTotal = total + imgTotal * VIRTUAL_CHARS;
+    return Math.min(100, Math.round((effectiveChar / Math.max(1, effectiveTotal)) * 100));
+  })();
 
   // Chapters that carry a TOC label (sub-sections fold into their parent).
   const chapters = useMemo(() => sections.filter((s) => s.label), [sections]);
@@ -338,6 +359,7 @@ export function ReaderView() {
       charRef.current = state.char;
       setCurrentChar(state.char);
       setPageInfo({ page: state.page, totalPages: state.totalPages });
+      setSectionIndex(state.sectionIndex);
       markSession(state.char, "paginated");
       clearLookup(); // the matched run scrolled off the page
       setFootnote(null);
@@ -358,6 +380,7 @@ export function ReaderView() {
       totalRef.current = totalPages;
       setCurrentChar(ordinal);
       setPageInfo({ page: ordinal, totalPages });
+      setSectionIndex(ordinal);
       markSession(ordinal, "fixed");
       if (!book || !totalPages) return;
       const progress = totalPages > 1 ? Math.min(1, ordinal / (totalPages - 1)) : 1;
@@ -638,12 +661,15 @@ export function ReaderView() {
 
     (async () => {
       setStatus("loading");
+      setLoadProgress(0);
       try {
         let parsed = await getCachedBook(book.id);
         if (!parsed) {
           const bytes = await api().readBook(book.id);
-          parsed = await parseBook(new Blob([bytes as BlobPart]));
+          parsed = await parseBook(new Blob([bytes as BlobPart]), setLoadProgress);
           await putCachedBook(book.id, parsed);
+        } else {
+          setLoadProgress(100);
         }
         if (cancelled) return;
 
@@ -1179,7 +1205,12 @@ export function ReaderView() {
             {status === "error" ? (
               <p className="text-sm text-muted-foreground">Could not open this book.</p>
             ) : (
-              <Loader2 className="size-5 animate-spin text-muted-foreground" />
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                <div className="h-1 w-32 overflow-hidden bg-muted rounded-full">
+                  <div className="h-full bg-muted-foreground/70 transition-[width] duration-200" style={{ width: `${loadProgress}%` }} />
+                </div>
+              </div>
             )}
           </div>
         )}
