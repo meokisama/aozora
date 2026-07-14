@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Bookmark, Highlighter, Images, List, Loader2, Maximize, Minimize, Search, Settings, Volume2 } from "lucide-react";
+import { ArrowLeft, Bookmark, Highlighter, Images, List, Loader2, Maximize, Minimize, Search, Settings, Volume2, ArrowRightToLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useReaderStore } from "@/stores/reader-store";
 import { useLibraryStore } from "@/stores/library-store";
@@ -25,6 +25,7 @@ import { collectAnchors, currentCharAtCenter, scrollToChar, scrollToElementId, t
 import { PaginatedController, type PaginatedState } from "@/lib/reader/paginated";
 import { mergeSpreadSections } from "@/lib/reader/merge-spreads";
 import { FixedLayoutView, type FixedLayoutHandle } from "./fixed-layout-view";
+import { ReaderJump } from "./reader-jump";
 import { buildSearchIndex, searchIndex, type SearchResult, type SearchIndexEntry } from "@/lib/reader/search";
 import { clearSearchHighlight, highlightSearchResult } from "@/lib/reader/highlight";
 import {
@@ -194,6 +195,7 @@ export function ReaderView() {
   const [annoTrigger, setAnnoTrigger] = useState<AnnoTriggerState | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
+  const [jumpOpen, setJumpOpen] = useState(false);
   const [illustrations, setIllustrations] = useState<Illustration[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<{ results: SearchResult[]; total: number; capped: boolean }>({
@@ -206,7 +208,7 @@ export function ReaderView() {
   // Mirrors whether any reader overlay (panel/gallery) is open, so the global
   // page-flip key handler can stand down instead of flipping pages behind it.
   const panelOpenRef = useRef(false);
-  panelOpenRef.current = tocOpen || settingsOpen || bookmarksOpen || searchOpen || galleryOpen || annotationsOpen;
+  panelOpenRef.current = tocOpen || settingsOpen || bookmarksOpen || searchOpen || galleryOpen || annotationsOpen || jumpOpen;
 
   // Ref mirrors so the paginated onChange callback (bound once at construction)
   // and the popover close/save handlers can read current values without deps.
@@ -891,6 +893,75 @@ export function ReaderView() {
     return () => window.removeEventListener("keydown", onKey);
   }, [fixedLayout, readingMode, flipNext, flipPrev]);
 
+  // Keyboard shortcuts for the fixed-layout (manga) reader: toggle panels,
+  // switch modes, jump-to-page, and zoom. The arrow keys and Space are
+  // handled inside FixedLayoutView itself.
+  useEffect(() => {
+    if (!fixedLayout) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (panelOpenRef.current) return;
+      if (e.altKey || e.ctrlKey || e.metaKey || e.repeat) return;
+      switch (e.key) {
+        case "t":
+        case "T":
+          e.preventDefault();
+          setTocOpen((v) => !v);
+          break;
+        case "s":
+        case "S":
+        case "o":
+        case "O":
+          e.preventDefault();
+          setSettingsOpen((v) => !v);
+          break;
+        case "j":
+        case "J":
+          e.preventDefault();
+          setJumpOpen((v) => !v);
+          break;
+        case "f":
+        case "F":
+          e.preventDefault();
+          window.electronAPI.window.toggleFullscreen();
+          break;
+        case "d":
+        case "D":
+          e.preventDefault();
+          {
+            const store = useSettingsStore.getState();
+            const modes = ["auto", "ltr", "rtl"] as const;
+            const idx = (modes.indexOf(store.fixedDirection) + 1) % modes.length;
+            store.setFixedDirection(modes[idx]);
+            fixedRef.current?.setDirection?.(modes[idx]);
+          }
+          break;
+        case "q":
+        case "Q":
+          e.preventDefault();
+          {
+            const store = useSettingsStore.getState();
+            const modes = ["auto", "single", "double"] as const;
+            const idx = (modes.indexOf(store.mangaSpread) + 1) % modes.length;
+            store.setMangaSpread(modes[idx]);
+            fixedRef.current?.setSpreadCount?.(modes[idx]);
+          }
+          break;
+        case "m":
+        case "M":
+          e.preventDefault();
+          {
+            const store = useSettingsStore.getState();
+            const next = store.fixedReadingMode === "paginated" ? "continuous" : "paginated";
+            store.setFixedReadingMode(next);
+            fixedRef.current?.refresh?.();
+          }
+          break;
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [fixedLayout]);
+
   // Recompute the continuous character offset at the viewport centre
   // (rAF-throttled) and debounce a save.
   const handleScroll = () => {
@@ -1072,6 +1143,9 @@ export function ReaderView() {
         <Button variant="ghost" size="icon" onClick={() => setGalleryOpen(true)} disabled={!illustrations.length} aria-label="Illustrations">
           <Images className="size-4" />
         </Button>
+        <Button variant="ghost" size="icon" onClick={() => setJumpOpen(true)} disabled={!fixedLayout || !pageInfo} aria-label="Jump to page">
+          <ArrowRightToLine className="size-4" />
+        </Button>
         <Button
           variant="ghost"
           size="icon"
@@ -1120,6 +1194,7 @@ export function ReaderView() {
               bookViewport={fixedDataRef.current.bookViewport}
               initialOrdinal={book.exploredCharCount || 0}
               onChange={onFixedChange}
+              onPageInfoChange={(info) => setPageInfo({ page: info.currentPage - 1, totalPages: info.totalPages })}
             />
           )
         ) : (
@@ -1223,6 +1298,16 @@ export function ReaderView() {
         onSelect={(char) => {
           setGalleryOpen(false);
           jumpToChar(char);
+        }}
+      />
+
+      <ReaderJump
+        open={jumpOpen}
+        onOpenChange={setJumpOpen}
+        pageInfo={{ currentPage: pageInfo?.page ?? 1, totalPages: pageInfo?.totalPages ?? 1 }}
+        onJump={(targetPage) => {
+          fixedRef.current?.goToPage?.(targetPage);
+          setJumpOpen(false);
         }}
       />
 
