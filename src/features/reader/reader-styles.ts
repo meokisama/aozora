@@ -131,6 +131,31 @@ export function fixedLayoutStyles() {
       background: var(--reader-bg, #faf8f4);
     }
     .aoz-fxl-spread { display: flex; flex-wrap: nowrap; align-items: center; }
+    /* Continuous long-strip: the stage becomes a scroller (vertical or a
+       horizontal filmstrip). display:block replaces the spread's flex centring so
+       the scroller can reach its start edge (a flex-centred overflow container
+       clips its own overflow). */
+    .aoz-fxl-stage.is-strip {
+      display: block;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+    .aoz-fxl-stage.is-strip-h {
+      display: block;
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+    .aoz-fxl-strip { display: flex; flex-direction: column; align-items: center; }
+    /* Horizontal filmstrip: a row of pages, full stage height, centred vertically.
+       min-height:100% keeps short pages centred; DOM order already encodes the
+       reading direction (RTL builds the row last→first), so no reversal here. */
+    .aoz-fxl-strip-h {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      min-height: 100%;
+      width: max-content;
+    }
     .aoz-fxl-page { position: relative; overflow: hidden; flex: 0 0 auto; }
     .aoz-fxl-blank { flex: 0 0 auto; }
     .aoz-fxl-canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
@@ -150,6 +175,12 @@ export function fixedLayoutStyles() {
       height: 100%;
       object-fit: contain;
     }
+    /* The strip scroller lives in this shadow root, so index.css's global
+       scrollbar styling can't reach it — mirror it here. */
+    .aoz-fxl-stage::-webkit-scrollbar { width: 3px; height: 3px; }
+    .aoz-fxl-stage::-webkit-scrollbar-track { background: transparent; }
+    .aoz-fxl-stage::-webkit-scrollbar-thumb { background: #a0a0a0; border-radius: 5px; }
+    .aoz-fxl-stage::-webkit-scrollbar-thumb:hover { background: #727272; }
   `;
 }
 

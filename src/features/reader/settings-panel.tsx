@@ -13,9 +13,13 @@ import {
   FONT_FAMILIES,
   FURIGANA_MODES,
   MANGA_SPREAD_MODES,
+  MANGA_READING_MODES,
+  MANGA_SCROLL_DIRECTIONS,
   WRITING_MODES,
   PAGE_COLUMNS_OPTIONS,
   SIDE_MARGIN_RANGE,
+  MANGA_STRIP_WIDTH_RANGE,
+  MANGA_STRIP_GAP_RANGE,
 } from "@/stores/settings-store";
 import { useFontsStore } from "@/stores/fonts-store";
 
@@ -70,8 +74,16 @@ export function ReaderSettingsPanel({ open, onOpenChange, fixedLayout = false, v
   // from the store itself so they aren't threaded through as props.
   const theme = useSettingsStore((s) => s.theme);
   const mangaSpread = useSettingsStore((s) => s.mangaSpread);
+  const mangaReadingMode = useSettingsStore((s) => s.mangaReadingMode);
+  const mangaScrollDirection = useSettingsStore((s) => s.mangaScrollDirection);
+  const mangaStripWidth = useSettingsStore((s) => s.mangaStripWidth);
+  const mangaStripGap = useSettingsStore((s) => s.mangaStripGap);
   const setTheme = useSettingsStore((s) => s.setTheme);
   const setMangaSpread = useSettingsStore((s) => s.setMangaSpread);
+  const setMangaReadingMode = useSettingsStore((s) => s.setMangaReadingMode);
+  const setMangaScrollDirection = useSettingsStore((s) => s.setMangaScrollDirection);
+  const setMangaStripWidth = useSettingsStore((s) => s.setMangaStripWidth);
+  const setMangaStripGap = useSettingsStore((s) => s.setMangaStripGap);
   const reset = useSettingsStore((s) => s.reset);
 
   return (
@@ -93,18 +105,66 @@ export function ReaderSettingsPanel({ open, onOpenChange, fixedLayout = false, v
             </ToggleGroup>
           </Field>
 
-          {/* Fixed-layout (manga) books only expose the page-spread layout;
+          {/* Fixed-layout (manga) books only expose reading mode + page spread;
               font/furigana/flow settings don't apply to image pages. */}
           {fixedLayout ? (
-            <Field label="Page Layout">
-              <ToggleGroup {...segmented} value={mangaSpread} onValueChange={guard(setMangaSpread)}>
-                {MANGA_SPREAD_MODES.map((m) => (
-                  <ToggleGroupItem key={m.value} value={m.value} className="flex-1">
-                    {m.label}
-                  </ToggleGroupItem>
-                ))}
-              </ToggleGroup>
-            </Field>
+            <>
+              <Field label="Reading Mode">
+                <ToggleGroup {...segmented} value={mangaReadingMode} onValueChange={guard(setMangaReadingMode)}>
+                  {MANGA_READING_MODES.map((m) => (
+                    <ToggleGroupItem key={m.value} value={m.value} className="flex-1">
+                      {m.label}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+              </Field>
+
+              {/* Paginated flips spreads; continuous scrolls a single strip whose
+                  axis and page size are adjustable. */}
+              {mangaReadingMode === "paginated" ? (
+                <Field label="Page Layout">
+                  <ToggleGroup {...segmented} value={mangaSpread} onValueChange={guard(setMangaSpread)}>
+                    {MANGA_SPREAD_MODES.map((m) => (
+                      <ToggleGroupItem key={m.value} value={m.value} className="flex-1">
+                        {m.label}
+                      </ToggleGroupItem>
+                    ))}
+                  </ToggleGroup>
+                </Field>
+              ) : (
+                <>
+                  <Field label="Scroll Direction">
+                    <ToggleGroup {...segmented} value={mangaScrollDirection} onValueChange={guard(setMangaScrollDirection)}>
+                      {MANGA_SCROLL_DIRECTIONS.map((m) => (
+                        <ToggleGroupItem key={m.value} value={m.value} className="flex-1">
+                          {m.label}
+                        </ToggleGroupItem>
+                      ))}
+                    </ToggleGroup>
+                  </Field>
+
+                  <Field label={mangaScrollDirection === "horizontal" ? "Page Height" : "Page Width"} value={`${mangaStripWidth}%`}>
+                    <Slider
+                      value={[mangaStripWidth]}
+                      min={MANGA_STRIP_WIDTH_RANGE.min}
+                      max={MANGA_STRIP_WIDTH_RANGE.max}
+                      step={MANGA_STRIP_WIDTH_RANGE.step}
+                      onValueChange={([v]) => setMangaStripWidth(v)}
+                    />
+                  </Field>
+
+                  <Field label="Page Gap" value={`${mangaStripGap}px`}>
+                    <Slider
+                      value={[mangaStripGap]}
+                      min={MANGA_STRIP_GAP_RANGE.min}
+                      max={MANGA_STRIP_GAP_RANGE.max}
+                      step={MANGA_STRIP_GAP_RANGE.step}
+                      onValueChange={([v]) => setMangaStripGap(v)}
+                    />
+                  </Field>
+                </>
+              )}
+            </>
           ) : (
             <ReflowableFields vertical={vertical} />
           )}

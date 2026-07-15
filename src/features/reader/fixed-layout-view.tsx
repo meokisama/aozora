@@ -2,6 +2,7 @@ import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo
 import { useSettingsStore } from "@/stores/settings-store";
 import { applyReaderVars, fixedLayoutStyles } from "./reader-styles";
 import { buildSpreads, type Spread, type SpreadPage } from "@/lib/reader/spreads";
+import { ordinalAtCenter, type StripBox } from "@/lib/reader/strip";
 import type { FixedLayoutPage } from "@/lib/epub/parse-book";
 
 interface Viewport {
@@ -64,8 +65,16 @@ export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProp
   const viewsRef = useRef<Spread[]>([]); // current view list (spreads or single pages)
   const viewIndexRef = useRef(0);
   const ordinalRef = useRef(initialOrdinal || 0);
+  const stripLayoutRef = useRef<StripBox[]>([]); // continuous mode: static page positions
+  const stripHorizontalRef = useRef(false); // continuous mode: scroll axis is horizontal
+  const stripRafRef = useRef(0);
+  const renderRef = useRef<() => void>(() => {}); // latest render(), for buildPageBox's onload
 
   const spreadMode = useSettingsStore((s) => s.mangaSpread);
+  const readingMode = useSettingsStore((s) => s.mangaReadingMode);
+  const scrollDirection = useSettingsStore((s) => s.mangaScrollDirection);
+  const stripWidth = useSettingsStore((s) => s.mangaStripWidth);
+  const stripGap = useSettingsStore((s) => s.mangaStripGap);
   const theme = useSettingsStore((s) => s.theme);
 
   const doubleSpreads = useMemo(() => buildSpreads(pages, ppd as "ltr" | "rtl"), [pages, ppd]);
@@ -106,6 +115,11 @@ export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProp
   );
 
   const emit = useCallback(() => {
+    if (useSettingsStore.getState().mangaReadingMode === "continuous") {
+      if (!pages.length) return;
+      onChange?.(ordinalRef.current, pages.length);
+      return;
+    }
     const views = viewsRef.current;
     if (!views.length) return; // not laid out yet — don't report a bogus position
     const view = views[viewIndexRef.current];
@@ -113,6 +127,56 @@ export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProp
     ordinalRef.current = first;
     onChange?.(first, pages.length);
   }, [onChange, pages.length]);
+
+  // Builds one scaled page box (the `.aoz-fxl-page` → transformed `.aoz-fxl-canvas`
+  // clone), shared by the spread and strip paths so both render pages identically.
+  // `remeasure` re-lays-out once the bitmap's true size loads (spread mode, where a
+  // wrong pre-load aspect misfits the page); `lazy` defers off-screen decode (strip
+  // mode, which sizes every box up front and stays static — see layoutStrip).
+  const buildPageBox = useCallback(
+    (page: SpreadPage, vp: Viewport, scale: number, opts: { remeasure?: boolean; lazy?: boolean } = {}): HTMLElement => {
+      const { remeasure = true, lazy = false } = opts;
+      const box = document.createElement("div");
+      box.className = "aoz-fxl-page";
+      box.style.width = `${Math.floor(vp.width * scale)}px`;
+      box.style.height = `${Math.floor(vp.height * scale)}px`;
+
+      const canvas = document.createElement("div");
+      canvas.className = "aoz-fxl-canvas";
+      canvas.style.width = `${vp.width}px`;
+      canvas.style.height = `${vp.height}px`;
+      canvas.style.transform = `scale(${scale})`;
+
+      const original = wrappersRef.current.get(page.idref ?? "");
+      if (original) {
+        const clone = original.cloneNode(true) as Element;
+        if (lazy) {
+          for (const img of clone.querySelectorAll("img")) {
+            img.loading = "lazy";
+            img.decoding = "async";
+          }
+        }
+        canvas.appendChild(clone);
+        const ordinal = page.ordinal as number | undefined;
+        const img = remeasure && ordinal != null && !viewportsRef.current.has(ordinal) ? clone.querySelector("img") : null;
+        if (img) {
+          img.addEventListener(
+            "load",
+            () => {
+              if (img.naturalWidth > 0 && ordinal != null && !viewportsRef.current.has(ordinal)) {
+                viewportsRef.current.set(ordinal, { width: img.naturalWidth, height: img.naturalHeight });
+                renderRef.current();
+              }
+            },
+            { once: true },
+          );
+        }
+      }
+      box.appendChild(canvas);
+      return box;
+    },
+    [],
+  );
 
   // Build the current view's DOM and scale each page to fit the stage.
   const layout = useCallback(() => {
@@ -155,62 +219,98 @@ export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProp
     for (const slot of slots) {
       const vp = slot.page ? pageViewport(slot.page) : pageViewport(view.items[0]);
       const scale = Math.min(budgetW / vp.width, stageH / vp.height);
-      const boxW = Math.floor(vp.width * scale);
-      const boxH = Math.floor(vp.height * scale);
 
       if (slot.blank) {
         const blank = document.createElement("div");
         blank.className = "aoz-fxl-blank";
-        blank.style.width = `${boxW}px`;
-        blank.style.height = `${boxH}px`;
+        blank.style.width = `${Math.floor(vp.width * scale)}px`;
+        blank.style.height = `${Math.floor(vp.height * scale)}px`;
         spread.appendChild(blank);
         continue;
       }
 
-      const box = document.createElement("div");
-      box.className = "aoz-fxl-page";
-      box.style.width = `${boxW}px`;
-      box.style.height = `${boxH}px`;
-
-      const canvas = document.createElement("div");
-      canvas.className = "aoz-fxl-canvas";
-      canvas.style.width = `${vp.width}px`;
-      canvas.style.height = `${vp.height}px`;
-      canvas.style.transform = `scale(${scale})`;
-
-      const original = wrappersRef.current.get(slot.page?.idref ?? "");
-      if (original) {
-        const clone = original.cloneNode(true) as Element;
-        canvas.appendChild(clone);
-        // Page size unknown until its bitmap loads → measure it once, then re-lay
-        // out with the true dimensions. Guard on the cache so this fires at most
-        // once per page (no re-layout loop).
-        const ordinal = slot.page?.ordinal;
-        const img = ordinal != null && !viewportsRef.current.has(ordinal) ? clone.querySelector("img") : null;
-        if (img) {
-          img.addEventListener(
-            "load",
-            () => {
-              if (img.naturalWidth > 0 && !viewportsRef.current.has(ordinal)) {
-                viewportsRef.current.set(ordinal, { width: img.naturalWidth, height: img.naturalHeight });
-                layoutRef.current();
-              }
-            },
-            { once: true },
-          );
-        }
-      }
-      box.appendChild(canvas);
-      spread.appendChild(box);
+      spread.appendChild(buildPageBox(slot.page!, vp, scale));
     }
 
     stage.replaceChildren(spread);
-  }, [spreadMode, doubleSpreads, singleViews, ppd, before, pageViewport]);
+  }, [spreadMode, doubleSpreads, singleViews, ppd, before, pageViewport, buildPageBox]);
 
-  // Stable handle so layout's onload can re-invoke the latest layout without a
-  // circular useCallback dependency.
-  const layoutRef = useRef(layout);
-  layoutRef.current = layout;
+  // Scrolls the strip so the given page sits at its leading edge in reading order:
+  // top for vertical, left for horizontal-LTR, right for horizontal-RTL (where the
+  // page's trailing edge aligns to the viewport's right so the next page reveals
+  // to its left).
+  const scrollStripToOrdinal = useCallback(
+    (ordinal: number) => {
+      const stage = stageRef.current;
+      const box = stripLayoutRef.current.find((b) => b.ordinal === ordinal);
+      if (!stage || !box) return;
+      if (!stripHorizontalRef.current) stage.scrollTop = box.start;
+      else if (ppd === "rtl") stage.scrollLeft = box.start + box.size - stage.clientWidth;
+      else stage.scrollLeft = box.start;
+    },
+    [ppd],
+  );
+
+  // Continuous long-strip: lay every page in one line — a vertical column (fit to
+  // width) or a horizontal filmstrip (fit to height) — and record positions along
+  // the scroll axis so scroll ↔ page maps cheaply. Horizontal honours the book's
+  // progression (RTL builds the row last→first so page 0 sits at the right). Sizes
+  // come from the known viewports up front, so the strip is static after build —
+  // off-screen pages decode lazily (buildPageBox) and scrolling does no re-layout.
+  const layoutStrip = useCallback(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const stageW = stage.clientWidth;
+    const stageH = stage.clientHeight;
+    if (stageW === 0 || stageH === 0) return;
+
+    const horizontal = scrollDirection === "horizontal";
+    stripHorizontalRef.current = horizontal;
+    stage.classList.toggle("is-strip-h", horizontal);
+    stage.classList.toggle("is-strip", !horizontal);
+
+    const strip = document.createElement("div");
+    strip.className = horizontal ? "aoz-fxl-strip-h" : "aoz-fxl-strip";
+    strip.style.gap = `${stripGap}px`;
+    strip.style[horizontal ? "paddingInline" : "paddingBlock"] = `${stripGap}px`;
+
+    // Fit the cross axis to the stage × the size %; the scroll-axis extent follows
+    // from the page aspect. RTL horizontal walks pages in reverse so the leading
+    // edge (smallest offset) is the last page.
+    const target = horizontal ? Math.round((stageH * stripWidth) / 100) : Math.round((stageW * stripWidth) / 100);
+    const ordered = horizontal && ppd === "rtl" ? [...pages].reverse() : pages;
+
+    const boxes: StripBox[] = [];
+    let start = stripGap; // leading padding pushes the first page in
+    for (const page of ordered) {
+      const vp = pageViewport(page);
+      const scale = horizontal ? target / vp.height : target / vp.width;
+      const size = horizontal ? Math.floor(vp.width * scale) : Math.floor(vp.height * scale);
+      strip.appendChild(buildPageBox(page, vp, scale, { lazy: true, remeasure: false }));
+      boxes.push({ ordinal: page.ordinal, start, size });
+      start += size + stripGap;
+    }
+    // Keep boxes sorted by start ascending (ordinalAtCenter's precondition); the
+    // RTL reverse above already produces ascending starts.
+    stripLayoutRef.current = boxes;
+    stage.replaceChildren(strip);
+    scrollStripToOrdinal(ordinalRef.current);
+  }, [pages, ppd, scrollDirection, pageViewport, buildPageBox, scrollStripToOrdinal, stripWidth, stripGap]);
+
+  // Picks the render path for the current reading mode; the spread path clears the
+  // strip's scroller class so its centring/overflow rules apply again.
+  const render = useCallback(() => {
+    if (readingMode === "continuous") {
+      layoutStrip();
+    } else {
+      stageRef.current?.classList.remove("is-strip", "is-strip-h");
+      layout();
+    }
+  }, [readingMode, layout, layoutStrip]);
+
+  // Keep the ref pointing at the latest render() so buildPageBox's onload re-lays
+  // out without a circular useCallback dependency.
+  renderRef.current = render;
 
   // Build the shadow DOM once (and whenever the parsed content changes).
   useEffect(() => {
@@ -232,22 +332,48 @@ export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProp
     viewportsRef.current = new Map();
 
     ordinalRef.current = Math.min(Math.max(0, initialOrdinal || 0), Math.max(0, pages.length - 1));
-    layout();
+    render();
     emit();
 
+    // Continuous mode reports the page under the viewport centre as the strip
+    // scrolls (rAF-throttled). Inert in paginated mode. Attached to the stage
+    // here since that's where the scroller lives (and is rebuilt per book).
+    const stage = stageRef.current;
+    const onScroll = () => {
+      if (useSettingsStore.getState().mangaReadingMode !== "continuous") return;
+      if (stripRafRef.current) return;
+      stripRafRef.current = requestAnimationFrame(() => {
+        stripRafRef.current = 0;
+        const s = stageRef.current;
+        const boxes = stripLayoutRef.current;
+        if (!s || !boxes.length) return;
+        const center = stripHorizontalRef.current ? s.scrollLeft + s.clientWidth / 2 : s.scrollTop + s.clientHeight / 2;
+        const ordinal = ordinalAtCenter(boxes, center);
+        if (ordinal !== ordinalRef.current) {
+          ordinalRef.current = ordinal;
+          onChange?.(ordinal, pages.length);
+        }
+      });
+    };
+    stage?.addEventListener("scroll", onScroll, { passive: true });
+
     return () => {
+      stage?.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(stripRafRef.current);
+      stripRafRef.current = 0;
       shadow.innerHTML = "";
       stageRef.current = null;
     };
     // initialOrdinal is the entry position; later moves go through the ref API.
   }, [html, styleSheet, pages]);
 
-  // Re-layout when the spread mode toggles (single↔double↔auto).
+  // Re-render when the reading mode (paginated↔continuous) or spread mode
+  // (single↔double↔auto) toggles.
   useEffect(() => {
     if (!stageRef.current) return;
-    layout();
+    render();
     emit();
-  }, [spreadMode, layout, emit]);
+  }, [spreadMode, readingMode, render, emit]);
 
   // Repaint the page background when the theme changes (the parent's settings
   // effect only touches the reflowable host, which manga doesn't mount).
@@ -255,8 +381,22 @@ export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProp
     if (hostRef.current) applyReaderVars(hostRef.current, useSettingsStore.getState());
   }, [theme]);
 
+  // Advance/retreat one step. In continuous mode a "step" scrolls ~one viewport
+  // along the strip's axis (native scroll then reports the new page); in paginated
+  // mode it swaps spreads. Horizontal RTL advances leftward.
   const flip = useCallback(
     (dir: number) => {
+      const stage = stageRef.current;
+      if (useSettingsStore.getState().mangaReadingMode === "continuous") {
+        if (!stage) return;
+        if (stripHorizontalRef.current) {
+          const sign = ppd === "rtl" ? -1 : 1;
+          stage.scrollBy({ left: dir * sign * (stage.clientWidth * 0.9), behavior: "smooth" });
+        } else {
+          stage.scrollBy({ top: dir * (stage.clientHeight * 0.9), behavior: "smooth" });
+        }
+        return;
+      }
       const next = viewIndexRef.current + dir;
       if (next < 0 || next >= viewsRef.current.length) return;
       viewIndexRef.current = next;
@@ -264,7 +404,23 @@ export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProp
       layout();
       emit();
     },
-    [layout, emit],
+    [ppd, layout, emit],
+  );
+
+  // Jumps to a page in either mode: the strip scrolls it to the top, a spread
+  // re-lays-out around it. Shared by jumpToOrdinal/jumpToId below.
+  const goToOrdinal = useCallback(
+    (ordinal: number) => {
+      ordinalRef.current = Math.min(Math.max(0, ordinal), Math.max(0, pages.length - 1));
+      if (useSettingsStore.getState().mangaReadingMode === "continuous") {
+        scrollStripToOrdinal(ordinalRef.current);
+        emit();
+      } else {
+        layout();
+        emit();
+      }
+    },
+    [layout, emit, scrollStripToOrdinal, pages.length],
   );
 
   useImperativeHandle(
@@ -272,54 +428,54 @@ export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProp
     () => ({
       flip,
       refresh: () => {
-        layout();
+        render();
         emit();
       },
-      jumpToOrdinal: (ordinal: number) => {
-        ordinalRef.current = Math.min(Math.max(0, ordinal), Math.max(0, pages.length - 1));
-        layout();
-        emit();
-      },
+      jumpToOrdinal: (ordinal: number) => goToOrdinal(ordinal),
       jumpToId: (wrapperId: string) => {
         const idref = String(wrapperId).replace(/^aoz-/, "");
         const page = pages.find((p) => p.idref === idref);
         if (!page) return false;
-        ordinalRef.current = page.ordinal;
-        layout();
-        emit();
+        goToOrdinal(page.ordinal);
         return true;
       },
     }),
-    [flip, layout, emit, pages],
+    [flip, goToOrdinal, render, emit, pages],
   );
 
-  // Resize: re-layout (auto mode may flip between single and double). The
-  // observer's initial callback also covers the case where the stage had no
-  // size at mount — it lays out and reports the real starting position then.
+  // Resize: re-render (auto spread may flip single↔double; the strip re-fits page
+  // widths). The observer's initial callback also covers the case where the stage
+  // had no size at mount — it lays out and reports the real starting position then.
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
     const ro = new ResizeObserver(() => {
-      layout();
+      render();
       emit();
     });
     ro.observe(host);
     return () => ro.disconnect();
-  }, [layout, emit]);
+  }, [render, emit]);
 
-  // Keyboard + wheel navigation. In RTL the left key advances (reading goes
-  // right-to-left); in LTR the right key advances.
+  // Keyboard navigation. The left/right keys follow the reading direction (RTL
+  // left advances); they drive paginated flips and horizontal strip scrolling, but
+  // are inert in the vertical strip (scrolling is vertical there). Up/Down/Space
+  // always step along whichever axis is active.
   useEffect(() => {
     const rtl = ppd === "rtl";
     const onKey = (e: KeyboardEvent) => {
       if (e.altKey || e.ctrlKey || e.metaKey || e.repeat) return;
+      const continuous = useSettingsStore.getState().mangaReadingMode === "continuous";
+      const verticalStrip = continuous && !stripHorizontalRef.current;
       switch (e.code) {
         case "ArrowLeft":
         case "KeyA":
+          if (verticalStrip) return;
           flip(rtl ? 1 : -1);
           break;
         case "ArrowRight":
         case "KeyD":
+          if (verticalStrip) return;
           flip(rtl ? -1 : 1);
           break;
         case "ArrowDown":
@@ -342,8 +498,19 @@ export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProp
     return () => window.removeEventListener("keydown", onKey);
   }, [ppd, flip]);
 
+  // Wheel flips pages in paginated mode. In the continuous strip: the vertical
+  // strip scrolls natively (leave it alone); the horizontal filmstrip maps the
+  // vertical wheel onto the horizontal axis (wheel-down advances — leftward in
+  // RTL) since most wheels/trackpads only emit deltaY.
   const wheelTsRef = useRef(0);
   const onWheel = (e: React.WheelEvent) => {
+    if (useSettingsStore.getState().mangaReadingMode === "continuous") {
+      const stage = stageRef.current;
+      if (!stripHorizontalRef.current || !stage) return; // vertical strip: native scroll
+      const delta = e.deltaY || e.deltaX;
+      if (delta) stage.scrollLeft += ppd === "rtl" ? -delta : delta;
+      return;
+    }
     const delta = e.deltaY || e.deltaX;
     if (!delta) return;
     const now = e.timeStamp;
