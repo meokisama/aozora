@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RotateCcw, Upload, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,41 @@ function Field({ label, value, children }: FieldProps) {
       </div>
       {children}
     </div>
+  );
+}
+
+interface SmoothSliderProps {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onCommit: (value: number) => void;
+  /** Formats the live value shown beside the label (defaults to the raw number). */
+  format?: (value: number) => React.ReactNode;
+}
+
+/** A slider that drags smoothly against local state and commits to the store only
+ *  when the drag ends — so live re-layout/re-flow fires once on release instead of
+ *  on every pixel. The value readout tracks the drag live. */
+function SmoothSlider({ label, value, min, max, step, onCommit, format }: SmoothSliderProps) {
+  const [local, setLocal] = useState(value);
+
+  // Follow external changes (e.g. reset to defaults); during a drag the store isn't
+  // touched, so `value` is stable and this won't fight the local value.
+  useEffect(() => setLocal(value), [value]);
+
+  return (
+    <Field label={label} value={format ? format(local) : local}>
+      <Slider
+        value={[local]}
+        min={min}
+        max={max}
+        step={step}
+        onValueChange={([v]) => setLocal(v)}
+        onValueCommit={([v]) => onCommit(v)}
+      />
+    </Field>
   );
 }
 
@@ -143,25 +178,25 @@ export function ReaderSettingsPanel({ open, onOpenChange, fixedLayout = false, v
                     </ToggleGroup>
                   </Field>
 
-                  <Field label={mangaScrollDirection === "horizontal" ? "Page Height" : "Page Width"} value={`${mangaStripWidth}%`}>
-                    <Slider
-                      value={[mangaStripWidth]}
-                      min={MANGA_STRIP_WIDTH_RANGE.min}
-                      max={MANGA_STRIP_WIDTH_RANGE.max}
-                      step={MANGA_STRIP_WIDTH_RANGE.step}
-                      onValueChange={([v]) => setMangaStripWidth(v)}
-                    />
-                  </Field>
+                  <SmoothSlider
+                    label={mangaScrollDirection === "horizontal" ? "Page Height" : "Page Width"}
+                    value={mangaStripWidth}
+                    min={MANGA_STRIP_WIDTH_RANGE.min}
+                    max={MANGA_STRIP_WIDTH_RANGE.max}
+                    step={MANGA_STRIP_WIDTH_RANGE.step}
+                    format={(v) => `${v}%`}
+                    onCommit={setMangaStripWidth}
+                  />
 
-                  <Field label="Page Gap" value={`${mangaStripGap}px`}>
-                    <Slider
-                      value={[mangaStripGap]}
-                      min={MANGA_STRIP_GAP_RANGE.min}
-                      max={MANGA_STRIP_GAP_RANGE.max}
-                      step={MANGA_STRIP_GAP_RANGE.step}
-                      onValueChange={([v]) => setMangaStripGap(v)}
-                    />
-                  </Field>
+                  <SmoothSlider
+                    label="Page Gap"
+                    value={mangaStripGap}
+                    min={MANGA_STRIP_GAP_RANGE.min}
+                    max={MANGA_STRIP_GAP_RANGE.max}
+                    step={MANGA_STRIP_GAP_RANGE.step}
+                    format={(v) => `${v}px`}
+                    onCommit={setMangaStripGap}
+                  />
                 </>
               )}
             </>
@@ -253,15 +288,15 @@ function ReflowableFields({ vertical }: { vertical: boolean }) {
       )}
 
       {!vertical && readingMode === "continuous" && (
-        <Field label="Side Margin" value={`${sideMargin}%`}>
-          <Slider
-            value={[sideMargin]}
-            min={SIDE_MARGIN_RANGE.min}
-            max={SIDE_MARGIN_RANGE.max}
-            step={SIDE_MARGIN_RANGE.step}
-            onValueChange={([v]) => setSideMargin(v)}
-          />
-        </Field>
+        <SmoothSlider
+          label="Side Margin"
+          value={sideMargin}
+          min={SIDE_MARGIN_RANGE.min}
+          max={SIDE_MARGIN_RANGE.max}
+          step={SIDE_MARGIN_RANGE.step}
+          format={(v) => `${v}%`}
+          onCommit={setSideMargin}
+        />
       )}
 
       <Field label="Furigana">
@@ -330,25 +365,25 @@ function ReflowableFields({ vertical }: { vertical: boolean }) {
         )}
       </Field>
 
-      <Field label="Font Size" value={`${fontSize}px`}>
-        <Slider
-          value={[fontSize]}
-          min={FONT_SIZE_RANGE.min}
-          max={FONT_SIZE_RANGE.max}
-          step={FONT_SIZE_RANGE.step}
-          onValueChange={([v]) => setFontSize(v)}
-        />
-      </Field>
+      <SmoothSlider
+        label="Font Size"
+        value={fontSize}
+        min={FONT_SIZE_RANGE.min}
+        max={FONT_SIZE_RANGE.max}
+        step={FONT_SIZE_RANGE.step}
+        format={(v) => `${v}px`}
+        onCommit={setFontSize}
+      />
 
-      <Field label="Line Height" value={lineHeight.toFixed(1)}>
-        <Slider
-          value={[lineHeight]}
-          min={LINE_HEIGHT_RANGE.min}
-          max={LINE_HEIGHT_RANGE.max}
-          step={LINE_HEIGHT_RANGE.step}
-          onValueChange={([v]) => setLineHeight(Math.round(v * 10) / 10)}
-        />
-      </Field>
+      <SmoothSlider
+        label="Line Height"
+        value={lineHeight}
+        min={LINE_HEIGHT_RANGE.min}
+        max={LINE_HEIGHT_RANGE.max}
+        step={LINE_HEIGHT_RANGE.step}
+        format={(v) => v.toFixed(2)}
+        onCommit={(v) => setLineHeight(Math.round(v * 20) / 20)}
+      />
     </>
   );
 }

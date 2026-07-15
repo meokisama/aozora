@@ -49,10 +49,12 @@ function parseViewBox(value: string | null | undefined): Viewport | null {
 }
 
 /**
- * Fixed-layout (manga / comic) viewer. Renders one spread at a time into its own
- * shadow root, scaling each page to fit. The reported position is the leading
- * page's ordinal — orientation-independent, so it survives switching between
- * single- and two-page layouts. Imperative API via ref (see FixedLayoutHandle).
+ * Fixed-layout (manga / comic) viewer with its own shadow root. Two navigation
+ * modes (mangaReadingMode): "paginated" flips one spread (1–2 pages) at a time,
+ * scaling each to fit; "continuous" lays every page in one scrollable strip —
+ * vertical (fit to width) or a horizontal filmstrip (fit to height). The reported
+ * position is a page ordinal, layout-independent, so it survives switching
+ * modes/spreads. Imperative API via ref (see FixedLayoutHandle).
  */
 export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProps>(function FixedLayoutView(
   { html, styleSheet, pages, ppd, bookViewport, initialOrdinal, onChange },
@@ -504,15 +506,13 @@ export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProp
   // RTL) since most wheels/trackpads only emit deltaY.
   const wheelTsRef = useRef(0);
   const onWheel = (e: React.WheelEvent) => {
-    if (useSettingsStore.getState().mangaReadingMode === "continuous") {
-      const stage = stageRef.current;
-      if (!stripHorizontalRef.current || !stage) return; // vertical strip: native scroll
-      const delta = e.deltaY || e.deltaX;
-      if (delta) stage.scrollLeft += ppd === "rtl" ? -delta : delta;
-      return;
-    }
     const delta = e.deltaY || e.deltaX;
     if (!delta) return;
+    if (useSettingsStore.getState().mangaReadingMode === "continuous") {
+      const stage = stageRef.current;
+      if (stripHorizontalRef.current && stage) stage.scrollLeft += ppd === "rtl" ? -delta : delta;
+      return; // vertical strip scrolls natively
+    }
     const now = e.timeStamp;
     if (now - wheelTsRef.current < 250) return;
     wheelTsRef.current = now;

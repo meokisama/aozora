@@ -50,14 +50,14 @@ export const THEMES: Record<ThemeName, { bg: string; color: string; dark: boolea
   dark: { bg: "#201f1c", color: "#cac4b8", dark: true },
 };
 
-export const FONT_SIZE_RANGE = { min: 14, max: 40, step: 1 };
-export const LINE_HEIGHT_RANGE = { min: 1.2, max: 2.6, step: 0.1 };
+export const FONT_SIZE_RANGE = { min: 14, max: 40, step: 0.5 };
+export const LINE_HEIGHT_RANGE = { min: 1.2, max: 2.6, step: 0.05 };
 /** Side margin (% of width) per edge for horizontal continuous reading. */
-export const SIDE_MARGIN_RANGE = { min: 0, max: 30, step: 1 };
+export const SIDE_MARGIN_RANGE = { min: 0, max: 30, step: 0.5 };
 /** Page width (% of viewport) for the continuous manga strip. */
-export const MANGA_STRIP_WIDTH_RANGE = { min: 30, max: 100, step: 5 };
+export const MANGA_STRIP_WIDTH_RANGE = { min: 30, max: 100, step: 1 };
 /** Gap between pages (CSS px) in the continuous manga strip. */
-export const MANGA_STRIP_GAP_RANGE = { min: 0, max: 40, step: 2 };
+export const MANGA_STRIP_GAP_RANGE = { min: 0, max: 40, step: 1 };
 
 /**
  * Columns per page for horizontal paginated reading (ignored in vertical, which

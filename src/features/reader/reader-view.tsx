@@ -298,6 +298,16 @@ export function ReaderView() {
     }
   }, []);
 
+  /** After a continuous-mode jump settles, read the centred character and persist
+   *  it. Run inside a rAF so the scroll has landed before measuring. */
+  const commitContinuousChar = useCallback(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    charRef.current = currentCharAtCenter(host, anchorsRef.current.anchors, verticalRef.current);
+    setCurrentChar(charRef.current);
+    persist();
+  }, [persist]);
+
   /** Repaints the highlight washes for whatever region is currently rendered
    *  (the whole book in continuous mode, the current section in paginated). Reads
    *  refs only, so it's stable and safe to call from the controller's onChange. */
@@ -398,13 +408,9 @@ export function ReaderView() {
       const host = hostRef.current;
       if (!host) return;
       scrollToChar(host, anchorsRef.current.anchors, verticalRef.current, char);
-      requestAnimationFrame(() => {
-        charRef.current = currentCharAtCenter(host, anchorsRef.current.anchors, verticalRef.current);
-        setCurrentChar(charRef.current);
-        persist();
-      });
+      requestAnimationFrame(commitContinuousChar);
     },
-    [persist],
+    [commitContinuousChar],
   );
 
   // Adds a bookmark at the current position with the (user-editable) name.
@@ -939,11 +945,7 @@ export function ReaderView() {
     if (!scrollToElementId(host, shadow, reference, verticalRef.current)) {
       return false;
     }
-    requestAnimationFrame(() => {
-      charRef.current = currentCharAtCenter(host, anchorsRef.current.anchors, verticalRef.current);
-      setCurrentChar(charRef.current);
-      persist();
-    });
+    requestAnimationFrame(commitContinuousChar);
     return true;
   };
 
