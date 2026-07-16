@@ -324,11 +324,12 @@ export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProp
     (ordinal: number) => {
       const stage = stageRef.current;
       const box = stripLayoutRef.current.find((b) => b.ordinal === ordinal);
-      if (!stage || !box) return;
-      if (!stripHorizontalRef.current) stage.scrollTop = box.start;
-      else if (ppd === "rtl") stage.scrollLeft = box.start + box.size - stage.clientWidth;
-      else stage.scrollLeft = box.start;
-      stripUpdateRef.current(); // mount the target page's window right away
+      if (stage && box) {
+        if (!stripHorizontalRef.current) stage.scrollTop = box.start;
+        else if (ppd === "rtl") stage.scrollLeft = box.start + box.size - stage.clientWidth;
+        else stage.scrollLeft = box.start;
+      }
+      stripUpdateRef.current(); // always mount the visible window (even if the box is missing)
     },
     [ppd],
   );
@@ -568,15 +569,24 @@ export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProp
   // Resize: re-render (auto spread may flip single↔double; the strip re-fits page
   // widths). The observer's initial callback also covers the case where the stage
   // had no size at mount — it lays out and reports the real starting position then.
+  // rAF-coalesced so a resize drag rebuilds the spread once per frame, not per entry.
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
+    let raf = 0;
     const ro = new ResizeObserver(() => {
-      render();
-      emit();
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        render();
+        emit();
+      });
     });
     ro.observe(host);
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      cancelAnimationFrame(raf);
+    };
   }, [render, emit]);
 
   // Keyboard navigation. The left/right keys follow the reading direction (RTL
