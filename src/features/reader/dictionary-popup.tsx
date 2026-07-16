@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { Check, Loader2, Plus, Volume2 } from "lucide-react";
 import type { DictionaryEntry, KanjiEntry, LookupResult } from "@/lib/types";
 import type { MineStatus } from "@/lib/dictionary/anki-note";
-import { useAnchoredPosition } from "./use-anchored-position";
+import { useAnchoredPosition } from "./hooks/use-anchored-position";
 import { downstepNumber } from "@/lib/dictionary/pitch";
 import { distributeFurigana } from "@/lib/dictionary/furigana";
 import { DICT_SCOPE_ATTR } from "@/lib/dictionary/dict-styles";

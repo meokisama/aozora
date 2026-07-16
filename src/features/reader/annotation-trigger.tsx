@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { Highlighter } from "lucide-react";
-import { useDismiss } from "./use-dismiss";
+import { useDismiss } from "./hooks/use-dismiss";
 
 interface Props {
   /** Viewport point (the mouse-release position) the button anchors to; null closed. */

@@ -18,15 +18,14 @@ import { collectIllustrations, type Illustration } from "@/lib/reader/illustrati
 import { applyReaderVars, continuousStyles, paginatedStyles } from "./reader-styles";
 import { parseBook, type ParsedBook, type FixedLayoutPage } from "@/lib/epub/parse-book";
 import type { Section } from "@/lib/epub/generate-html";
-import type { Bookmark as BookmarkRecord } from "@/lib/types";
 import { buildReaderHtml } from "@/lib/epub/format-html";
 import { getCachedBook, putCachedBook } from "@/lib/reader-cache";
 import { collectAnchors, currentCharAtCenter, scrollToChar, scrollToElementId, type Anchor } from "@/lib/reader/position";
 import { PaginatedController, type PaginatedState } from "@/lib/reader/paginated";
 import { mergeSpreadSections } from "@/lib/reader/merge-spreads";
 import { FixedLayoutView, type FixedLayoutHandle } from "./fixed-layout-view";
-import { buildSearchIndex, searchIndex, type SearchResult, type SearchIndexEntry } from "@/lib/reader/search";
-import { clearSearchHighlight, highlightSearchResult } from "@/lib/reader/highlight";
+import { clearSearchHighlight } from "@/lib/reader/highlight";
+import { chapterIndexAt } from "@/lib/reader/chapters";
 import {
   paintAnnotations,
   clearAnnotationHighlights,
@@ -43,9 +42,12 @@ import { useTtsStore } from "@/stores/tts-store";
 import { DictionaryPopup } from "./dictionary-popup";
 import { FootnotePopup } from "./footnote-popup";
 import { collectFootnotes } from "@/lib/reader/footnotes";
-import { useReadingSession } from "./use-reading-session";
-import { useHoverDictionary } from "./use-hover-dictionary";
-import { useSentencePlay } from "./use-sentence-play";
+import { useReadingSession } from "./hooks/use-reading-session";
+import { useHoverDictionary } from "./hooks/use-hover-dictionary";
+import { useSentencePlay } from "./hooks/use-sentence-play";
+import { useBookmarks } from "./hooks/use-bookmarks";
+import { useReaderSearch } from "./hooks/use-reader-search";
+import { useDiscordPresence } from "./hooks/use-discord-presence";
 
 const api = () => window.electronAPI.library;
 
@@ -77,18 +79,6 @@ const FURIGANA_CLASSES = ["aoz-furigana-hide", "aoz-furigana-partial", "aoz-furi
 /** Effective writing direction: the user's override, or the book's own when "auto". */
 function resolveVertical(mode: WritingMode, bookVertical: boolean): boolean {
   return mode === "auto" ? bookVertical : mode === "vertical";
-}
-
-/** Index of the last chapter that starts at or before `char` (chapters are in
- *  document order), or -1 if none — the shared basis for the active-chapter
- *  indicator, Discord presence, bookmark names, and search-result labels. */
-function chapterIndexAt(chapters: Section[], char: number): number {
-  let idx = -1;
-  for (let i = 0; i < chapters.length; i++) {
-    if ((chapters[i].startCharacter ?? 0) <= char) idx = i;
-    else break;
-  }
-  return idx;
 }
 
 /** Reflects the furigana mode as a class on the content root; "show" clears it
@@ -146,8 +136,6 @@ export function ReaderView() {
   const furiganaMode = useSettingsStore((s) => s.furiganaMode);
   const pageColumns = useSettingsStore((s) => s.pageColumns);
   const sideMargin = useSettingsStore((s) => s.sideMargin);
-  const discordRichPresence = useSettingsStore((s) => s.discordRichPresence);
-  const discordCover = useSettingsStore((s) => s.discordCover);
   const customFonts = useFontsStore((s) => s.customFonts);
   const fullscreen = useUiStore((s) => s.fullscreen);
 
@@ -167,7 +155,6 @@ export function ReaderView() {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const wheelTsRef = useRef(0);
   const readyRef = useRef(false);
-  const searchIndexRef = useRef<SearchIndexEntry[] | null>(null); // lazily built on first search
   const footnotesRef = useRef<Map<string, string>>(new Map()); // id → note inner HTML
   const annotationsRef = useRef<Annotation[]>([]); // mirror of the annotations state, for ref-only callers
   const annoPopoverRef = useRef<AnnoPopoverState | null>(null); // mirror, so close/save can read without a dep
@@ -186,27 +173,18 @@ export function ReaderView() {
   const [tocOpen, setTocOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [bookmarksOpen, setBookmarksOpen] = useState(false);
-  const [bookmarks, setBookmarks] = useState<BookmarkRecord[]>([]);
-  const [nameInput, setNameInput] = useState("");
   const [annotationsOpen, setAnnotationsOpen] = useState(false);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [annoPopover, setAnnoPopover] = useState<AnnoPopoverState | null>(null);
   const [annoTrigger, setAnnoTrigger] = useState<AnnoTriggerState | null>(null);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [illustrations, setIllustrations] = useState<Illustration[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<{ results: SearchResult[]; total: number; capped: boolean }>({
-    results: [],
-    total: 0,
-    capped: false,
-  });
   const [footnote, setFootnote] = useState<{ html: string; anchor: DOMRect } | null>(null);
 
   // Mirrors whether any reader overlay (panel/gallery) is open, so the global
   // page-flip key handler can stand down instead of flipping pages behind it.
+  // Assigned below, once the search hook has surfaced its `searchOpen` state.
   const panelOpenRef = useRef(false);
-  panelOpenRef.current = tocOpen || settingsOpen || bookmarksOpen || searchOpen || galleryOpen || annotationsOpen;
 
   // Ref mirrors so the paginated onChange callback (bound once at construction)
   // and the popover close/save handlers can read current values without deps.
@@ -223,22 +201,7 @@ export function ReaderView() {
   const activeChapterIndex = useMemo(() => chapterIndexAt(chapters, currentChar), [chapters, currentChar]);
   const activeChapterId = activeChapterIndex >= 0 ? chapters[activeChapterIndex].reference : null;
 
-  // Discord Rich Presence: mirror the current book/chapter/progress while reading.
-  // Enabling/disabling and the idle presence live in App (always mounted); the
-  // main process throttles the actual sends.
-  useEffect(() => {
-    if (!discordRichPresence || !book) return;
-    const idx = activeChapterIndex;
-    window.electronAPI.discord.update({
-      bookTitle: book.title,
-      author: book.author,
-      chapterName: idx >= 0 ? chapters[idx].label : undefined,
-      chapterIndex: idx >= 0 ? idx + 1 : undefined,
-      chapterTotal: chapters.length || undefined,
-      progress: progressPct,
-      coverBookId: discordCover ? book.id : undefined, // opt-in: main uploads the cover for the large image
-    });
-  }, [discordRichPresence, discordCover, book, chapters, activeChapterIndex, progressPct]);
+  useDiscordPresence({ book, chapters, activeChapterIndex, progressPct });
 
   /** Persists the current position to the main process and the in-memory store. */
   const persist = useCallback(() => {
@@ -381,17 +344,6 @@ export function ReaderView() {
     [book, applyProgress, markSession],
   );
 
-  // Suggested bookmark name: current TOC chapter title + progress percentage
-  // (editable before saving). Falls back to just the percentage with no chapter.
-  const computeDefaultName = useCallback(() => {
-    const totalChars = totalRef.current || 0;
-    const char = charRef.current;
-    const pct = totalChars ? Math.round((char / totalChars) * 100) : 0;
-    const i = chapterIndexAt(chapters, char);
-    const label = i >= 0 ? chapters[i].label || "" : "";
-    return label ? `${label}  (${pct}%)` : `${pct}%`;
-  }, [chapters]);
-
   // Jumps to a character offset, in whichever mode is active.
   const jumpToChar = useCallback(
     (char: number) => {
@@ -413,32 +365,27 @@ export function ReaderView() {
     [commitContinuousChar],
   );
 
-  // Adds a bookmark at the current position with the (user-editable) name.
-  const handleAddBookmark = useCallback(async () => {
-    if (!book) return;
-    const charOffset = charRef.current;
-    const totalChars = totalRef.current || 0;
-    const progress = totalChars ? Math.min(1, Math.max(0, charOffset / totalChars)) : 0;
-    const name = nameInput.trim() || computeDefaultName();
-    try {
-      const bm = await api().addBookmark({ bookId: book.id, charOffset, progress, snippet: name });
-      if (bm) {
-        setBookmarks((prev) => [...prev, bm].sort((a, b) => a.charOffset - b.charOffset));
-        setNameInput(computeDefaultName()); // reset the field to a fresh default
-      }
-    } catch (err) {
-      console.error("Failed to add bookmark", err);
-    }
-  }, [book, nameInput, computeDefaultName]);
+  // Bookmarks and in-book search hang off the live position refs and jumpToChar;
+  // each owns its own list/query state (loaded + reset per book internally).
+  const { bookmarks, nameInput, setNameInput, computeDefaultName, addBookmark, removeBookmark } = useBookmarks({
+    book,
+    chapters,
+    totalRef,
+    charRef,
+  });
+  const { searchOpen, setSearchOpen, searchQuery, runSearch, searchResults, searchDisplay, jumpToSearchResult } = useReaderSearch({
+    book,
+    chapters,
+    total,
+    hostRef,
+    modeRef,
+    charRef,
+    parsedRef,
+    controllerRef,
+    jumpToChar,
+  });
 
-  const handleRemoveBookmark = useCallback(async (id: string) => {
-    try {
-      await api().removeBookmark(id);
-      setBookmarks((prev) => prev.filter((b) => b.id !== id));
-    } catch (err) {
-      console.error("Failed to remove bookmark", err);
-    }
-  }, []);
+  panelOpenRef.current = tocOpen || settingsOpen || bookmarksOpen || searchOpen || galleryOpen || annotationsOpen;
 
   // --- Highlights (annotations). ---------------------------------------------
 
@@ -490,58 +437,6 @@ export function ReaderView() {
       console.error("Failed to remove highlight", err);
     }
   }, []);
-
-  // Queries the in-book index, built lazily from the parsed HTML once and reused.
-  const runSearch = useCallback((query: string) => {
-    setSearchQuery(query);
-    if (!query.trim()) {
-      setSearchResults({ results: [], total: 0, capped: false });
-      return;
-    }
-    if (!searchIndexRef.current && parsedRef.current) {
-      searchIndexRef.current = buildSearchIndex(parsedRef.current.elementHtml);
-    }
-    setSearchResults(searchIndex(searchIndexRef.current || [], query));
-  }, []);
-
-  // Jumps to a search hit and highlights it. The highlight waits until the target
-  // is on screen (the paginated controller renders its section asynchronously).
-  const jumpToSearchResult = useCallback(
-    async (result: SearchResult) => {
-      setSearchOpen(false);
-      clearSearchHighlight();
-      const query = searchQuery;
-      const root = () => hostRef.current?.shadowRoot;
-      if (modeRef.current === "paginated") {
-        const ctrl = controllerRef.current;
-        if (!ctrl) return;
-        charRef.current = result.charOffset;
-        await ctrl.restoreToChar(result.charOffset); // emits onChange → state + save
-        requestAnimationFrame(() => {
-          highlightSearchResult(root()?.querySelector(".aoz-page-content") ?? null, result.charOffset, query, ctrl.sectionStart);
-        });
-        return;
-      }
-      jumpToChar(result.charOffset);
-      requestAnimationFrame(() =>
-        requestAnimationFrame(() => {
-          highlightSearchResult(root()?.querySelector(".aozora-content") ?? null, result.charOffset, query, 0);
-        }),
-      );
-    },
-    [jumpToChar, searchQuery],
-  );
-
-  // Attach chapter label + progress to each hit for display (mirrors the
-  // active-chapter / bookmark-name logic).
-  const searchDisplay = useMemo(() => {
-    return searchResults.results.map((r) => {
-      const i = chapterIndexAt(chapters, r.charOffset);
-      const label = i >= 0 ? chapters[i].label || "" : "";
-      const progress = total ? Math.round((r.charOffset / total) * 100) : 0;
-      return { ...r, label, progress };
-    });
-  }, [searchResults, chapters, total]);
 
   // Fan the reader's mousemove out to both hover gestures; each records the
   // cursor and scans/reveals per its own modifier.
@@ -630,13 +525,9 @@ export function ReaderView() {
     setPageInfo(null);
     setFixedLayout(false);
     setSections([]);
-    searchIndexRef.current = null;
     clearSearchHighlight();
     clearAnnotationHighlights();
     clearLookup();
-    setSearchOpen(false);
-    setSearchQuery("");
-    setSearchResults({ results: [], total: 0, capped: false });
     setAnnotations([]);
     setAnnoPopover(null);
 
@@ -679,24 +570,6 @@ export function ReaderView() {
       cancelled = true;
       objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
       objectUrlsRef.current = [];
-    };
-  }, [book]);
-
-  // Load this book's bookmarks (independent of the parse/render pipeline).
-  useEffect(() => {
-    if (!book) {
-      setBookmarks([]);
-      return;
-    }
-    let cancelled = false;
-    api()
-      .listBookmarks(book.id)
-      .then((list) => {
-        if (!cancelled) setBookmarks(list || []);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
     };
   }, [book]);
 
@@ -1193,9 +1066,9 @@ export function ReaderView() {
         bookmarks={bookmarks}
         nameInput={nameInput}
         onNameInputChange={setNameInput}
-        onAdd={handleAddBookmark}
+        onAdd={addBookmark}
         onJump={jumpToChar}
-        onRemove={handleRemoveBookmark}
+        onRemove={removeBookmark}
       />
 
       <ReaderAnnotations

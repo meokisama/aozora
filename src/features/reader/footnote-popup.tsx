@@ -1,6 +1,6 @@
 import { useRef } from "react";
-import { useAnchoredPosition } from "./use-anchored-position";
-import { useDismiss } from "./use-dismiss";
+import { useAnchoredPosition } from "./hooks/use-anchored-position";
+import { useDismiss } from "./hooks/use-dismiss";
 
 interface Props {
   /** Note body inner HTML (object URLs already live), or null when closed. */
