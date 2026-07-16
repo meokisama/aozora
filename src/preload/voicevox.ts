@@ -1,5 +1,5 @@
 import { ipcRenderer } from "electron";
-import type { VoicevoxSpeaker, VoicevoxSpeakerDetail, VoicevoxTestResult, VoicevoxSynthesisResult, VoicevoxParams } from "@/lib/types";
+import type { VoicevoxSpeakerDetail, VoicevoxTestResult, VoicevoxSynthesisResult, VoicevoxParams } from "@/lib/types";
 
 /**
  * VOICEVOX API exposed as `window.electronAPI.voicevox`. The renderer owns the
@@ -9,9 +9,6 @@ import type { VoicevoxSpeaker, VoicevoxSpeakerDetail, VoicevoxTestResult, Voicev
 export const voicevoxApi = {
   /** Probes the engine via its `/version` endpoint. */
   test: (server: string): Promise<VoicevoxTestResult> => ipcRenderer.invoke("voicevox:test", server),
-
-  /** Available voices (speaker × style), for the settings dropdown. */
-  speakers: (server: string): Promise<VoicevoxSpeaker[]> => ipcRenderer.invoke("voicevox:speakers", server),
 
   /** Rich voice catalogue (icons + preview clips) for the voice picker. */
   voices: (server: string): Promise<VoicevoxSpeakerDetail[]> => ipcRenderer.invoke("voicevox:voices", server),

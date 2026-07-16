@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { AnkiConfig, AnkiDuplicateBehavior, AnkiEndpoint } from "@/lib/types";
+import type { AnkiConfig, AnkiDuplicateBehavior } from "@/lib/types";
 
 /**
  * Anki mining config, persisted in the renderer. The main process is a stateless
@@ -43,18 +43,11 @@ interface AnkiState extends AnkiConfig {
   setDuplicateBehavior: (duplicateBehavior: AnkiDuplicateBehavior) => void;
   setScreenshot: (screenshot: boolean) => void;
   setScreenshotQuality: (screenshotQuality: number) => void;
-  reset: () => void;
-  /** The connection fields, for a main-process call. */
-  endpoint: () => AnkiEndpoint;
-  /** True once enabled and pointed at a deck + model — enough to mine terms. */
-  isConfigured: () => boolean;
-  /** True once enabled and pointed at a kanji deck + model — enough to mine kanji. */
-  isKanjiConfigured: () => boolean;
 }
 
 export const useAnkiStore = create<AnkiState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       ...DEFAULTS,
       setEnabled: (enabled) => set({ enabled }),
       setServer: (server) => set({ server }),
@@ -71,19 +64,6 @@ export const useAnkiStore = create<AnkiState>()(
       setDuplicateBehavior: (duplicateBehavior) => set({ duplicateBehavior }),
       setScreenshot: (screenshot) => set({ screenshot }),
       setScreenshotQuality: (screenshotQuality) => set({ screenshotQuality }),
-      reset: () => set({ ...DEFAULTS }),
-      endpoint: () => {
-        const { server, apiKey } = get();
-        return { server, apiKey };
-      },
-      isConfigured: () => {
-        const { enabled, deck, model, fields } = get();
-        return enabled && !!deck && !!model && Object.keys(fields).length > 0;
-      },
-      isKanjiConfigured: () => {
-        const { enabled, kanjiDeck, kanjiModel, kanjiFields } = get();
-        return enabled && !!kanjiDeck && !!kanjiModel && Object.keys(kanjiFields).length > 0;
-      },
     }),
     {
       name: "aozora-anki",

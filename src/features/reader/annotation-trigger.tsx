@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { Highlighter } from "lucide-react";
+import { useDismiss } from "./use-dismiss";
 
 interface Props {
   /** Viewport point (the mouse-release position) the button anchors to; null closed. */
@@ -23,21 +24,7 @@ const MARGIN = 8; // min gap from the viewport edge
 export function AnnotationTrigger({ point, onPick, onClose }: Props) {
   const ref = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => {
-    if (!point) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    const onDown = (e: PointerEvent) => {
-      if (!ref.current?.contains(e.target as Node)) onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    window.addEventListener("pointerdown", onDown, true);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("pointerdown", onDown, true);
-    };
-  }, [point, onClose]);
+  useDismiss(!!point, ref, onClose);
 
   if (!point) return null;
 

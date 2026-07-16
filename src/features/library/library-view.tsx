@@ -68,6 +68,11 @@ function sortBooks(list: Book[], sort: SortKey) {
   return arr;
 }
 
+/** The progress-aware "Importing…" line, shared by the toast and the button label. */
+function importingLabel(progress: { current: number; total: number } | null): string {
+  return progress && progress.total > 1 ? `Importing ${progress.current}/${progress.total}…` : "Importing…";
+}
+
 /**
  * The library home: a left sidebar (status nav / authors / progress / import)
  * beside a main column with a toolbar (search / sort / view), a "Continue
@@ -136,8 +141,7 @@ export function LibraryView() {
   const importToastId = useRef<string | number | null>(null);
   useEffect(() => {
     if (importing) {
-      const msg = importProgress && importProgress.total > 1 ? `Importing ${importProgress.current}/${importProgress.total}…` : "Importing…";
-      importToastId.current = toast.loading(msg, { id: importToastId.current ?? undefined });
+      importToastId.current = toast.loading(importingLabel(importProgress), { id: importToastId.current ?? undefined });
     } else if (importToastId.current != null) {
       toast.dismiss(importToastId.current);
       importToastId.current = null;
@@ -191,11 +195,7 @@ export function LibraryView() {
     }
   };
 
-  const importLabel = importing
-    ? importProgress && importProgress.total > 1
-      ? `Importing ${importProgress.current}/${importProgress.total}…`
-      : "Importing…"
-    : "Import EPUB";
+  const importLabel = importing ? importingLabel(importProgress) : "Import EPUB";
 
   const importButton = (
     <Button onClick={handleImport} disabled={importing}>

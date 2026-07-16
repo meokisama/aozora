@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { useAnchoredPosition } from "./use-anchored-position";
+import { useDismiss } from "./use-dismiss";
 
 interface Props {
   /** Note body inner HTML (object URLs already live), or null when closed. */
@@ -27,23 +28,7 @@ export function FootnotePopup({ html, anchor, onClose }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const pos = useAnchoredPosition(ref, anchor, html);
 
-  // Dismiss on Escape or a pointer press outside the popup. Attached in an
-  // effect (after the opening click has settled), so it never self-closes.
-  useEffect(() => {
-    if (!html) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    const onDown = (e: PointerEvent) => {
-      if (!ref.current?.contains(e.target as Node)) onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    window.addEventListener("pointerdown", onDown, true);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("pointerdown", onDown, true);
-    };
-  }, [html, onClose]);
+  useDismiss(!!html, ref, onClose);
 
   if (!html || !anchor) return null;
 

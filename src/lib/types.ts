@@ -434,16 +434,6 @@ export type AnkiTestResult = { ok: true; version: number } | { ok: false; error:
 export type AnkiAddResult = { ok: true; noteId: number } | { ok: false; error: string };
 
 /**
- * A VOICEVOX voice: one style of one speaker, flattened for a single dropdown.
- * `styleId` is what the engine's `speaker` query param expects.
- */
-export interface VoicevoxSpeaker {
-  /** Combined "speaker（style）" label. */
-  name: string;
-  styleId: number;
-}
-
-/**
  * Synthesis tuning applied to the AudioQuery before /synthesis. Mirrors the
  * engine's own scale fields (1 = neutral, except pitch where 0 = neutral).
  * `pauseLength` is only applied when the engine's query exposes it (newer engines).

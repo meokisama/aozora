@@ -8,6 +8,7 @@ import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useAnkiStore } from "@/stores/anki-store";
+import { Group } from "./group";
 import { FIELD_MARKERS, KANJI_FIELD_MARKERS } from "@/lib/dictionary/anki-note";
 import type { AnkiDuplicateBehavior } from "@/lib/types";
 
@@ -81,14 +82,48 @@ function guessKanjiMarker(fieldName: string, isFirst: boolean): string {
   return isFirst ? "character" : "";
 }
 
-/** A titled group matching the settings page's section styling. */
-function Group({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-2">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">{title}</p>
-      {children}
-    </div>
-  );
+/**
+ * Fetches the chosen model's field names from Anki, and on the first setup (empty
+ * map) auto-maps each field to a guessed `{marker}`. Shared by the term and kanji
+ * note-type sections; `mapKey` selects which stored field map to seed.
+ */
+function useModelFields(
+  enabled: boolean,
+  server: string,
+  apiKey: string,
+  model: string,
+  mapKey: "fields" | "kanjiFields",
+  guess: (fieldName: string, isFirst: boolean) => string,
+  setModelFields: (names: string[]) => void,
+  setMap: (map: Record<string, string>) => void,
+): void {
+  useEffect(() => {
+    if (!enabled || !model) {
+      setModelFields([]);
+      return;
+    }
+    let alive = true;
+    void window.electronAPI.anki
+      .fields({ server, apiKey }, model)
+      .then((names) => {
+        if (!alive) return;
+        setModelFields(names);
+        if (Object.keys(useAnkiStore.getState()[mapKey]).length === 0 && names.length) {
+          const auto: Record<string, string> = {};
+          names.forEach((name, i) => {
+            const marker = guess(name, i === 0);
+            auto[name] = marker ? `{${marker}}` : "";
+          });
+          setMap(auto);
+        }
+      })
+      .catch(() => {
+        if (alive) setModelFields([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [enabled, model, server, apiKey, mapKey, guess, setModelFields, setMap]);
 }
 
 /**
@@ -278,63 +313,9 @@ export function AnkiSettings() {
     })();
   }, [enabled, loadLists]);
 
-  // Fetch the chosen term model's fields; auto-map them the first time (empty map).
-  useEffect(() => {
-    if (!enabled || !model) {
-      setModelFields([]);
-      return;
-    }
-    let alive = true;
-    void window.electronAPI.anki
-      .fields({ server, apiKey }, model)
-      .then((names) => {
-        if (!alive) return;
-        setModelFields(names);
-        if (Object.keys(useAnkiStore.getState().fields).length === 0 && names.length) {
-          const auto: Record<string, string> = {};
-          names.forEach((name, i) => {
-            const marker = guessMarker(name, i === 0);
-            auto[name] = marker ? `{${marker}}` : "";
-          });
-          setFields(auto);
-        }
-      })
-      .catch(() => {
-        if (alive) setModelFields([]);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [enabled, model, server, apiKey, setFields]);
-
-  // Fetch the chosen kanji model's fields; auto-map them the first time.
-  useEffect(() => {
-    if (!enabled || !kanjiModel) {
-      setKanjiModelFields([]);
-      return;
-    }
-    let alive = true;
-    void window.electronAPI.anki
-      .fields({ server, apiKey }, kanjiModel)
-      .then((names) => {
-        if (!alive) return;
-        setKanjiModelFields(names);
-        if (Object.keys(useAnkiStore.getState().kanjiFields).length === 0 && names.length) {
-          const auto: Record<string, string> = {};
-          names.forEach((name, i) => {
-            const marker = guessKanjiMarker(name, i === 0);
-            auto[name] = marker ? `{${marker}}` : "";
-          });
-          setKanjiFields(auto);
-        }
-      })
-      .catch(() => {
-        if (alive) setKanjiModelFields([]);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [enabled, kanjiModel, server, apiKey, setKanjiFields]);
+  // Fetch each model's fields; auto-map them the first time (empty map).
+  useModelFields(enabled, server, apiKey, model, "fields", guessMarker, setModelFields, setFields);
+  useModelFields(enabled, server, apiKey, kanjiModel, "kanjiFields", guessKanjiMarker, setKanjiModelFields, setKanjiFields);
 
   // Show the stored value even if the live list hasn't loaded (or is empty).
   const deckOptions = deck && !decks.includes(deck) ? [deck, ...decks] : decks;

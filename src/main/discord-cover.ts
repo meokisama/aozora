@@ -1,8 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import { app, nativeImage } from "electron";
+import { app } from "electron";
 import { libraryStore } from "./services/library-store.js";
+import { resizeCover } from "./cover-image.js";
 
 /**
  * Turns a local book cover into a public https URL for Discord Rich Presence's
@@ -26,21 +27,7 @@ import { libraryStore } from "./services/library-store.js";
 const DISCORD_COVER_WIDTH = 100;
 
 /** Downscale the cover to DISCORD_COVER_WIDTH (aspect kept); pass through if already smaller/undecodable. */
-const downscale = (buf: Buffer): Buffer => {
-  try {
-    const img = nativeImage.createFromBuffer(buf);
-    const { width, height } = img.getSize();
-    if (!width || !height || width <= DISCORD_COVER_WIDTH) return buf;
-    const resized = img.resize({
-      width: DISCORD_COVER_WIDTH,
-      height: Math.round((height / width) * DISCORD_COVER_WIDTH),
-      quality: "best",
-    });
-    return resized.toJPEG(88);
-  } catch {
-    return buf;
-  }
-};
+const downscale = (buf: Buffer): Buffer => resizeCover(buf, DISCORD_COVER_WIDTH, 88) ?? buf;
 
 const cachePath = (): string => path.join(app.getPath("userData"), "discord-cover-cache.json");
 

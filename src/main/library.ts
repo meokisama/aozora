@@ -1,34 +1,16 @@
-import { ipcMain, dialog, BrowserWindow, nativeImage } from "electron";
+import { ipcMain, dialog, BrowserWindow } from "electron";
 import path from "node:path";
 import fs from "node:fs";
 import { randomUUID } from "node:crypto";
 import { libraryStore } from "./services/library-store.js";
+import { resizeCover } from "./cover-image.js";
 import type { Book, AddBookPayload, UpdateBookPayload, ProgressUpdate, AddBookmarkPayload, AddAnnotationPayload, UpdateAnnotationPayload } from "@/lib/types";
 
 const COVER_MAX_WIDTH = 300;
 const COVER_JPEG_QUALITY = 90;
 
-/**
- * Downscales a cover to COVER_MAX_WIDTH (aspect preserved) as a JPEG. Returns
- * null when already small enough or undecodable (SVG, corrupt) — caller keeps
- * the original bytes.
- */
-function downscaleCover(buf: Buffer): Buffer | null {
-  try {
-    const img = nativeImage.createFromBuffer(buf);
-    if (img.isEmpty()) return null;
-    const { width, height } = img.getSize();
-    if (!width || !height || width <= COVER_MAX_WIDTH) return null;
-    const resized = img.resize({
-      width: COVER_MAX_WIDTH,
-      height: Math.round((height / width) * COVER_MAX_WIDTH),
-      quality: "best",
-    });
-    return resized.toJPEG(COVER_JPEG_QUALITY);
-  } catch {
-    return null;
-  }
-}
+/** Downscales a cover for storage; null ⇒ keep the original bytes (see resizeCover). */
+const downscaleCover = (buf: Buffer): Buffer | null => resizeCover(buf, COVER_MAX_WIDTH, COVER_JPEG_QUALITY);
 
 const MIME_TO_EXT: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -51,14 +33,26 @@ const EXT_TO_MIME: Record<string, string> = {
 /**
  * Reads a cover file as a data URL so the renderer needs no custom protocol or
  * file:// access. Covers are stored pre-downscaled, so the URL stays small.
+ *
+ * Cached by path + mtime: `library:list` runs on every refresh and would
+ * otherwise re-read + base64-encode every cover each time. A cheap stat detects
+ * a rewritten cover (update-book bumps mtime) and refreshes the entry.
  */
+const coverCache = new Map<string, { mtimeMs: number; dataUrl: string }>();
+
 function readCoverDataUrl(coverPath: string | null): string | null {
   if (!coverPath) return null;
   try {
+    const mtimeMs = fs.statSync(coverPath).mtimeMs;
+    const cached = coverCache.get(coverPath);
+    if (cached && cached.mtimeMs === mtimeMs) return cached.dataUrl;
+
     const ext = path.extname(coverPath).slice(1).toLowerCase();
     const mime = EXT_TO_MIME[ext] || "image/jpeg";
     const base64 = fs.readFileSync(coverPath).toString("base64");
-    return `data:${mime};base64,${base64}`;
+    const dataUrl = `data:${mime};base64,${base64}`;
+    coverCache.set(coverPath, { mtimeMs, dataUrl });
+    return dataUrl;
   } catch {
     return null;
   }
@@ -88,7 +82,7 @@ export const registerLibraryIpc = (): void => {
 
   // Raw bytes of an arbitrary path; renderer reads metadata before add-book.
   ipcMain.handle("library:read-file", (_event, filePath: string) => {
-    return fs.readFileSync(filePath);
+    return fs.promises.readFile(filePath);
   });
 
   // Copies the original .epub into the managed library, persists metadata + cover.
@@ -170,7 +164,7 @@ export const registerLibraryIpc = (): void => {
   ipcMain.handle("library:read-book", (_event, id: string) => {
     const book = libraryStore.getBook(id);
     if (!book) throw new Error(`book ${id} not found`);
-    return fs.readFileSync(book.filePath);
+    return fs.promises.readFile(book.filePath);
   });
 
   // Returns the bare book (no cover data URL): these fire on scroll / page-flip

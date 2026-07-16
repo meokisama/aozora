@@ -1,5 +1,6 @@
 import type { AnkiConfig, AnkiNote, DictionaryEntry, GlossContent, GlossElement, KanjiEntry } from "@/lib/types";
 import { distributeFurigana } from "@/lib/dictionary/furigana";
+import { escapeHtml } from "@/lib/dictionary/escape";
 import { downstepNumber, pitchAccentSvg } from "@/lib/dictionary/pitch";
 
 /**
@@ -74,9 +75,6 @@ export interface KanjiCardData {
   hasScreenshot: boolean;
   extraTags: string[];
 }
-
-const escapeHtml = (s: string): string =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 // Structured-content tags safe to keep in an Anki card (attributes/styles dropped).
 const HTML_TAGS = new Set([

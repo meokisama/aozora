@@ -1,9 +1,10 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { Check, Trash2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { ANNOTATION_COLORS } from "@/lib/reader/annotations";
 import { cn } from "@/lib/utils";
 import { useAnchoredPosition } from "./use-anchored-position";
+import { useDismiss } from "./use-dismiss";
 
 interface Props {
   /** Bounding box of the selection (new) or clicked highlight (editing); null closed. */
@@ -32,21 +33,7 @@ export function AnnotationPopover({ anchor, color, note, isNew, onColor, onNote,
   // when the anchor or the delete-button's presence changes — not per keystroke.
   const pos = useAnchoredPosition(ref, anchor, isNew);
 
-  useEffect(() => {
-    if (!anchor) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    const onDown = (e: PointerEvent) => {
-      if (!ref.current?.contains(e.target as Node)) onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    window.addEventListener("pointerdown", onDown, true);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("pointerdown", onDown, true);
-    };
-  }, [anchor, onClose]);
+  useDismiss(!!anchor, ref, onClose);
 
   if (!anchor) return null;
 

@@ -105,18 +105,6 @@ export const registerAnkiIpc = (): void => {
     invoke<string[]>(endpoint, "modelFieldNames", { modelName: model }),
   );
 
-  // Duplicate check for the popup's button state. `canAddNotes` returns false for
-  // a note whose first field already exists (or that is otherwise invalid), which
-  // is exactly the "already added" signal we want to show.
-  ipcMain.handle("anki:can-add", async (_event, endpoint: AnkiEndpoint, note: AnkiNote): Promise<boolean> => {
-    try {
-      const [canAdd] = await invoke<boolean[]>(endpoint, "canAddNotes", { notes: [note] });
-      return canAdd ?? false;
-    } catch {
-      return false;
-    }
-  });
-
   // Add one note. If a screenshot is requested, capture + store it first and
   // splice the returned filename into whichever field carries the sentinel.
   ipcMain.handle(

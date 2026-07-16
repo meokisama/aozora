@@ -19,9 +19,6 @@ export const ankiApi = {
   /** Field names of a model, for the field-mapping table. */
   fields: (endpoint: AnkiEndpoint, model: string): Promise<string[]> => ipcRenderer.invoke("anki:fields", endpoint, model),
 
-  /** Whether the note can be added (false ⇒ already exists / duplicate). */
-  canAdd: (endpoint: AnkiEndpoint, note: AnkiNote): Promise<boolean> => ipcRenderer.invoke("anki:can-add", endpoint, note),
-
   /** Adds a note, optionally capturing + attaching a screenshot of the reader. */
   addNote: (endpoint: AnkiEndpoint, note: AnkiNote, screenshot: AnkiScreenshotRequest | null): Promise<AnkiAddResult> =>
     ipcRenderer.invoke("anki:add-note", endpoint, note, screenshot),

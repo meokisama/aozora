@@ -19,7 +19,6 @@ import type {
   Stats,
   UpdateAnnotationPayload,
   UpdateBookPayload,
-  VoicevoxSpeaker,
   VoicevoxSpeakerDetail,
   VoicevoxSynthesisResult,
   VoicevoxTestResult,
@@ -109,13 +108,11 @@ export interface AnkiApi {
   decks(endpoint: AnkiEndpoint): Promise<string[]>;
   models(endpoint: AnkiEndpoint): Promise<string[]>;
   fields(endpoint: AnkiEndpoint, model: string): Promise<string[]>;
-  canAdd(endpoint: AnkiEndpoint, note: AnkiNote): Promise<boolean>;
   addNote(endpoint: AnkiEndpoint, note: AnkiNote, screenshot: AnkiScreenshotRequest | null): Promise<AnkiAddResult>;
 }
 
 export interface VoicevoxApi {
   test(server: string): Promise<VoicevoxTestResult>;
-  speakers(server: string): Promise<VoicevoxSpeaker[]>;
   voices(server: string): Promise<VoicevoxSpeakerDetail[]>;
   initialize(server: string, styleId: number): Promise<void>;
   synthesize(server: string, text: string, styleId: number, params: VoicevoxParams): Promise<VoicevoxSynthesisResult>;

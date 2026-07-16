@@ -12,8 +12,6 @@ interface Viewport {
 
 /** Imperative handle exposed to the parent reader via `ref`. */
 export interface FixedLayoutHandle {
-  flip: (dir: number) => void;
-  refresh: () => void;
   jumpToOrdinal: (ordinal: number) => void;
   jumpToId: (wrapperId: string) => boolean;
 }
@@ -428,11 +426,6 @@ export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProp
   useImperativeHandle(
     ref,
     () => ({
-      flip,
-      refresh: () => {
-        render();
-        emit();
-      },
       jumpToOrdinal: (ordinal: number) => goToOrdinal(ordinal),
       jumpToId: (wrapperId: string) => {
         const idref = String(wrapperId).replace(/^aoz-/, "");
@@ -442,7 +435,7 @@ export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProp
         return true;
       },
     }),
-    [flip, goToOrdinal, render, emit, pages],
+    [goToOrdinal, pages],
   );
 
   // Resize: re-render (auto spread may flip single↔double; the strip re-fits page

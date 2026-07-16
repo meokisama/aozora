@@ -1,6 +1,7 @@
 import { BlobReader, BlobWriter, TextWriter, ZipReader, configure } from "@zip.js/zip.js";
 import path from "path-browserify";
-import { xmlParser, getManifestItems, type OpfContents } from "./opf";
+import { getManifestItems, type OpfContents } from "./opf";
+import { locateOpf } from "./locate-opf";
 
 configure({ useWebWorkers: false });
 
@@ -22,17 +23,7 @@ export async function extractEpub(blob: Blob): Promise<ExtractedEpub> {
 
     const fileMap = new Map(entries.map((e) => [e.filename, e]));
 
-    const containerEntry = fileMap.get("META-INF/container.xml");
-    if (!containerEntry || containerEntry.directory) throw new Error("Invalid EPUB: missing container.xml");
-    const container = xmlParser.parse(await containerEntry.getData(new TextWriter()));
-    const rootFiles = container.container.rootfiles.rootfile;
-    const rootFile = Array.isArray(rootFiles) ? rootFiles[0] : rootFiles;
-    const opfPath = rootFile["@_full-path"];
-
-    const opfEntry = fileMap.get(opfPath);
-    if (!opfEntry || opfEntry.directory) throw new Error(`Invalid EPUB: missing OPF at ${opfPath}`);
-    const opfXml = await opfEntry.getData(new TextWriter());
-    const contents = xmlParser.parse(opfXml);
+    const { contents, opfPath, opfXml } = await locateOpf(fileMap);
 
     const contentsDirectory = path.dirname(opfPath);
     const result: Record<string, string | Blob> = { [opfPath]: opfXml };

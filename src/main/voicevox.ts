@@ -1,7 +1,6 @@
 import { ipcMain } from "electron";
 import { buildCharTimings } from "@/lib/reader/voicevox-timings";
 import type {
-  VoicevoxSpeaker,
   VoicevoxSpeakerDetail,
   VoicevoxStyleInfo,
   VoicevoxTestResult,
@@ -64,13 +63,6 @@ export const registerVoicevoxIpc = (): void => {
     } catch (err) {
       return { ok: false, error: errMsg(err) };
     }
-  });
-
-  // Flatten every speaker's styles into one list for the settings dropdown.
-  ipcMain.handle("voicevox:speakers", async (_event, server: string): Promise<VoicevoxSpeaker[]> => {
-    const res = await request(`${trimSlash(server)}/speakers`);
-    const data = (await res.json()) as Array<{ name: string; styles: Array<{ name: string; id: number }> }>;
-    return data.flatMap((sp) => sp.styles.map((st) => ({ name: `${sp.name}（${st.name}）`, styleId: st.id })));
   });
 
   // Rich voice catalogue for the picker: each speaker with its styles' icons and

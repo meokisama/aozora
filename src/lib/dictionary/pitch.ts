@@ -4,6 +4,8 @@
  * Copyright (C) Yomitan Authors, GPL-3.0-or-later.
  */
 
+import { escapeHtml } from "@/lib/dictionary/escape";
+
 // Small kana attach to the preceding mora (e.g. きょ is one mora, not two).
 const SMALL_KANA_SET = new Set("ぁぃぅぇぉゃゅょゎァィゥェォャュョヮ");
 
@@ -75,9 +77,6 @@ export function getKanaDiacriticInfo(character: string): Diacritic | null {
   return DIACRITIC_MAP.get(character) ?? null;
 }
 
-const escapeXml = (s: string): string =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-
 /**
  * OJAD-style pitch-accent graph as a self-contained inline SVG *string* (for Anki
  * cards / any non-React consumer). Mirrors the reader's `PitchAccent` component:
@@ -125,7 +124,7 @@ export function pitchAccentSvg(reading: string, position: number | string, nasal
     if (isDevoiced) {
       parts.push(`<circle cx="${cx(i)}" cy="${GLYPH_CY}" r="9.5" fill="none" stroke="${ANNOT}" stroke-width="1" stroke-dasharray="1.5 1.5"/>`);
     }
-    parts.push(`<text x="${cx(i)}" y="${TEXT_Y}" text-anchor="middle" font-size="15" fill="currentColor">${escapeXml(glyph)}</text>`);
+    parts.push(`<text x="${cx(i)}" y="${TEXT_Y}" text-anchor="middle" font-size="15" fill="currentColor">${escapeHtml(glyph)}</text>`);
     if (isNasal) parts.push(`<circle cx="${cx(i) + 7}" cy="34" r="2.4" fill="${ANNOT}"/>`);
   });
 

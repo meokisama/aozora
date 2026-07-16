@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useTtsStore, ttsParams, SENTENCE_HOTKEYS, type SentenceHotkey } from "@/stores/tts-store";
 import { VoicePicker } from "./voice-picker";
+import { Group } from "./group";
 import { getVoices, peekVoices, findVoice } from "./voices-cache";
 import { speakVoicevox } from "@/lib/reader/voicevox";
 import type { VoicevoxSpeakerDetail } from "@/lib/types";
@@ -43,16 +44,6 @@ function ParamSlider({
 
 const TEST_TEXT = "青空の下で、物語が始まる。";
 const VOICEVOX_DOWNLOAD_URL = "https://voicevox.hiroshiba.jp/";
-
-/** A titled group matching the settings page's section styling. */
-function Group({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-2">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">{title}</p>
-      {children}
-    </div>
-  );
-}
 
 /**
  * Read-aloud (text-to-speech) settings. Backed solely by a local VOICEVOX

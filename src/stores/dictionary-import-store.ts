@@ -12,7 +12,6 @@ import type { DictionaryImportProgress } from "@/lib/types";
 interface DictionaryImportState {
   importing: boolean;
   status: string; // human-readable line, e.g. "Importing JMdict… 42%"
-  percent: number | null; // 0–100 while inserting, else null
   /** Mark an import as starting (on click, before the file dialog). */
   begin: () => void;
   /** Fold a streamed progress event into the live status. */
@@ -24,17 +23,16 @@ interface DictionaryImportState {
 export const useDictionaryImportStore = create<DictionaryImportState>((set) => ({
   importing: false,
   status: "",
-  percent: null,
-  begin: () => set({ importing: true, status: "Opening…", percent: null }),
+  begin: () => set({ importing: true, status: "Opening…" }),
   applyProgress: (p) =>
     set(() => {
-      if (p.phase === "reading") return { importing: true, status: "Reading…", percent: null };
+      if (p.phase === "reading") return { importing: true, status: "Reading…" };
       if (p.phase === "inserting") {
         const percent = p.total ? Math.floor(((p.inserted ?? 0) / p.total) * 100) : null;
-        return { importing: true, status: `Importing ${p.title ?? ""}…${percent !== null ? ` ${percent}%` : ""}`, percent };
+        return { importing: true, status: `Importing ${p.title ?? ""}…${percent !== null ? ` ${percent}%` : ""}` };
       }
       // done | error: leave the authoritative reset to finish(), but clear the line.
-      return { importing: false, status: "", percent: null };
+      return { importing: false, status: "" };
     }),
-  finish: () => set({ importing: false, status: "", percent: null }),
+  finish: () => set({ importing: false, status: "" }),
 }));

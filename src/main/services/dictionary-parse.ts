@@ -254,6 +254,15 @@ export interface ParsedDict {
   media: { path: string; mime: string; data: Uint8Array }[];
 }
 
+/** Sorted ZIP entry names matching `<prefix>_<n>.json` (e.g. term_bank_1.json). */
+function bankFiles(entries: Array<{ filename: string }>, prefix: string): string[] {
+  const re = new RegExp(`^${prefix}_\\d+\\.json$`);
+  return entries
+    .map((e) => e.filename)
+    .filter((n) => re.test(n))
+    .sort();
+}
+
 /** Reads a Yomitan dictionary ZIP (format/version 3) into memory. */
 export async function parseYomitanZip(bytes: Uint8Array): Promise<ParsedDict> {
   const reader = new ZipReader(new Uint8ArrayReader(bytes));
@@ -282,10 +291,7 @@ export async function parseYomitanZip(bytes: Uint8Array): Promise<ParsedDict> {
     const styles = stylesEntry ? await entryText(stylesEntry) : "";
 
     const rows: ParsedDict["rows"] = [];
-    const bankNames = entries
-      .map((e) => e.filename)
-      .filter((n) => /^term_bank_\d+\.json$/.test(n))
-      .sort();
+    const bankNames = bankFiles(entries, "term_bank");
     for (const name of bankNames) {
       const bank = JSON.parse(await entryText(byName.get(name))) as TermBankRow[];
       for (const row of bank) {
@@ -315,10 +321,7 @@ export async function parseYomitanZip(bytes: Uint8Array): Promise<ParsedDict> {
     const occurrence = index.frequencyMode === "occurrence-based";
     const freqs: ParsedFreq[] = [];
     const pitches: ParsedPitch[] = [];
-    const metaNames = entries
-      .map((e) => e.filename)
-      .filter((n) => /^term_meta_bank_\d+\.json$/.test(n))
-      .sort();
+    const metaNames = bankFiles(entries, "term_meta_bank");
     for (const name of metaNames) {
       const bank = JSON.parse(await entryText(byName.get(name))) as TermMetaRow[];
       for (const row of bank) {
@@ -336,10 +339,7 @@ export async function parseYomitanZip(bytes: Uint8Array): Promise<ParsedDict> {
 
     // Kanji entries (kanji_bank).
     const kanji: ParsedKanji[] = [];
-    const kanjiNames = entries
-      .map((e) => e.filename)
-      .filter((n) => /^kanji_bank_\d+\.json$/.test(n))
-      .sort();
+    const kanjiNames = bankFiles(entries, "kanji_bank");
     for (const name of kanjiNames) {
       const bank = JSON.parse(await entryText(byName.get(name))) as KanjiBankRow[];
       for (const row of bank) {
@@ -350,10 +350,7 @@ export async function parseYomitanZip(bytes: Uint8Array): Promise<ParsedDict> {
 
     // Kanji frequency (kanji_meta_bank, "freq" mode).
     const kanjiFreqs: ParsedKanjiFreq[] = [];
-    const kanjiMetaNames = entries
-      .map((e) => e.filename)
-      .filter((n) => /^kanji_meta_bank_\d+\.json$/.test(n))
-      .sort();
+    const kanjiMetaNames = bankFiles(entries, "kanji_meta_bank");
     for (const name of kanjiMetaNames) {
       const bank = JSON.parse(await entryText(byName.get(name))) as KanjiMetaRow[];
       for (const row of bank) {
@@ -366,10 +363,7 @@ export async function parseYomitanZip(bytes: Uint8Array): Promise<ParsedDict> {
 
     // Tag definitions (tag_bank): token -> note + category, for rendering tags.
     const tags: ParsedTag[] = [];
-    const tagNames = entries
-      .map((e) => e.filename)
-      .filter((n) => /^tag_bank_\d+\.json$/.test(n))
-      .sort();
+    const tagNames = bankFiles(entries, "tag_bank");
     for (const name of tagNames) {
       const bank = JSON.parse(await entryText(byName.get(name))) as TagBankRow[];
       for (const row of bank) {
@@ -393,7 +387,18 @@ export async function parseYomitanZip(bytes: Uint8Array): Promise<ParsedDict> {
       throw new Error("No importable entries found (expected term_bank, term_meta_bank or kanji_bank files).");
     }
 
-    return { title: index.title || "Untitled dictionary", revision: index.revision ?? null, styles, rows, freqs, pitches, kanji, kanjiFreqs, tags, media };
+    return {
+      title: index.title || "Untitled dictionary",
+      revision: index.revision ?? null,
+      styles,
+      rows,
+      freqs,
+      pitches,
+      kanji,
+      kanjiFreqs,
+      tags,
+      media,
+    };
   } finally {
     await reader.close();
   }

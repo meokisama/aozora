@@ -17,8 +17,38 @@ import type { Book, Bookmark, Annotation, ProgressUpdate, StatsOverview, DailyAc
 
 let db: Database.Database | undefined;
 
+// Prepared-statement cache keyed by SQL text. better-sqlite3 recompiles on every
+// .prepare(), so hot handlers (save-progress fires on scroll/page-flip) would pay
+// that cost repeatedly. Reset whenever the DB handle is (re)created.
+let stmtCache = new Map<string, Database.Statement>();
+
 function getBooksDir(): string {
   return path.join(app.getPath("userData"), "books");
+}
+
+function stmt(sql: string): Database.Statement {
+  const cached = stmtCache.get(sql);
+  if (cached) return cached;
+  const prepared = getDb().prepare(sql);
+  stmtCache.set(sql, prepared);
+  return prepared;
+}
+
+/**
+ * Runs a dynamic UPDATE writing only the defined columns (undefined ⇒ untouched).
+ * Each entry is [column, value]; the column doubles as its @named parameter. A
+ * no-op when nothing is provided. Callers re-read the row for the return value.
+ */
+function runUpdate(table: string, id: string, columns: Array<[string, string | number | null | undefined]>): void {
+  const sets: string[] = [];
+  const params: SqlParams = { id };
+  for (const [column, value] of columns) {
+    if (value === undefined) continue;
+    sets.push(`${column} = @${column}`);
+    params[column] = value;
+  }
+  if (!sets.length) return;
+  stmt(`UPDATE ${table} SET ${sets.join(", ")} WHERE id = @id`).run(params);
 }
 
 function getDb(): Database.Database {
@@ -27,6 +57,7 @@ function getDb(): Database.Database {
   const dbPath = path.join(app.getPath("userData"), "aozora.db");
   fs.mkdirSync(getBooksDir(), { recursive: true });
 
+  stmtCache = new Map(); // statements are bound to a handle; drop stale ones
   db = new Database(dbPath);
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON"); // so bookmarks cascade-delete with their book
@@ -228,222 +259,170 @@ export const libraryStore = {
     if (db) {
       db.close();
       db = undefined;
+      stmtCache = new Map(); // cached statements belong to the closed handle
     }
   },
 
   listBooks(): Book[] {
-    const rows = getDb().prepare("SELECT * FROM books ORDER BY added_at DESC").all() as BookRow[];
+    const rows = stmt("SELECT * FROM books ORDER BY added_at DESC").all() as BookRow[];
     return rows.map(rowToBook) as Book[];
   },
 
   getBook(id: string): Book | null {
-    const row = getDb().prepare("SELECT * FROM books WHERE id = ?").get(id) as BookRow | undefined;
+    const row = stmt("SELECT * FROM books WHERE id = ?").get(id) as BookRow | undefined;
     return rowToBook(row);
   },
 
   insertBook(book: InsertBookInput): Book | null {
-    getDb()
-      .prepare(
-        `INSERT INTO books
+    stmt(
+      `INSERT INTO books
            (id, title, author, language, file_path, cover_path, file_size, added_at)
          VALUES
            (@id, @title, @author, @language, @filePath, @coverPath, @fileSize, @addedAt)`,
-      )
-      .run({
-        id: book.id,
-        title: book.title,
-        author: book.author ?? null,
-        language: book.language ?? null,
-        filePath: book.filePath,
-        coverPath: book.coverPath ?? null,
-        fileSize: book.fileSize ?? null,
-        addedAt: book.addedAt,
-      });
+    ).run({
+      id: book.id,
+      title: book.title,
+      author: book.author ?? null,
+      language: book.language ?? null,
+      filePath: book.filePath,
+      coverPath: book.coverPath ?? null,
+      fileSize: book.fileSize ?? null,
+      addedAt: book.addedAt,
+    });
     return this.getBook(book.id);
   },
 
   removeBook(id: string): void {
-    getDb().prepare("DELETE FROM books WHERE id = ?").run(id);
+    stmt("DELETE FROM books WHERE id = ?").run(id);
   },
 
   /** Updates editable book metadata; only the provided fields are written. */
   updateBook(id: string, { title, author, coverPath }: { title?: string; author?: string | null; coverPath?: string }): Book | null {
-    const sets: string[] = [];
-    const params: SqlParams = { id };
-    if (title !== undefined) {
-      sets.push("title = @title");
-      params.title = title;
-    }
-    if (author !== undefined) {
-      sets.push("author = @author");
-      params.author = author;
-    }
-    if (coverPath !== undefined) {
-      sets.push("cover_path = @coverPath");
-      params.coverPath = coverPath;
-    }
-    if (!sets.length) return this.getBook(id);
-    getDb()
-      .prepare(`UPDATE books SET ${sets.join(", ")} WHERE id = @id`)
-      .run(params);
+    runUpdate("books", id, [
+      ["title", title],
+      ["author", author],
+      ["cover_path", coverPath],
+    ]);
     return this.getBook(id);
   },
 
   /** Updates reading progress; only the provided fields are written. */
   updateProgress(id: string, { progress, exploredCharCount, charCount, lastOpenedAt }: ProgressUpdate): Book | null {
-    const sets: string[] = [];
-    const params: SqlParams = { id };
-    if (progress !== undefined) {
-      sets.push("progress = @progress");
-      params.progress = progress;
-    }
-    if (exploredCharCount !== undefined) {
-      sets.push("explored_char_count = @exploredCharCount");
-      params.exploredCharCount = exploredCharCount;
-    }
-    if (charCount !== undefined) {
-      sets.push("char_count = @charCount");
-      params.charCount = charCount;
-    }
-    if (lastOpenedAt !== undefined) {
-      sets.push("last_opened_at = @lastOpenedAt");
-      params.lastOpenedAt = lastOpenedAt;
-    }
-    if (!sets.length) return this.getBook(id);
-    getDb()
-      .prepare(`UPDATE books SET ${sets.join(", ")} WHERE id = @id`)
-      .run(params);
+    runUpdate("books", id, [
+      ["progress", progress],
+      ["explored_char_count", exploredCharCount],
+      ["char_count", charCount],
+      ["last_opened_at", lastOpenedAt],
+    ]);
     return this.getBook(id);
   },
 
   /** Marks a book as favorite (true) or not (false). */
   setFavorite(id: string, favorite: boolean): Book | null {
-    getDb()
-      .prepare("UPDATE books SET favorite = @favorite WHERE id = @id")
-      .run({ id, favorite: favorite ? 1 : 0 });
+    stmt("UPDATE books SET favorite = @favorite WHERE id = @id").run({ id, favorite: favorite ? 1 : 0 });
     return this.getBook(id);
   },
 
   // --- Bookmarks (per book, ordered by reading position). ------------------
 
   listBookmarks(bookId: string): Bookmark[] {
-    const rows = getDb().prepare("SELECT * FROM bookmarks WHERE book_id = ? ORDER BY char_offset ASC, created_at ASC").all(bookId) as BookmarkRow[];
+    const rows = stmt("SELECT * FROM bookmarks WHERE book_id = ? ORDER BY char_offset ASC, created_at ASC").all(bookId) as BookmarkRow[];
     return rows.map(rowToBookmark) as Bookmark[];
   },
 
   getBookmark(id: string): Bookmark | null {
-    return rowToBookmark(getDb().prepare("SELECT * FROM bookmarks WHERE id = ?").get(id) as BookmarkRow | undefined);
+    return rowToBookmark(stmt("SELECT * FROM bookmarks WHERE id = ?").get(id) as BookmarkRow | undefined);
   },
 
   addBookmark({ id, bookId, charOffset, progress, snippet, createdAt }: AddBookmarkInput): Bookmark | null {
-    getDb()
-      .prepare(
-        `INSERT INTO bookmarks (id, book_id, char_offset, progress, snippet, created_at)
+    stmt(
+      `INSERT INTO bookmarks (id, book_id, char_offset, progress, snippet, created_at)
          VALUES (@id, @bookId, @charOffset, @progress, @snippet, @createdAt)`,
-      )
-      .run({
-        id,
-        bookId,
-        charOffset: charOffset ?? 0,
-        progress: progress ?? 0,
-        snippet: snippet ?? null,
-        createdAt,
-      });
+    ).run({
+      id,
+      bookId,
+      charOffset: charOffset ?? 0,
+      progress: progress ?? 0,
+      snippet: snippet ?? null,
+      createdAt,
+    });
     return this.getBookmark(id);
   },
 
   removeBookmark(id: string): void {
-    getDb().prepare("DELETE FROM bookmarks WHERE id = ?").run(id);
+    stmt("DELETE FROM bookmarks WHERE id = ?").run(id);
   },
 
   // --- Annotations (highlights + notes, per book, in reading order). --------
 
   listAnnotations(bookId: string): Annotation[] {
-    const rows = getDb()
-      .prepare("SELECT * FROM annotations WHERE book_id = ? ORDER BY start_char ASC, created_at ASC")
-      .all(bookId) as AnnotationRow[];
+    const rows = stmt("SELECT * FROM annotations WHERE book_id = ? ORDER BY start_char ASC, created_at ASC").all(bookId) as AnnotationRow[];
     return rows.map(rowToAnnotation) as Annotation[];
   },
 
   getAnnotation(id: string): Annotation | null {
-    return rowToAnnotation(getDb().prepare("SELECT * FROM annotations WHERE id = ?").get(id) as AnnotationRow | undefined);
+    return rowToAnnotation(stmt("SELECT * FROM annotations WHERE id = ?").get(id) as AnnotationRow | undefined);
   },
 
   addAnnotation({ id, bookId, startChar, endChar, color, note, snippet, progress, createdAt }: AddAnnotationInput): Annotation | null {
-    getDb()
-      .prepare(
-        `INSERT INTO annotations (id, book_id, start_char, end_char, color, note, snippet, progress, created_at)
+    stmt(
+      `INSERT INTO annotations (id, book_id, start_char, end_char, color, note, snippet, progress, created_at)
          VALUES (@id, @bookId, @startChar, @endChar, @color, @note, @snippet, @progress, @createdAt)`,
-      )
-      .run({
-        id,
-        bookId,
-        startChar,
-        endChar,
-        color,
-        note: note ?? null,
-        snippet: snippet ?? null,
-        progress: progress ?? 0,
-        createdAt,
-      });
+    ).run({
+      id,
+      bookId,
+      startChar,
+      endChar,
+      color,
+      note: note ?? null,
+      snippet: snippet ?? null,
+      progress: progress ?? 0,
+      createdAt,
+    });
     return this.getAnnotation(id);
   },
 
   /** Updates an annotation's colour and/or note; only provided fields are written. */
   updateAnnotation(id: string, { color, note }: { color?: string; note?: string | null }): Annotation | null {
-    const sets: string[] = [];
-    const params: SqlParams = { id };
-    if (color !== undefined) {
-      sets.push("color = @color");
-      params.color = color;
-    }
-    if (note !== undefined) {
-      sets.push("note = @note");
-      params.note = note;
-    }
-    if (!sets.length) return this.getAnnotation(id);
-    getDb()
-      .prepare(`UPDATE annotations SET ${sets.join(", ")} WHERE id = @id`)
-      .run(params);
+    runUpdate("annotations", id, [
+      ["color", color],
+      ["note", note],
+    ]);
     return this.getAnnotation(id);
   },
 
   removeAnnotation(id: string): void {
-    getDb().prepare("DELETE FROM annotations WHERE id = ?").run(id);
+    stmt("DELETE FROM annotations WHERE id = ?").run(id);
   },
 
   // --- Reading sessions (time-series for the stats page). -------------------
 
   /** Inserts one completed reading session. */
   recordSession({ id, bookId, startedAt, endedAt, durationMs, charsRead }: RecordSessionInput): void {
-    getDb()
-      .prepare(
-        `INSERT INTO reading_sessions (id, book_id, started_at, ended_at, duration_ms, chars_read)
+    stmt(
+      `INSERT INTO reading_sessions (id, book_id, started_at, ended_at, duration_ms, chars_read)
          VALUES (@id, @bookId, @startedAt, @endedAt, @durationMs, @charsRead)`,
-      )
-      .run({
-        id,
-        bookId: bookId ?? null,
-        startedAt,
-        endedAt,
-        durationMs: Math.max(0, Math.round(durationMs ?? 0)),
-        charsRead: Math.max(0, Math.round(charsRead ?? 0)),
-      });
+    ).run({
+      id,
+      bookId: bookId ?? null,
+      startedAt,
+      endedAt,
+      durationMs: Math.max(0, Math.round(durationMs ?? 0)),
+      charsRead: Math.max(0, Math.round(charsRead ?? 0)),
+    });
   },
 
   /** All-time totals across every session (single row). */
   getStatsOverview(): StatsOverview {
-    return getDb()
-      .prepare(
-        `SELECT
+    return stmt(
+      `SELECT
            COALESCE(SUM(chars_read), 0)  AS totalChars,
            COALESCE(SUM(duration_ms), 0) AS totalMs,
            COUNT(*)                      AS sessionCount,
            COUNT(DISTINCT date(started_at / 1000, 'unixepoch', 'localtime')) AS activeDays,
            MIN(started_at)               AS firstAt
          FROM reading_sessions`,
-      )
-      .get() as StatsOverview;
+    ).get() as StatsOverview;
   },
 
   /**
@@ -451,9 +430,8 @@ export const libraryStore = {
    * heatmap, streak calc and daily trend chart. Ordered oldest-first.
    */
   getDailyActivity(): DailyActivity[] {
-    return getDb()
-      .prepare(
-        `SELECT date(started_at / 1000, 'unixepoch', 'localtime') AS day,
+    return stmt(
+      `SELECT date(started_at / 1000, 'unixepoch', 'localtime') AS day,
                 SUM(chars_read)            AS chars,
                 SUM(duration_ms)           AS ms,
                 COUNT(*)                   AS sessions,
@@ -461,29 +439,25 @@ export const libraryStore = {
            FROM reading_sessions
           GROUP BY day
           ORDER BY day ASC`,
-      )
-      .all() as DailyActivity[];
+    ).all() as DailyActivity[];
   },
 
   /** Activity grouped by local hour-of-day (0–23). Drives the rhythm chart. */
   getHourlyActivity(): HourlyActivity[] {
-    return getDb()
-      .prepare(
-        `SELECT CAST(strftime('%H', started_at / 1000, 'unixepoch', 'localtime') AS INTEGER) AS hour,
+    return stmt(
+      `SELECT CAST(strftime('%H', started_at / 1000, 'unixepoch', 'localtime') AS INTEGER) AS hour,
                 SUM(chars_read)  AS chars,
                 SUM(duration_ms) AS ms
            FROM reading_sessions
           GROUP BY hour
           ORDER BY hour ASC`,
-      )
-      .all() as HourlyActivity[];
+    ).all() as HourlyActivity[];
   },
 
   /** Per-book totals (joined to current title/author; deleted books drop out). */
   getPerBookStats(): PerBookStats[] {
-    return getDb()
-      .prepare(
-        `SELECT s.book_id            AS bookId,
+    return stmt(
+      `SELECT s.book_id            AS bookId,
                 b.title              AS title,
                 b.author             AS author,
                 SUM(s.chars_read)    AS chars,
@@ -495,7 +469,6 @@ export const libraryStore = {
           WHERE s.book_id IS NOT NULL
           GROUP BY s.book_id
           ORDER BY ms DESC`,
-      )
-      .all() as PerBookStats[];
+    ).all() as PerBookStats[];
   },
 };
