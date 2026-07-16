@@ -28,7 +28,7 @@ const config: ForgeConfig = {
         iconUrl: "https://cloud.meoki.vn/aozora.ico",
         authors: "Meoki",
         description:
-          "Desktop EPUB reader for Japanese light novels & manga — tategaki, furigana mode, full-text search, hover dictionary and reading stats.",
+          "Desktop EPUB reader for Japanese learners with full-text search, Yomitan dictionary support, Anki mining, VOICEVOX text-to-speech, and more.",
       },
     },
     {
@@ -46,7 +46,7 @@ const config: ForgeConfig = {
           executableName: "aozora",
           maintainer: "Meoki",
           description:
-            "Desktop EPUB reader for Japanese light novels & manga — tategaki, furigana mode, full-text search, hover dictionary and reading stats.",
+            "Desktop EPUB reader for Japanese learners with full-text search, Yomitan dictionary support, Anki mining, VOICEVOX text-to-speech, and more.",
         },
       },
     },
@@ -58,7 +58,7 @@ const config: ForgeConfig = {
           executableName: "aozora",
           maintainer: "Meoki",
           description:
-            "Desktop EPUB reader for Japanese light novels & manga — tategaki, furigana mode, full-text search, hover dictionary and reading stats.",
+            "Desktop EPUB reader for Japanese learners with full-text search, Yomitan dictionary support, Anki mining, VOICEVOX text-to-speech, and more.",
         },
       },
     },
