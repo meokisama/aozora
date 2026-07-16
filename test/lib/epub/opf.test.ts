@@ -10,6 +10,7 @@ import {
   getRenditionProperty,
   getMetaContentByName,
   getRenditionLayout,
+  getRenditionSpread,
   isFixedLayout,
   getBookViewport,
   parsePageSpread,
@@ -153,6 +154,26 @@ describe("parsePageSpread", () => {
   });
 });
 
+describe("getRenditionSpread", () => {
+  const withSpread = (value: string) =>
+    xmlParser.parse(
+      `<?xml version="1.0"?><package version="3.0"><metadata><meta property="rendition:spread">${value}</meta></metadata></package>`,
+    );
+
+  it("passes explicit none/portrait/both through (case-insensitive)", () => {
+    expect(getRenditionSpread(withSpread("none"))).toBe("none");
+    expect(getRenditionSpread(withSpread("portrait"))).toBe("portrait");
+    expect(getRenditionSpread(withSpread("BOTH"))).toBe("both");
+  });
+
+  it("normalises auto/landscape/unknown/absent to landscape (bibi default)", () => {
+    expect(getRenditionSpread(withSpread("auto"))).toBe("landscape");
+    expect(getRenditionSpread(withSpread("landscape"))).toBe("landscape");
+    expect(getRenditionSpread(withSpread("nonsense"))).toBe("landscape");
+    expect(getRenditionSpread(plain)).toBe("landscape"); // property absent
+  });
+});
+
 // Fixed-layout (pre-paginated, fixed-layout-jp template) book: image pages
 // wrapped in XHTML+SVG, cover (center) then right/left pairs.
 const FIXED_OPF = `<?xml version="1.0"?>
@@ -188,6 +209,10 @@ describe("fixed-layout metadata", () => {
 
   it("reads a rendition property's text", () => {
     expect(getRenditionProperty(fixed, "rendition:spread")).toBe("landscape");
+  });
+
+  it("reads the book-level rendition:spread", () => {
+    expect(getRenditionSpread(fixed)).toBe("landscape");
   });
 
   it("reads a legacy name/content meta", () => {

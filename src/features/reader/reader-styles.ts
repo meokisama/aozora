@@ -130,7 +130,10 @@ export function fixedLayoutStyles() {
       overflow: hidden;
       background: var(--reader-bg, #faf8f4);
     }
-    .aoz-fxl-spread { display: flex; flex-wrap: nowrap; align-items: center; }
+    /* transform-origin/touch-action support the zoom layer: the spread is scaled
+       and panned in place (about its centre) by useFxlZoom; touch-action:none routes
+       pinch/drag gestures to our handlers instead of the browser. */
+    .aoz-fxl-spread { display: flex; flex-wrap: nowrap; align-items: center; transform-origin: center center; touch-action: none; }
     /* Continuous long-strip: the stage becomes a scroller (vertical or a
        horizontal filmstrip). display:block replaces the spread's flex centring so
        the scroller can reach its start edge (a flex-centred overflow container
@@ -145,17 +148,12 @@ export function fixedLayoutStyles() {
       overflow-x: auto;
       overflow-y: hidden;
     }
-    .aoz-fxl-strip { display: flex; flex-direction: column; align-items: center; }
-    /* Horizontal filmstrip: a row of pages, full stage height, centred vertically.
-       min-height:100% keeps short pages centred; DOM order already encodes the
-       reading direction (RTL builds the row last→first), so no reversal here. */
-    .aoz-fxl-strip-h {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      min-height: 100%;
-      width: max-content;
-    }
+    /* Virtualized strip: a positioned container sized to the full scroll extent
+       (height for the vertical column, width for the horizontal filmstrip, set
+       inline); only in-view pages are mounted, each absolutely positioned at its
+       precomputed offset and centred on the cross axis (see positionStripBox). */
+    .aoz-fxl-strip { position: relative; width: 100%; }
+    .aoz-fxl-strip-h { position: relative; height: 100%; }
     .aoz-fxl-page { position: relative; overflow: hidden; flex: 0 0 auto; }
     .aoz-fxl-blank { flex: 0 0 auto; }
     .aoz-fxl-canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }

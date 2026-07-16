@@ -8,9 +8,10 @@ import type { ParsedBook } from "@/lib/epub/parse-book";
 const DB_NAME = "aozora-reader";
 const STORE = "books";
 // v2: the parsed payload gained fixed-layout fields (fixedLayout/pages/ppd/…).
+// v3: added renditionSpread (book-level OPF spread mode) for the fixed-layout viewer.
 // Pre-release policy is forward-only — drop the old cache rather than migrate, so
 // previously-opened books re-parse and pick up the new fields.
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {

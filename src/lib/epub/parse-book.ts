@@ -1,7 +1,7 @@
 import { extractEpub } from "./extract";
 import { generateHtml, PREPEND, type Section } from "./generate-html";
 import { generateStyleSheet } from "./generate-stylesheet";
-import { getBookViewport, getPageProgressionDirection, getRenditionLayout, getSpinePageSpreads, isFixedLayout, type PageSpread } from "./opf";
+import { getBookViewport, getPageProgressionDirection, getRenditionLayout, getRenditionSpread, getSpinePageSpreads, isFixedLayout, type PageSpread, type RenditionSpread } from "./opf";
 import { buildSpreads } from "@/lib/reader/spreads";
 
 export interface FixedLayoutPage {
@@ -23,6 +23,7 @@ export interface ParsedBook {
   pages: FixedLayoutPage[] | null;
   bookViewport: { width: number; height: number } | null;
   spreadPairs: string[][] | null;
+  renditionSpread: RenditionSpread;
 }
 
 /**
@@ -55,6 +56,7 @@ export async function parseBook(blob: Blob): Promise<ParsedBook> {
   const vertical = ppd === "rtl" || /\bvrtl\b/.test(elementHtml) || (ppd !== "ltr" && cssDeclaresVertical);
 
   const fixedLayout = isFixedLayout(contents);
+  const renditionSpread = getRenditionSpread(contents);
   const effectivePpd = ppd || (fixedLayout ? "rtl" : "ltr");
   const spine = getSpinePageSpreads(contents).filter((p) => p.linear);
 
@@ -101,5 +103,6 @@ export async function parseBook(blob: Blob): Promise<ParsedBook> {
     pages,
     bookViewport,
     spreadPairs,
+    renditionSpread,
   };
 }

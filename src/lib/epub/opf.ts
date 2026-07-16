@@ -14,6 +14,7 @@ export type OpfContents = Record<string, any>;
 /* eslint-enable @typescript-eslint/no-explicit-any */
 export type PageSpread = "left" | "right" | "center";
 export type ItemLayout = "pre-paginated" | "reflowable";
+export type RenditionSpread = "none" | "landscape" | "portrait" | "both";
 
 export const xmlParser = new XMLParser({ ignoreAttributes: false });
 
@@ -90,6 +91,19 @@ export function getRenditionLayout(contents: OpfContents): string {
 
 export function isFixedLayout(contents: OpfContents): boolean {
   return getRenditionLayout(contents) === "pre-paginated";
+}
+
+/**
+ * Book-level `rendition:spread` — whether fixed-layout pages may show side by
+ * side. `none` never pairs; `both` always pairs; `landscape`/`portrait` pair only
+ * in that window orientation. Matching bibi, an absent or `auto` value normalises
+ * to `landscape` (the spec default). Consumed by the fixed-layout viewer's "auto"
+ * spread mode; a user's explicit single/double choice overrides it.
+ */
+export function getRenditionSpread(contents: OpfContents): RenditionSpread {
+  const value = getRenditionProperty(contents, "rendition:spread").toLowerCase();
+  if (value === "none" || value === "portrait" || value === "both") return value;
+  return "landscape"; // "", "auto", "landscape", or anything unrecognised
 }
 
 /** Parses a viewport declaration into `{ width, height }`, or null if unreadable. */

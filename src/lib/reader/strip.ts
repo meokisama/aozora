@@ -30,3 +30,22 @@ export function ordinalAtCenter(boxes: StripBox[], center: number): number {
   }
   return ordinal;
 }
+
+/**
+ * The inclusive index span `[first, last]` of boxes intersecting the axis window
+ * `[start, end]`, or null when none do. Drives strip virtualization: only pages in
+ * (a padded) window are kept in the DOM. Boxes must be sorted by `start` ascending;
+ * the scan is linear — fine for the few-hundred pages a book holds.
+ */
+export function visibleRange(boxes: StripBox[], start: number, end: number): [number, number] | null {
+  let first = -1;
+  let last = -1;
+  for (let i = 0; i < boxes.length; i++) {
+    const b = boxes[i];
+    if (b.start + b.size >= start && b.start <= end) {
+      if (first === -1) first = i;
+      last = i;
+    }
+  }
+  return first === -1 ? null : [first, last];
+}

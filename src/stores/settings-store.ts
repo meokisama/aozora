@@ -90,9 +90,11 @@ export const FURIGANA_MODES: { value: FuriganaMode; label: string }[] = [
 
 /**
  * Page layout for fixed-layout books (manga); reflowable novels ignore it.
- *   - auto:   two-page spread in landscape, one page otherwise
- *   - single: always one page
- *   - double: always a spread
+ *   - auto:   follow the book's OPF rendition:spread — none→single, both→spread,
+ *             landscape/portrait→spread only in that window orientation (absent
+ *             defaults to landscape, i.e. spread in landscape, one page otherwise)
+ *   - single: always one page (overrides the book)
+ *   - double: always a spread (overrides the book)
  */
 export const MANGA_SPREAD_MODES: { value: MangaSpread; label: string }[] = [
   { value: "auto", label: "Auto" },

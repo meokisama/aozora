@@ -8,6 +8,10 @@
  * pages pair only when both are fixed-layout and the first is an opener still
  * alone in its spread; everything else stays a single-page spread, keeping its
  * `pageSpread` so the viewer can align it (a lone `left` sits at the left half).
+ *
+ * When a wholly-fixed book declares no `page-spread` sides at all (hand-made manga
+ * / bare-image OMF), there's nothing to walk, so we fall back to positional
+ * pairing: the first page stands alone as a cover, then pages pair two at a time.
  */
 
 export interface SpreadPage {
@@ -30,13 +34,41 @@ export interface Spread {
   pageSpread: string | null;
 }
 
+const isFixed = (p: SpreadPage | null | undefined) => p && p.prePaginated !== false; // default true (wholly-fixed manga)
+
+/**
+ * Positional fallback for fixed books with no declared page-spread sides. Groups
+ * pages two-up; `coverAlone` (default, the manga convention) leaves the first
+ * page single so the following pairs land on the correct sides. A trailing odd
+ * page stays single. Pairs are full spreads, so no per-page alignment is needed.
+ */
+function positionalSpreads(flow: SpreadPage[], coverAlone = true): Spread[] {
+  const spreads: Spread[] = [];
+  let i = 0;
+  if (coverAlone && flow.length) {
+    spreads.push({ index: 0, items: [flow[0]], single: true, pageSpread: flow[0].pageSpread || null });
+    i = 1;
+  }
+  for (; i < flow.length; i += 2) {
+    const pair = flow.slice(i, i + 2);
+    spreads.push({ index: spreads.length, items: pair, single: pair.length === 1, pageSpread: pair[0].pageSpread || null });
+  }
+  return spreads;
+}
+
 export function buildSpreads(pages: SpreadPage[], ppd: "ltr" | "rtl"): Spread[] {
   const before = ppd === "rtl" ? "right" : "left"; // opens a pair
   const after = ppd === "rtl" ? "left" : "right"; // closes a pair
-  const fixed = (p: SpreadPage | null | undefined) => p && p.prePaginated !== false; // default true (wholly-fixed manga)
+  const fixed = isFixed;
 
   const spreads: Spread[] = [];
   const flow = pages.filter((p) => p.linear !== false);
+
+  // No sides declared anywhere (and every page fixed) → walk-by-side finds no
+  // pairs; fall back to positional pairing so double mode still shows spreads.
+  if (flow.length > 0 && flow.every((p) => fixed(p) && !p.pageSpread)) {
+    return positionalSpreads(flow);
+  }
 
   flow.forEach((page, i) => {
     const last = spreads[spreads.length - 1];

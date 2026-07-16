@@ -17,6 +17,7 @@ import { ReaderGallery } from "./reader-gallery";
 import { collectIllustrations, type Illustration } from "@/lib/reader/illustrations";
 import { applyReaderVars, continuousStyles, paginatedStyles } from "./reader-styles";
 import { parseBook, type ParsedBook, type FixedLayoutPage } from "@/lib/epub/parse-book";
+import type { RenditionSpread } from "@/lib/epub/opf";
 import type { Section } from "@/lib/epub/generate-html";
 import { buildReaderHtml } from "@/lib/epub/format-html";
 import { getCachedBook, putCachedBook } from "@/lib/reader-cache";
@@ -115,7 +116,7 @@ export function ReaderView() {
   const anchorsRef = useRef<{ anchors: Anchor[]; total: number }>({ anchors: [], total: 0 });
   const controllerRef = useRef<PaginatedController | null>(null);
   const fixedRef = useRef<FixedLayoutHandle | null>(null);
-  const fixedDataRef = useRef<{ pages: FixedLayoutPage[]; ppd: string; bookViewport: { width: number; height: number } | null } | null>(null);
+  const fixedDataRef = useRef<{ pages: FixedLayoutPage[]; ppd: string; bookViewport: { width: number; height: number } | null; renditionSpread: RenditionSpread } | null>(null);
   const totalRef = useRef(0);
   const verticalRef = useRef(false);
   const modeRef = useRef<"continuous" | "paginated" | "fixed">(readingMode);
@@ -414,7 +415,7 @@ export function ReaderView() {
         verticalRef.current = initialVertical;
         charRef.current = book.exploredCharCount || 0;
         if (parsed.fixedLayout) {
-          fixedDataRef.current = { pages: parsed.pages || [], ppd: parsed.ppd, bookViewport: parsed.bookViewport };
+          fixedDataRef.current = { pages: parsed.pages || [], ppd: parsed.ppd, bookViewport: parsed.bookViewport, renditionSpread: parsed.renditionSpread };
         }
         setVertical(initialVertical);
         setFixedLayout(!!parsed.fixedLayout);
@@ -804,6 +805,7 @@ export function ReaderView() {
               pages={fixedDataRef.current.pages}
               ppd={fixedDataRef.current.ppd}
               bookViewport={fixedDataRef.current.bookViewport}
+              renditionSpread={fixedDataRef.current.renditionSpread}
               initialOrdinal={book.exploredCharCount || 0}
               onChange={onFixedChange}
             />

@@ -50,10 +50,33 @@ describe("buildSpreads", () => {
     expect(spreads[0].pageSpread).toBe("left");
   });
 
-  it("falls back to one page per spread when no sides are declared", () => {
-    const spreads = buildSpreads(pages(null, null, null), "rtl");
-    expect(spreads).toHaveLength(3);
-    expect(spreads.every((s) => s.single)).toBe(true);
+  it("positionally pairs no-marker manga: cover alone, then two-up", () => {
+    // Hand-made manga with no page-spread sides → cover single, then [1,2],[3,4].
+    const spreads = buildSpreads(pages(null, null, null, null, null), "rtl");
+    expect(spreads.map(ids)).toEqual([["p0"], ["p1", "p2"], ["p3", "p4"]]);
+    expect(spreads.map((s) => s.single)).toEqual([true, false, false]);
+  });
+
+  it("leaves a trailing odd no-marker page single", () => {
+    const spreads = buildSpreads(pages(null, null, null, null), "rtl");
+    expect(spreads.map(ids)).toEqual([["p0"], ["p1", "p2"], ["p3"]]);
+    expect(spreads.map((s) => s.single)).toEqual([true, false, true]);
+  });
+
+  it("does not positionally pair when any page declares a side", () => {
+    // A single declared side disables the fallback → normal walk (here: no pairs).
+    const spreads = buildSpreads(pages(null, "center", null), "rtl");
+    expect(spreads.map(ids)).toEqual([["p0"], ["p1"], ["p2"]]);
+  });
+
+  it("does not positionally pair a mixed book (some pages reflowable)", () => {
+    const list = [
+      { id: "t1", pageSpread: null, prePaginated: false },
+      { id: "i1", pageSpread: null, prePaginated: true },
+      { id: "i2", pageSpread: null, prePaginated: true },
+    ];
+    const spreads = buildSpreads(list, "rtl");
+    expect(spreads.map(ids)).toEqual([["t1"], ["i1"], ["i2"]]);
   });
 
   it("only pairs fixed-layout pages — reflowable text never pairs", () => {
