@@ -4,6 +4,7 @@ import { applyReaderVars, fixedLayoutStyles } from "./reader-styles";
 import { buildSpreads, type Spread, type SpreadPage } from "@/lib/reader/spreads";
 import { ordinalAtCenter, visibleRange, type StripBox } from "@/lib/reader/strip";
 import { useFxlZoom } from "./hooks/use-fxl-zoom";
+import { useStripPan } from "./hooks/use-strip-pan";
 import type { FixedLayoutPage } from "@/lib/epub/parse-book";
 import type { RenditionSpread } from "@/lib/epub/opf";
 
@@ -127,6 +128,17 @@ export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProp
   const theme = useSettingsStore((s) => s.theme);
 
   const zoom = useFxlZoom(stageRef);
+  const pan = useStripPan(stageRef);
+
+  // Route the press to the active mode: continuous strips grab-to-pan, paginated
+  // spreads drag-to-pan only while zoomed (useFxlZoom no-ops otherwise).
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (useSettingsStore.getState().mangaReadingMode === "continuous") pan.handlePointerDown(e);
+      else zoom.handlePointerDown(e);
+    },
+    [pan, zoom],
+  );
 
   const doubleSpreads = useMemo(() => buildSpreads(pages, ppd as "ltr" | "rtl"), [pages, ppd]);
   const singleViews = useMemo<Spread[]>(() => pages.map((p) => ({ index: p.ordinal, items: [p], single: true, pageSpread: p.pageSpread })), [pages]);
@@ -666,6 +678,6 @@ export const FixedLayoutView = forwardRef<FixedLayoutHandle, FixedLayoutViewProp
   }, [ppd, flip, zoom]);
 
   return (
-    <div ref={hostRef} onPointerDown={zoom.handlePointerDown} onDoubleClick={zoom.handleDoubleClick} className="h-full w-full overflow-hidden" />
+    <div ref={hostRef} onPointerDown={onPointerDown} onDoubleClick={zoom.handleDoubleClick} className="h-full w-full overflow-hidden" />
   );
 });

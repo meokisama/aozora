@@ -138,6 +138,15 @@ export function fixedLayoutStyles() {
        horizontal filmstrip). display:block replaces the spread's flex centring so
        the scroller can reach its start edge (a flex-centred overflow container
        clips its own overflow). */
+    /* Strip scrollers grab-to-pan (useStripPan); the hint cursor sits here so it
+       shows on hover, and the drag swaps in grabbing inline. user-select:none
+       keeps a drag from flickering a text selection over the page. */
+    .aoz-fxl-stage.is-strip,
+    .aoz-fxl-stage.is-strip-h {
+      cursor: grab;
+      user-select: none;
+      -webkit-user-select: none;
+    }
     .aoz-fxl-stage.is-strip {
       display: block;
       overflow-y: auto;
@@ -172,6 +181,8 @@ export function fixedLayoutStyles() {
       width: 100%;
       height: 100%;
       object-fit: contain;
+      /* Kill the native image-drag ghost so a grab-pan drags the strip, not the page. */
+      -webkit-user-drag: none;
     }
     /* The strip scroller lives in this shadow root, so index.css's global
        scrollbar styling can't reach it — mirror it here. */
