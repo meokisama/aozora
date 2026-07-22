@@ -23,21 +23,22 @@ import { normalizeMediaPath } from "./dictionary-parse.js";
  * lookup IPC and window stay responsive). Built as its own Vite entry alongside
  * main.js, so it sits next to this bundle at runtime.
  */
-const IMPORT_WORKER_PATH = path.join(__dirname, "dictionary-import.worker.js");
+const WORKER_PATH = path.join(__dirname, "dictionary-import.worker.js");
 
-type ImportWorkerMessage =
+type WorkerMessage =
   | { type: "progress"; payload: DictionaryImportProgress }
   | { type: "done"; id: string; title: string; termsInserted: number }
+  | { type: "removed" }
   | { type: "error"; message: string };
 
-// Serialise imports: a second writer to the WAL DB would hit SQLITE_BUSY, and
-// the UI only ever triggers one at a time.
-let importInFlight = false;
+// Serialise DB writes (import + remove): a second writer to the WAL DB would hit
+// SQLITE_BUSY. The UI only triggers one at a time, but guard anyway.
+let writeInFlight = false;
 
 /** Forks the import worker for one ZIP, streaming progress; resolves to the new dictionary id. */
 function runImportWorker(filePath: string, onProgress?: (p: DictionaryImportProgress) => void): Promise<string> {
   return new Promise<string>((resolve, reject) => {
-    const child = utilityProcess.fork(IMPORT_WORKER_PATH, [dictionaryDbPath(), filePath]);
+    const child = utilityProcess.fork(WORKER_PATH, [dictionaryDbPath(), "import", filePath]);
     let settled = false;
     const finish = (fn: () => void) => {
       if (settled) return;
@@ -45,12 +46,31 @@ function runImportWorker(filePath: string, onProgress?: (p: DictionaryImportProg
       child.kill();
       fn();
     };
-    child.on("message", (msg: ImportWorkerMessage) => {
+    child.on("message", (msg: WorkerMessage) => {
       if (msg.type === "progress") onProgress?.(msg.payload);
       else if (msg.type === "done") finish(() => resolve(msg.id));
       else if (msg.type === "error") finish(() => reject(new Error(msg.message)));
     });
     child.on("exit", (code) => finish(() => reject(new Error(`Dictionary import process exited unexpectedly (code ${code}).`))));
+  });
+}
+
+/** Forks the worker to delete a dictionary (cascading DELETE) off the main thread. */
+function runRemoveWorker(dictId: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const child = utilityProcess.fork(WORKER_PATH, [dictionaryDbPath(), "remove", dictId]);
+    let settled = false;
+    const finish = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      child.kill();
+      fn();
+    };
+    child.on("message", (msg: WorkerMessage) => {
+      if (msg.type === "removed") finish(() => resolve());
+      else if (msg.type === "error") finish(() => reject(new Error(msg.message)));
+    });
+    child.on("exit", (code) => finish(() => reject(new Error(`Dictionary remove process exited unexpectedly (code ${code}).`))));
   });
 }
 
@@ -274,15 +294,15 @@ export const dictionaryStore = {
    * makes the write visible here). Re-import of the same title replaces it.
    */
   async importDict(filePath: string, onProgress?: (p: DictionaryImportProgress) => void): Promise<DictionaryInfo> {
-    if (importInFlight) throw new Error("A dictionary import is already in progress.");
-    importInFlight = true;
+    if (writeInFlight) throw new Error("A dictionary operation is already in progress.");
+    writeInFlight = true;
     try {
       const id = await runImportWorker(filePath, onProgress);
       onProgress?.({ phase: "done" });
       invalidateLookupCache();
       return this.getDict(id)!;
     } finally {
-      importInFlight = false;
+      writeInFlight = false;
     }
   },
 
@@ -296,9 +316,20 @@ export const dictionaryStore = {
     getDb().prepare("UPDATE dictionaries SET source_id = ? WHERE id = ?").run(sourceId, dictId);
   },
 
-  removeDict(id: string): void {
-    getDb().prepare("DELETE FROM dictionaries WHERE id = ?").run(id);
-    invalidateLookupCache();
+  /**
+   * Removes a dictionary and all its entries. The cascading DELETE runs in the
+   * worker (off the main thread) because a big dictionary's millions of indexed
+   * rows would otherwise block the event loop and freeze the window.
+   */
+  async removeDict(id: string): Promise<void> {
+    if (writeInFlight) throw new Error("A dictionary operation is already in progress.");
+    writeInFlight = true;
+    try {
+      await runRemoveWorker(id);
+      invalidateLookupCache();
+    } finally {
+      writeInFlight = false;
+    }
   },
 
   /**

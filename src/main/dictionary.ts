@@ -89,8 +89,8 @@ export const registerDictionaryIpc = (): void => {
     }
   });
 
-  ipcMain.handle("dictionary:remove", (_event, id: string) => {
-    dictionaryStore.removeDict(id);
+  ipcMain.handle("dictionary:remove", async (_event, id: string) => {
+    await dictionaryStore.removeDict(id);
     return true;
   });
 
