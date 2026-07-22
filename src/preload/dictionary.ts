@@ -13,6 +13,9 @@ export const dictionaryApi = {
   /** Opens a picker and imports a Yomitan dictionary ZIP. Resolves to its info (or null if cancelled). */
   pickAndImport: () => ipcRenderer.invoke("dictionary:pick-and-import"),
 
+  /** Downloads a recommended dictionary ZIP from `url` and imports it, tagging it with `sourceId`. */
+  installRecommended: (url: string, sourceId: string) => ipcRenderer.invoke("dictionary:install-recommended", url, sourceId),
+
   /** Removes an imported dictionary and its terms. */
   remove: (id: string) => ipcRenderer.invoke("dictionary:remove", id),
 

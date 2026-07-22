@@ -72,6 +72,7 @@ export interface StatsApi {
 export interface DictionaryApi {
   list(): Promise<DictionaryInfo[]>;
   pickAndImport(): Promise<DictionaryInfo | null>;
+  installRecommended(url: string, sourceId: string): Promise<DictionaryInfo | null>;
   remove(id: string): Promise<boolean>;
   setEnabled(id: string, enabled: boolean): Promise<DictionaryInfo | null>;
   setPriority(id: string, priority: number): Promise<DictionaryInfo | null>;

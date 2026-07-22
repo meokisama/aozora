@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { BookA, Download, ExternalLink, GripVertical, Loader2, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { BookA, Check, Download, ExternalLink, GripVertical, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
@@ -22,6 +22,7 @@ import {
 import { LibrarySidebar } from "@/features/library/library-sidebar";
 import { useDictionaryStore, LOOKUP_MODIFIERS, type LookupModifier } from "@/stores/dictionary-store";
 import { useDictionaryImportStore } from "@/stores/dictionary-import-store";
+import { RECOMMENDED_DICTIONARIES, type RecommendedDictionary } from "@/features/dictionaries/recommended";
 import { syncDictionaryStyles } from "@/lib/dictionary/dict-styles";
 import { cn } from "@/lib/utils";
 import type { DictionaryInfo } from "@/lib/types";
@@ -124,6 +125,11 @@ export function DictionariesView() {
   // Import state lives in a store so it survives navigating away mid-import.
   const importing = useDictionaryImportStore((s) => s.importing);
   const status = useDictionaryImportStore((s) => s.status);
+  const installingId = useDictionaryImportStore((s) => s.installingId);
+
+  // Catalog ids of installed dictionaries, to flip a recommended entry to
+  // "Installed". Exact (stamped at install time), so no title guessing.
+  const installedSourceIds = useMemo(() => new Set(dicts.map((d) => d.sourceId).filter(Boolean)), [dicts]);
 
   const refresh = useCallback(async () => {
     try {
@@ -155,6 +161,27 @@ export function DictionariesView() {
       finish();
     }
   }, [refresh]);
+
+  const handleInstall = useCallback(
+    async (rec: RecommendedDictionary) => {
+      // Download + import run in the main process; progress refines the status.
+      const { beginInstall, finish } = useDictionaryImportStore.getState();
+      beginInstall(rec.id);
+      try {
+        const info = await api().installRecommended(rec.url, rec.id);
+        if (info) {
+          toast.success(`Installed “${info.title}” (${countLabel(info)})`);
+          await refresh();
+          void syncDictionaryStyles();
+        }
+      } catch (err) {
+        toast.error(`Install failed: ${err instanceof Error ? err.message : String(err)}`);
+      } finally {
+        finish();
+      }
+    },
+    [refresh],
+  );
 
   const toggleDict = useCallback(
     async (id: string, next: boolean) => {
@@ -305,6 +332,35 @@ export function DictionariesView() {
                 </button>
               </p>
             </div>
+          </section>
+
+          {/* Recommended dictionaries — one-click download + import. */}
+          <section className="space-y-3">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Recommended</h2>
+            <ul className="divide-y border">
+              {RECOMMENDED_DICTIONARIES.map((rec) => {
+                const installed = installedSourceIds.has(rec.id);
+                const installingThis = installingId === rec.id;
+                return (
+                  <li key={rec.id} className="flex items-center gap-3 bg-background p-3">
+                    <div className="min-w-0 flex-1">
+                      <span className="truncate text-sm font-medium">{rec.title}</span>
+                      <p className="text-[11px] text-muted-foreground">{rec.description}</p>
+                    </div>
+                    {installed ? (
+                      <span className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+                        <Check className="size-3.5" /> Installed
+                      </span>
+                    ) : (
+                      <Button size="sm" variant="outline" onClick={() => handleInstall(rec)} disabled={importing}>
+                        {installingThis ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+                        {installingThis ? status || "Installing…" : "Install"}
+                      </Button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           </section>
         </div>
       </div>

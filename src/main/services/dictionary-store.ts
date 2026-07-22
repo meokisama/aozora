@@ -69,6 +69,7 @@ interface DictRow {
   imported_at: number;
   enabled: number;
   priority: number;
+  source_id?: string | null;
   term_count?: number;
   freq_count?: number;
   pitch_count?: number;
@@ -84,6 +85,7 @@ function rowToInfo(row: DictRow): DictionaryInfo {
     importedAt: row.imported_at,
     enabled: row.enabled === 1,
     priority: row.priority,
+    sourceId: row.source_id ?? null,
     termCount: row.term_count ?? 0,
     freqCount: row.freq_count ?? 0,
     pitchCount: row.pitch_count ?? 0,
@@ -282,6 +284,16 @@ export const dictionaryStore = {
     } finally {
       importInFlight = false;
     }
+  },
+
+  /**
+   * Stamps a dictionary with the recommended-catalog id it was installed from,
+   * so the recommended list can show "Installed" exactly. The worker doesn't
+   * know the source, so this is set here after the import commits; a re-import
+   * (replace-by-title) reuses the same id, so re-stamping keeps it correct.
+   */
+  setSource(dictId: string, sourceId: string): void {
+    getDb().prepare("UPDATE dictionaries SET source_id = ? WHERE id = ?").run(sourceId, dictId);
   },
 
   removeDict(id: string): void {

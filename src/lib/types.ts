@@ -175,6 +175,8 @@ export interface DictionaryInfo {
   importedAt: number;
   enabled: boolean;
   priority: number; // lower = consulted first
+  /** Recommended-catalog id this was installed from (one-click Install), else null. */
+  sourceId: string | null;
   termCount: number;
   /** Frequency ratings (term-meta "freq"); non-zero ⇒ frequency dictionary. */
   freqCount: number;
@@ -360,11 +362,12 @@ export interface LookupResult {
 
 /** Progress event emitted by the main process while importing a dictionary. */
 export interface DictionaryImportProgress {
-  phase: "reading" | "inserting" | "done" | "error";
+  phase: "downloading" | "reading" | "inserting" | "done" | "error";
   title?: string;
   termsInserted?: number;
   inserted?: number; // rows written so far across all banks (for a progress bar)
-  total?: number; // total rows to write
+  total?: number; // total rows to write — or total bytes to download (downloading phase)
+  received?: number; // bytes downloaded so far (downloading phase)
   message?: string;
 }
 

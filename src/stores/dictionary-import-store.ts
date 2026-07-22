@@ -12,8 +12,12 @@ import type { DictionaryImportProgress } from "@/lib/types";
 interface DictionaryImportState {
   importing: boolean;
   status: string; // human-readable line, e.g. "Importing JMdict… 42%"
+  /** Recommended-dictionary id being installed, or null for a manual file import. */
+  installingId: string | null;
   /** Mark an import as starting (on click, before the file dialog). */
   begin: () => void;
+  /** Mark a recommended dictionary as starting to download+install. */
+  beginInstall: (id: string) => void;
   /** Fold a streamed progress event into the live status. */
   applyProgress: (p: DictionaryImportProgress) => void;
   /** Mark the import settled (success, cancel, or error). */
@@ -23,16 +27,22 @@ interface DictionaryImportState {
 export const useDictionaryImportStore = create<DictionaryImportState>((set) => ({
   importing: false,
   status: "",
-  begin: () => set({ importing: true, status: "Opening…" }),
+  installingId: null,
+  begin: () => set({ importing: true, status: "Opening…", installingId: null }),
+  beginInstall: (id) => set({ importing: true, status: "Downloading…", installingId: id }),
   applyProgress: (p) =>
     set(() => {
+      if (p.phase === "downloading") {
+        const percent = p.total ? Math.floor(((p.received ?? 0) / p.total) * 100) : null;
+        return { importing: true, status: `Downloading…${percent !== null ? ` ${percent}%` : ""}` };
+      }
       if (p.phase === "reading") return { importing: true, status: "Reading…" };
       if (p.phase === "inserting") {
         const percent = p.total ? Math.floor(((p.inserted ?? 0) / p.total) * 100) : null;
         return { importing: true, status: `Importing ${p.title ?? ""}…${percent !== null ? ` ${percent}%` : ""}` };
       }
       // done | error: leave the authoritative reset to finish(), but clear the line.
-      return { importing: false, status: "" };
+      return { importing: false, status: "", installingId: null };
     }),
-  finish: () => set({ importing: false, status: "" }),
+  finish: () => set({ importing: false, status: "", installingId: null }),
 }));
