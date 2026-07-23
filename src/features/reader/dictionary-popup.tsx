@@ -15,7 +15,7 @@ import { TagBadges } from "./dictionary-tags";
 // markers, table borders) outside the reader's shadow root; the dictionary's
 // own inline styles still apply on top.
 const GLOSS_CLASS =
-  "text-xs leading-snug [&_ul]:ml-4 [&_ul]:list-disc [&_ol]:ml-4 [&_ol]:list-decimal " +
+  "text-xs leading-snug whitespace-pre-line [&_ul]:ml-4 [&_ul]:list-disc [&_ol]:ml-4 [&_ol]:list-decimal " +
   "[&_li]:my-0.5 [&_table]:my-1 [&_table]:border-collapse [&_td]:border [&_td]:border-border " +
   "[&_td]:px-1 [&_th]:border [&_th]:border-border [&_th]:px-1 [&_rt]:text-[0.6em] " +
   "marker:text-muted-foreground/60";
