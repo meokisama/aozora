@@ -674,6 +674,15 @@ export function ReaderView() {
     const path = (e.nativeEvent.composedPath?.() || []) as Element[];
     const anchor = path.find((n) => n?.tagName === "A");
     const href = anchor?.getAttribute("href");
+
+    // Links out of the book go to the system browser: following one here would
+    // navigate the app's own frame away. Other schemes are swallowed, not followed.
+    if (href && /^[a-z][a-z0-9+.-]*:/i.test(href)) {
+      e.preventDefault();
+      if (/^https?:\/\//i.test(href)) void window.electronAPI.window.openExternal(href);
+      return;
+    }
+
     if (href && href[0] === "#") {
       const id = decodeURIComponent(href.slice(1));
       // A noteref opens the note in a popup instead of jumping away from the prose.

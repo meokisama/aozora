@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu } from "electron";
+import { app, BrowserWindow, Menu, shell } from "electron";
 import path from "node:path";
 import started from "electron-squirrel-startup";
 import { updateElectronApp } from "update-electron-app";
@@ -28,6 +28,22 @@ const createWindow = () => {
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
     },
+  });
+
+  // A link in a book must never replace the running app with a web page — that
+  // page would inherit the privileged `electronAPI`. The reader intercepts its
+  // own clicks; this backstops the paths that don't (fixed-layout view).
+  // Same-URL is let through so Vite's HMR full-reload still works.
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (url === mainWindow.webContents.getURL()) return;
+    event.preventDefault();
+    if (/^https?:\/\//i.test(url)) void shell.openExternal(url);
+  });
+
+  // target="_blank" / window.open: never a new app window.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) void shell.openExternal(url);
+    return { action: "deny" };
   });
 
   // Keep the custom title bar's maximize/restore icon in sync.
