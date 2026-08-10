@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TitleBar } from "@/components/title-bar";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { LibraryView } from "@/features/library/library-view";
 import { ReaderView } from "@/features/reader/reader-view";
 import { StatsView } from "@/features/stats/stats-view";
@@ -85,17 +86,25 @@ export function App() {
     <div className="flex h-screen flex-col">
       {!fullscreen && <TitleBar />}
       <main className="flex-1 overflow-hidden">
-        {reading ? (
-          <ReaderView />
-        ) : view === "stats" ? (
-          <StatsView />
-        ) : view === "dictionaries" ? (
-          <DictionariesView />
-        ) : view === "settings" ? (
-          <SettingsView />
-        ) : (
-          <LibraryView />
-        )}
+        {/* Scoped inside <main> so a reader crash leaves the title bar usable and
+            offers a way back to the library, rather than a blank window. */}
+        <ErrorBoundary
+          resetKey={reading ? "reader" : view}
+          onReset={reading ? () => useReaderStore.getState().close() : undefined}
+          resetLabel="Back to library"
+        >
+          {reading ? (
+            <ReaderView />
+          ) : view === "stats" ? (
+            <StatsView />
+          ) : view === "dictionaries" ? (
+            <DictionariesView />
+          ) : view === "settings" ? (
+            <SettingsView />
+          ) : (
+            <LibraryView />
+          )}
+        </ErrorBoundary>
       </main>
       <Toaster />
     </div>
