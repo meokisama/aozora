@@ -31,6 +31,20 @@ const EXT_TO_MIME: Record<string, string> = {
 };
 
 /**
+ * Paths outside the library the renderer may read: only what the user picked or
+ * dropped. Otherwise `read-file` and `add-book` take any absolute path, so
+ * anything that ran in the renderer could read the whole disk through them.
+ */
+const userChosenPaths = new Set<string>();
+
+function assertUserChosen(filePath: unknown): string {
+  if (typeof filePath !== "string" || !userChosenPaths.has(path.resolve(filePath))) {
+    throw new Error("refusing to read a path the user did not choose");
+  }
+  return filePath;
+}
+
+/**
  * Reads a cover file as a data URL so the renderer needs no custom protocol or
  * file:// access. Covers are stored pre-downscaled, so the URL stays small.
  *
@@ -73,21 +87,32 @@ export const registerLibraryIpc = (): void => {
       filters: [{ name: "EPUB", extensions: ["epub"] }],
     });
     if (result.canceled) return [];
-    return result.filePaths.map((p) => ({
-      path: p,
-      name: path.basename(p),
-      size: fs.statSync(p).size,
-    }));
+    return result.filePaths.map((p) => {
+      userChosenPaths.add(path.resolve(p));
+      return {
+        path: p,
+        name: path.basename(p),
+        size: fs.statSync(p).size,
+      };
+    });
   });
 
-  // Raw bytes of an arbitrary path; renderer reads metadata before add-book.
+  // Dropped files: the preload resolves the path renderer-side and reports it
+  // here. Synchronous so it lands before the read that follows.
+  ipcMain.on("library:allow-path", (event, filePath: unknown) => {
+    if (typeof filePath === "string" && filePath) userChosenPaths.add(path.resolve(filePath));
+    event.returnValue = true;
+  });
+
+  // Raw bytes of a user-chosen path; renderer reads metadata before add-book.
   ipcMain.handle("library:read-file", (_event, filePath: string) => {
-    return fs.promises.readFile(filePath);
+    return fs.promises.readFile(assertUserChosen(filePath));
   });
 
   // Copies the original .epub into the managed library, persists metadata + cover.
   ipcMain.handle("library:add-book", (_event, payload: AddBookPayload) => {
     const { sourcePath, title, author, language, coverBytes, coverMime, fileSize } = payload;
+    assertUserChosen(sourcePath); // copying is a read too
     const id = randomUUID();
     const dir = path.join(libraryStore.getBooksDir(), id);
     fs.mkdirSync(dir, { recursive: true });

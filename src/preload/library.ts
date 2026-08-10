@@ -14,8 +14,16 @@ export const libraryApi = {
    * Resolves the absolute path of a dropped File. Electron 32+ removed
    * `File.path`; webUtils.getPathForFile is the supported replacement and must
    * run in the preload where the real File object is available.
+   *
+   * Also authorizes the path with main, which reads only what the user chose. A
+   * forged File resolves to "", so this can't authorize an arbitrary path. Sync,
+   * so it lands before the read rather than relying on send/invoke ordering.
    */
-  getPathForFile: (file: File) => webUtils.getPathForFile(file),
+  getPathForFile: (file: File) => {
+    const filePath = webUtils.getPathForFile(file);
+    if (filePath) ipcRenderer.sendSync("library:allow-path", filePath);
+    return filePath;
+  },
 
   /** Raw bytes (Uint8Array) of a file path — for metadata extraction. */
   readFile: (filePath: string) => ipcRenderer.invoke("library:read-file", filePath),

@@ -2,6 +2,7 @@ import path from "path-browserify";
 import { getManifestItems, getSpineItemRefs, type OpfContents } from "./opf";
 import { buildDummyImage } from "./dummy-image";
 import { clearAllBadImageRef, countCharacters, fixXHtmlHref, tagGaijiImages } from "./dom-utils";
+import { stripScripting } from "./sanitize";
 
 export const PREPEND = "aoz-";
 
@@ -302,6 +303,9 @@ export function generateHtml(data: Record<string, string | Blob>, contents: OpfC
 
   clearAllBadImageRef(result);
   fixXHtmlHref(result);
+  // Before flattenAnchorHref, which leaves protocol URLs alone — `javascript:` included.
+  const stripped = stripScripting(result);
+  if (stripped) console.warn(`Stripped ${stripped} script/handler(s) from book content`);
   flattenAnchorHref(result, hrefToWrapperId);
 
   return {
