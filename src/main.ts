@@ -7,6 +7,7 @@ import { registerLibraryIpc } from "./main/library.js";
 import { registerStatsIpc } from "./main/stats.js";
 import { registerDictionaryIpc } from "./main/dictionary.js";
 import { registerSystemIpc } from "./main/system.js";
+import { registerBackupIpc } from "./main/backup.js";
 import { registerDiscordIpc } from "./main/discord.js";
 import { registerAnkiIpc } from "./main/anki.js";
 import { registerVoicevoxIpc } from "./main/voicevox.js";
@@ -77,6 +78,7 @@ app.whenReady().then(() => {
   registerStatsIpc();
   registerDictionaryIpc();
   registerSystemIpc();
+  registerBackupIpc();
   registerDiscordIpc();
   registerAnkiIpc();
   registerVoicevoxIpc();

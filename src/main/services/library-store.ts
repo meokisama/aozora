@@ -263,6 +263,58 @@ export const libraryStore = {
     }
   },
 
+  /**
+   * Writes a consistent copy of the DB to `target` (for a backup). VACUUM INTO
+   * folds in the WAL; a plain file copy of a WAL database would not.
+   */
+  snapshotTo(target: string): void {
+    fs.rmSync(target, { force: true }); // VACUUM INTO refuses an existing file
+    getDb().exec(`VACUUM INTO '${target.replace(/'/g, "''")}'`);
+  },
+
+  /**
+   * Reports a missing column this build reads, or null. Restores need it: unlike
+   * the dictionary DB, this one has no migration runner — the schema block heals
+   * a missing *table* but never a missing *column*.
+   */
+  schemaError(): string | null {
+    const canaries: Record<string, string> = {
+      books: "id, title, author, language, file_path, cover_path, file_size, added_at, last_opened_at, progress, explored_char_count, char_count, favorite",
+      bookmarks: "id, book_id, char_offset, progress, snippet, created_at",
+      annotations: "id, book_id, start_char, end_char, color, note, snippet, progress, created_at",
+      reading_sessions: "id, book_id, started_at, ended_at, duration_ms, chars_read",
+    };
+    for (const [table, columns] of Object.entries(canaries)) {
+      try {
+        getDb().prepare(`SELECT ${columns} FROM ${table} LIMIT 0`).run();
+      } catch (err) {
+        return `table "${table}" is missing columns this version needs (${err instanceof Error ? err.message : String(err)})`;
+      }
+    }
+    return null;
+  },
+
+  /**
+   * Repoints every book at the local layout, returning the ids whose .epub is
+   * missing. Needed after a restore: paths are stored absolute, so a backup from
+   * another machine carries paths that don't exist here. The layout is derivable
+   * (`books/<id>/book.epub` + sibling cover), so rows are rebuilt, not trusted.
+   */
+  relocateBooks(): string[] {
+    const missing: string[] = [];
+    const rows = stmt("SELECT id FROM books").all() as { id: string }[];
+    const update = stmt("UPDATE books SET file_path = @filePath, cover_path = @coverPath WHERE id = @id");
+
+    for (const { id } of rows) {
+      const dir = path.join(getBooksDir(), id);
+      const filePath = path.join(dir, "book.epub");
+      if (!fs.existsSync(filePath)) missing.push(id);
+      const cover = fs.existsSync(dir) ? fs.readdirSync(dir).find((name) => name.startsWith("cover.")) : undefined;
+      update.run({ id, filePath, coverPath: cover ? path.join(dir, cover) : null });
+    }
+    return missing;
+  },
+
   listBooks(): Book[] {
     const rows = stmt("SELECT * FROM books ORDER BY added_at DESC").all() as BookRow[];
     return rows.map(rowToBook) as Book[];

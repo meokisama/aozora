@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { LibrarySidebar } from "@/features/library/library-sidebar";
 import { AnkiSettings } from "@/features/settings/anki-settings";
+import { BackupSettings } from "@/features/settings/backup-settings";
 import { TtsSettings } from "@/features/settings/tts-settings";
 import { useSettingsStore, THEMES } from "@/stores/settings-store";
 import { useLibraryPrefs, CARD_SIZE_OPTIONS, type CardSize } from "@/stores/library-prefs-store";
@@ -132,6 +133,7 @@ export function SettingsView() {
           </Section>
 
           <Section title="Data">
+            <BackupSettings />
             <SettingRow
               label="Clear all data"
               description="Permanently delete your library, dictionaries, reading stats, and all preferences, then restart. Uninstalling does not remove this data on its own."

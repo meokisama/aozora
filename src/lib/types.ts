@@ -492,3 +492,32 @@ export interface VoicevoxTimings {
 
 /** Result of a synthesis request: the WAV bytes + mora timeline, or an error. */
 export type VoicevoxSynthesisResult = { ok: true; audio: Uint8Array; timings: VoicevoxTimings } | { ok: false; error: string };
+
+/* ── Backup / restore ───────────────────────────────────────────────────── */
+
+/** First entry in a backup archive: format + what's inside. */
+export interface BackupManifest {
+  /** Archive layout version; bumped only on a breaking change. */
+  format: 1;
+  /** Aozora version that wrote it, for diagnostics. */
+  appVersion: string;
+  createdAt: number;
+  /** Whether the .epub originals travel too, or only covers + data. */
+  includeBooks: boolean;
+  bookCount: number;
+}
+
+/** Renderer-persisted prefs (localStorage), carried in the archive as JSON. */
+export type BackupPrefs = Record<string, string>;
+
+export type BackupResult = { ok: true; path: string; bytes: number } | { ok: false; error: string } | { ok: false; canceled: true };
+
+/**
+ * A successful restore hands the prefs back for the renderer to write (only it
+ * can touch localStorage) and counts books whose file wasn't in the archive:
+ * their progress and highlights survive, but they need re-importing to open.
+ */
+export type RestoreResult =
+  | { ok: true; prefs: BackupPrefs; missingBooks: number; manifest: BackupManifest }
+  | { ok: false; error: string }
+  | { ok: false; canceled: true };

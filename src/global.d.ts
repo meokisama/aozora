@@ -8,6 +8,8 @@ import type {
   AnkiNote,
   AnkiScreenshotRequest,
   AnkiTestResult,
+  BackupPrefs,
+  BackupResult,
   Book,
   Bookmark,
   DictionaryImportProgress,
@@ -16,6 +18,7 @@ import type {
   PickedFile,
   ProgressUpdate,
   ReadingSession,
+  RestoreResult,
   Stats,
   UpdateAnnotationPayload,
   UpdateBookPayload,
@@ -85,6 +88,12 @@ export interface DictionaryApi {
 export interface SystemApi {
   /** Wipes all persisted data and relaunches the app. Never resolves. */
   clearAllData(): Promise<void>;
+  /** Writes a backup archive to a user-picked path. */
+  exportBackup(includeBooks: boolean, prefs: BackupPrefs): Promise<BackupResult>;
+  /** Restores a user-picked archive; the caller writes the returned prefs back. */
+  importBackup(): Promise<RestoreResult>;
+  /** Restarts the app. Never resolves. */
+  relaunch(): Promise<void>;
 }
 
 export interface DiscordApi {
