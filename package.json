@@ -1,7 +1,7 @@
 {
   "name": "aozora",
   "productName": "Aozora",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Desktop EPUB reader for Japanese learners with full-text search, Yomitan dictionary support, Anki mining, VOICEVOX text-to-speech, and more.",
   "main": ".vite/build/main.js",
   "scripts": {
